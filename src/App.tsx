@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Role, UserSession, Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem } from './types'
 import { useViewTransition } from './utils/animations'
+import { api } from './services/api'
 import {
   DEMO_USERS,
   INITIAL_DOSEN,
@@ -59,6 +60,46 @@ export default function App() {
   const [indikatorList, setIndikatorList] = useState<IndikatorKuesioner[]>(INITIAL_INDIKATOR)
   const [penilaianList, setPenilaianList] = useState<PenilaianKuesioner[]>(INITIAL_PENILAIAN_KUESIONER)
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'offline'>('checking')
+
+  // Load data from Laravel 12 Backend API on mount
+  useEffect(() => {
+    let isMounted = true
+    const initDataFromApi = async () => {
+      try {
+        const [dosenData, komponenData, skpData, indikatorData, penilaianData, notifData] = await Promise.all([
+          api.dosen.list().catch(() => null),
+          api.komponen.list().catch(() => null),
+          api.skp.list().catch(() => null),
+          api.indikator.list().catch(() => null),
+          api.penilaian.list().catch(() => null),
+          api.notifications.list().catch(() => null),
+        ])
+
+        if (!isMounted) return
+
+        if (dosenData && Array.isArray(dosenData) && dosenData.length > 0) {
+          setDosenList(dosenData)
+          setBackendStatus('connected')
+        } else {
+          setBackendStatus('offline')
+        }
+
+        if (komponenData && Array.isArray(komponenData) && komponenData.length > 0) setKomponenList(komponenData)
+        if (skpData && Array.isArray(skpData) && skpData.length > 0) setSkpList(skpData)
+        if (indikatorData && Array.isArray(indikatorData) && indikatorData.length > 0) setIndikatorList(indikatorData)
+        if (penilaianData && Array.isArray(penilaianData) && penilaianData.length > 0) setPenilaianList(penilaianData)
+        if (notifData && Array.isArray(notifData) && notifData.length > 0) setNotifications(notifData)
+      } catch (err) {
+        if (isMounted) setBackendStatus('offline')
+      }
+    }
+
+    initDataFromApi()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const currentUser: UserSession = DEMO_USERS[currentRole] || DEMO_USERS['sdm']
 
@@ -89,26 +130,32 @@ export default function App() {
 
   const handleAddDosen = (dosen: Dosen) => {
     setDosenList([dosen, ...dosenList])
+    api.dosen.create(dosen).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleUpdateDosen = (updated: Dosen) => {
     setDosenList(dosenList.map((d) => (d.id === updated.id ? updated : d)))
+    api.dosen.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleDeleteDosen = (id: string) => {
     setDosenList(dosenList.filter((d) => d.id !== id))
+    api.dosen.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleAddKomponen = (item: KomponenSKP) => {
     setKomponenList([...komponenList, item])
+    api.komponen.create(item).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleUpdateKomponen = (updated: KomponenSKP) => {
     setKomponenList(komponenList.map((k) => (k.id === updated.id ? updated : k)))
+    api.komponen.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleDeleteKomponen = (id: string) => {
     setKomponenList(komponenList.filter((k) => k.id !== id))
+    api.komponen.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleApproveSKPBySDM = (skpId: string, notes: string) => {
@@ -117,6 +164,7 @@ export default function App() {
         s.id === skpId ? { ...s, status: 'Disetujui SDM', catatanSDM: notes } : s
       )
     )
+    api.skp.reviewSDM(skpId, 'approve', notes).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleRejectSKPBySDM = (skpId: string, notes: string) => {
@@ -125,6 +173,7 @@ export default function App() {
         s.id === skpId ? { ...s, status: 'Perlu Revisi', catatanSDM: notes } : s
       )
     )
+    api.skp.reviewSDM(skpId, 'reject', notes).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleApproveSKPByKaprodi = (skpId: string, notes: string, ttdUrl?: string) => {
@@ -141,6 +190,7 @@ export default function App() {
           : s
       )
     )
+    api.skp.reviewKaprodi(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleRejectSKPByKaprodi = (skpId: string, notes: string) => {
@@ -149,6 +199,7 @@ export default function App() {
         s.id === skpId ? { ...s, status: 'Perlu Revisi', catatanKaprodi: notes } : s
       )
     )
+    api.skp.reviewKaprodi(skpId, 'reject', notes).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleApproveSKPByDekan = (skpId: string, notes: string, ttdUrl?: string) => {
@@ -165,6 +216,7 @@ export default function App() {
           : s
       )
     )
+    api.skp.reviewDekan(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleRejectSKPByDekan = (skpId: string, notes: string) => {
@@ -173,18 +225,22 @@ export default function App() {
         s.id === skpId ? { ...s, status: 'Perlu Revisi', catatanDekan: notes } : s
       )
     )
+    api.skp.reviewDekan(skpId, 'reject', notes).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleAddIndikator = (item: IndikatorKuesioner) => {
     setIndikatorList([...indikatorList, item])
+    api.indikator.create(item).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleUpdateIndikator = (updated: IndikatorKuesioner) => {
     setIndikatorList(indikatorList.map((i) => (i.id === updated.id ? updated : i)))
+    api.indikator.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleDeleteIndikator = (id: string) => {
     setIndikatorList(indikatorList.filter((i) => i.id !== id))
+    api.indikator.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleAddPenilaian = (item: PenilaianKuesioner) => {
@@ -201,16 +257,19 @@ export default function App() {
       }
       return [item, ...prev]
     })
+    api.penilaian.create(item).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleUpdateMySKP = (updated: PengajuanSKP) => {
     setSkpList(skpList.map((s) => (s.id === updated.id ? updated : s)))
+    api.skp.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   const handleMarkNotificationAsRead = (id: string) => {
     setNotifications(
       notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
     )
+    api.notifications.markAsRead(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
   if (!isLoggedIn) {
@@ -238,6 +297,7 @@ export default function App() {
         <Header
           user={currentUser}
           notifications={notifications}
+          backendStatus={backendStatus}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onSwitchRole={handleSwitchRole}

@@ -17,6 +17,7 @@ import { UserSession, Role, NotificationItem } from '../types'
 interface HeaderProps {
   user: UserSession
   notifications: NotificationItem[]
+  backendStatus?: 'checking' | 'connected' | 'offline'
   onToggleSidebar: () => void
   onOpenCommandPalette: () => void
   onSwitchRole: (role: Role) => void
@@ -28,6 +29,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   user,
   notifications,
+  backendStatus = 'checking',
   onToggleSidebar,
   onOpenCommandPalette,
   onSwitchRole,
@@ -77,6 +79,71 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Backend Status Indicator */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 10px',
+            borderRadius: 'var(--r-full)',
+            fontSize: '11px',
+            fontWeight: 600,
+            background:
+              backendStatus === 'connected'
+                ? 'rgba(16, 185, 129, 0.12)'
+                : backendStatus === 'checking'
+                ? 'rgba(234, 179, 8, 0.12)'
+                : 'rgba(100, 116, 139, 0.12)',
+            color:
+              backendStatus === 'connected'
+                ? '#059669'
+                : backendStatus === 'checking'
+                ? '#d97706'
+                : '#64748b',
+            border: `1px solid ${
+              backendStatus === 'connected'
+                ? 'rgba(16, 185, 129, 0.25)'
+                : backendStatus === 'checking'
+                ? 'rgba(234, 179, 8, 0.25)'
+                : 'rgba(100, 116, 139, 0.25)'
+            }`,
+          }}
+          title={
+            backendStatus === 'connected'
+              ? 'Terhubung langsung ke Laravel 12 API (http://localhost:8000/api)'
+              : backendStatus === 'checking'
+              ? 'Memeriksa koneksi ke Laravel API...'
+              : 'Mode Standalone (Server Laravel belum aktif di port 8000)'
+          }
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              backgroundColor:
+                backendStatus === 'connected'
+                  ? '#10b981'
+                  : backendStatus === 'checking'
+                  ? '#eab308'
+                  : '#94a3b8',
+              display: 'inline-block',
+              boxShadow:
+                backendStatus === 'connected'
+                  ? '0 0 6px #10b981'
+                  : 'none',
+            }}
+          />
+          <span className="hide-mobile">
+            {backendStatus === 'connected'
+              ? 'Laravel Connected'
+              : backendStatus === 'checking'
+              ? 'Menghubungkan...'
+              : 'Mode Standalone'}
+          </span>
+        </div>
+
         {/* Role Quick Selector */}
         <div
           style={{
