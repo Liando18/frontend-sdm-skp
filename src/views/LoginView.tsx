@@ -5,7 +5,7 @@ import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { OwlMascot } from '../components/OwlMascot'
 
 interface LoginViewProps {
-  onLogin: (role: Role) => void
+  onLogin: (role: Role, email?: string, password?: string) => void
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
@@ -40,7 +40,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const detectedRole = resolveRole(identifier)
-    onLogin(detectedRole)
+    onLogin(detectedRole, identifier, password)
   }
 
   const containerRef = useRef<HTMLDivElement>(null)

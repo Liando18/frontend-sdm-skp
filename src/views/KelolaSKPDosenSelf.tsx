@@ -5,9 +5,13 @@ import {
   Filter,
   Search,
   CheckCircle2,
+  Printer,
+  Send,
 } from 'lucide-react'
 import { PengajuanSKP, SKPItem, KomponenSKP, UserSession } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
+import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 
 interface KelolaSKPDosenSelfProps {
   user?: UserSession
@@ -15,6 +19,7 @@ interface KelolaSKPDosenSelfProps {
   mySKP?: PengajuanSKP
   komponenList: KomponenSKP[]
   onUpdateSKP: (skp: PengajuanSKP) => void
+  onSubmitSKP?: (skpId: string) => void
   onShowToast: (msg: string) => void
 }
 
@@ -47,6 +52,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   mySKP,
   komponenList,
   onUpdateSKP,
+  onSubmitSKP,
   onShowToast,
 }) => {
   const [selectedTahun, setSelectedTahun] = useState<string>(
@@ -57,6 +63,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   )
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedKategori, setSelectedKategori] = useState<string>('Semua')
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const saveTimeoutRef = useRef<any>(null)
 
   const candidateName = user?.name || mySKP?.dosenNama || ''
   const isSDM = Boolean(user?.role === 'sdm')
@@ -229,7 +239,44 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       nilaiKinerjaSKP: newMutu,
     }
 
+    setIsSaving(true)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(() => {
+      onUpdateSKP(updatedSKP)
+      setIsSaving(false)
+    }, 600)
+  }
+
+  const handleManualSave = () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    const newTotalRencana = items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
+    const newTotalRealisasi = items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+    const itemsWithTarget = items.filter((it) => Number(it.perubahanTengah || it.rencanaAwal) > 0)
+    const newMutu =
+      itemsWithTarget.length > 0
+        ? Number(
+            (
+              itemsWithTarget.reduce((acc, curr) => acc + (Number(curr.kualitasMutu) || 0), 0) /
+              itemsWithTarget.length
+            ).toFixed(2)
+          )
+        : 0
+    const newPersen =
+      newTotalRencana > 0 ? Number(((newTotalRealisasi / newTotalRencana) * 100).toFixed(1)) : 0
+
+    const updatedSKP: PengajuanSKP = {
+      ...activeSKP,
+      semester: selectedSemester,
+      tahunAkademik: selectedTahun,
+      items,
+      totalSksRencana: newTotalRencana,
+      totalSksRealisasi: newTotalRealisasi,
+      persentaseCapaian: newPersen,
+      nilaiKinerjaSKP: newMutu,
+    }
     onUpdateSKP(updatedSKP)
+    setIsSaving(false)
+    onShowToast('Perubahan target dan realisasi SKP berhasil disimpan!')
   }
 
   // Summary Metrics Calculation
@@ -478,6 +525,42 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             <CheckCircle2 size={13} />
             <span>Status: {activeSKP.status}</span>
           </span>
+
+          {/* Action: Simpan Draft */}
+          <button
+            type="button"
+            onClick={handleManualSave}
+            className="brand-btn brand-btn--outline"
+            style={{ padding: '6px 12px', fontSize: '11.5px', borderRadius: 'var(--r-md)', background: '#ffffff' }}
+            title="Simpan perubahan data SKP secara manual"
+          >
+            <span>{isSaving ? 'Menyimpan...' : 'Simpan Draft'}</span>
+          </button>
+
+          {/* Action: Cetak Formulir SKP */}
+          <button
+            type="button"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="brand-btn brand-btn--outline"
+            style={{ padding: '6px 12px', fontSize: '11.5px', borderRadius: 'var(--r-md)', background: '#ffffff' }}
+            title="Cetak Formulir Standar SKP Dosen"
+          >
+            <Printer size={13} />
+            <span>Cetak SKP</span>
+          </button>
+
+          {/* Action: Submit / Ajukan SKP ke Atasan */}
+          {(activeSKP.status === 'Draft' || activeSKP.status === 'Perlu Revisi' || !activeSKP.status) && (
+            <button
+              type="button"
+              onClick={() => setShowSubmitConfirm(true)}
+              className="brand-btn btn-action-add"
+              style={{ padding: '6px 14px', fontSize: '11.5px', borderRadius: 'var(--r-md)' }}
+            >
+              <Send size={13} />
+              <span>{isKaprodi ? 'Ajukan ke Dekan' : 'Ajukan ke Kaprodi'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -690,6 +773,38 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Modal Cetak Formulir SKP */}
+      {isPrintModalOpen && (
+        <FormulirCetakSKP
+          isOpen={isPrintModalOpen}
+          skp={activeSKP}
+          onClose={() => setIsPrintModalOpen(false)}
+        />
+      )}
+
+      {/* Modal Konfirmasi Submit SKP */}
+      {showSubmitConfirm && (
+        <ConfirmDialog
+          isOpen={showSubmitConfirm}
+          title="Konfirmasi Pengajuan SKP"
+          message={`Apakah Anda yakin ingin mengajukan berkas SKP Semester ${selectedSemester} Tahun Ajaran ${selectedTahun} ke ${
+            isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi'
+          } untuk diperiksa dan diverifikasi?`}
+          confirmText="Ya, Ajukan SKP"
+          cancelText="Batal"
+          onConfirm={() => {
+            if (onSubmitSKP) {
+              onSubmitSKP(activeSKP.id)
+            } else {
+              onUpdateSKP({ ...activeSKP, status: 'Diajukan' })
+              onShowToast('SKP berhasil diajukan ke atasan untuk dinilai!')
+            }
+            setShowSubmitConfirm(false)
+          }}
+          onCancel={() => setShowSubmitConfirm(false)}
+        />
+      )}
     </div>
   )
 }

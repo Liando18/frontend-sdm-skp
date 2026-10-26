@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   FileCheck2,
   CheckCircle,
@@ -21,6 +21,7 @@ interface ReviewSKPKaprodiProps {
   user: UserSession
   skpList: PengajuanSKP[]
   dosenList: Dosen[]
+  initialSelectedSKP?: PengajuanSKP | null
   onApproveByKaprodi: (skpId: string, catatan: string, ttdUrl?: string) => void
   onRejectByKaprodi: (skpId: string, catatan: string) => void
   onShowToast: (msg: string) => void
@@ -32,6 +33,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   user,
   skpList,
   dosenList,
+  initialSelectedSKP,
   onApproveByKaprodi,
   onRejectByKaprodi,
   onShowToast,
@@ -42,6 +44,14 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
+
+  useEffect(() => {
+    if (initialSelectedSKP) {
+      setActiveReviewSKP(initialSelectedSKP)
+      setKaprodiNotes(initialSelectedSKP.catatanKaprodi || '')
+      setViewMode('review')
+    }
+  }, [initialSelectedSKP])
 
   // Filters: Tahun Ajaran, Semester, Search
   const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')

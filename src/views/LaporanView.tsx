@@ -89,6 +89,48 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     return matchProdi && matchSearch
   })
 
+  const handleExportExcel = () => {
+    const headers = [
+      'No',
+      'NIP',
+      'Nama Dosen',
+      'NUPTK',
+      'Prodi',
+      'SKP Ganjil',
+      'SKP Genap',
+      'Rata-rata SKP',
+      'Perilaku Skala 4',
+      'Perilaku Skala 100',
+      'Nilai Akhir (Output Final)',
+      'Predikat',
+    ]
+    const rows = filteredLaporan.map((item, idx) => [
+      idx + 1,
+      `"${item.dosen.nip || ''}"`,
+      `"${item.dosen.nama || ''}"`,
+      `"${item.dosen.nuptk || ''}"`,
+      `"${item.dosen.prodi || ''}"`,
+      item.nilaiSKPGanjil,
+      item.nilaiSKPGenap,
+      item.rataRataSKP,
+      item.nilaiKuisSkala4,
+      item.nilaiKuisSkala100,
+      item.nilaiAkhirTahunan,
+      `"${item.predikat}"`,
+    ])
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `Laporan_Rekap_Kinerja_UBK_${selectedTahun.replace('/', '-')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    onShowToast('File Excel Rekapitulasi Kinerja Tahunan berhasil diunduh!')
+  }
+
   const containerRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 16, stagger: 0.06 })
   useCountUp(containerRef, '.kpi-count-up')
@@ -108,7 +150,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <button
-            onClick={() => onShowToast('Rekapitulasi Laporan Tahunan berhasil diekspor ke Excel!')}
+            onClick={handleExportExcel}
             className="btn-action-print"
             style={{ padding: '9px 18px' }}
           >

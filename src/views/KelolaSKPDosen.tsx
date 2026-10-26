@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   FileCheck2,
   Search,
@@ -19,11 +19,13 @@ interface KelolaSKPDosenProps {
   skpList: PengajuanSKP[]
   onApproveSKP: (id: string, notes: string) => void
   onRejectSKP: (id: string, notes: string) => void
+  initialSelectedSKP?: PengajuanSKP | null
   onShowToast: (msg: string) => void
 }
 
 export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   skpList,
+  initialSelectedSKP,
   onApproveSKP,
   onRejectSKP,
   onShowToast,
@@ -34,6 +36,14 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
+
+  useEffect(() => {
+    if (initialSelectedSKP) {
+      setSelectedSKP(initialSelectedSKP)
+      setSdmNotes(initialSelectedSKP.catatanSDM || '')
+      setViewMode('review')
+    }
+  }, [initialSelectedSKP])
 
   const [selectedTahun, setSelectedTahun] = useState<string>('Semua')
   const [selectedSemester, setSelectedSemester] = useState<string>('Semua')

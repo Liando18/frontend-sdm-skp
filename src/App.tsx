@@ -61,6 +61,7 @@ export default function App() {
   const [penilaianList, setPenilaianList] = useState<PenilaianKuesioner[]>(INITIAL_PENILAIAN_KUESIONER)
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS)
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'offline'>('checking')
+  const [selectedSKPForReview, setSelectedSKPForReview] = useState<PengajuanSKP | null>(null)
 
   // Load data from Laravel 12 Backend API on mount
   useEffect(() => {
@@ -117,15 +118,21 @@ export default function App() {
     showToast(`Beralih ke mode ${role.toUpperCase()} (${DEMO_USERS[role].name})`)
   }
 
-  const handleLogin = (role: Role) => {
+  const handleLogin = async (role: Role, email?: string, password?: string) => {
     setCurrentRole(role)
     setActiveNav('dashboard')
     setIsLoggedIn(true)
     showToast(`Berhasil masuk sebagai ${role.toUpperCase()}`)
+    try {
+      await api.auth.login({ role, email, password })
+    } catch (e) {
+      console.warn('Backend login fallback:', e)
+    }
   }
 
   const handleLogout = () => {
     setIsLoggedIn(false)
+    api.auth.logout().catch(() => {})
   }
 
   const handleAddDosen = (dosen: Dosen) => {
@@ -158,6 +165,25 @@ export default function App() {
     api.komponen.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
+  const handleSubmitSKP = async (skpId: string) => {
+    const existing = skpList.find((s) => s.id === skpId)
+    const updated = existing
+      ? {
+          ...existing,
+          status: 'Diajukan' as const,
+          tanggalPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        }
+      : null
+
+    if (updated) {
+      setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
+      showToast('SKP berhasil diajukan ke atasan untuk dinilai!', 'success')
+      api.skp.submit(skpId).catch(() => {
+        api.skp.update(skpId, updated).catch(() => api.skp.create(updated).catch(() => {}))
+      })
+    }
+  }
+
   const handleApproveSKPBySDM = (skpId: string, notes: string) => {
     setSkpList(
       skpList.map((s) =>
@@ -177,20 +203,54 @@ export default function App() {
   }
 
   const handleApproveSKPByKaprodi = (skpId: string, notes: string, ttdUrl?: string) => {
-    setSkpList(
-      skpList.map((s) =>
-        s.id === skpId
-          ? {
-              ...s,
-              status: 'Dinilai Kaprodi',
-              catatanKaprodi: notes,
-              ttdKaprodiUrl: ttdUrl || s.ttdKaprodiUrl,
-              tanggalPenilaianKaprodi: '20 Oktober 2026',
-            }
-          : s
-      )
-    )
-    api.skp.reviewKaprodi(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+    const existing = skpList.find((s) => s.id === skpId)
+    const updated: PengajuanSKP = existing
+      ? {
+          ...existing,
+          status: 'Dinilai Kaprodi',
+          catatanKaprodi: notes,
+          ttdKaprodiUrl: ttdUrl || existing.ttdKaprodiUrl,
+          tanggalPenilaianKaprodi: '20 Oktober 2026',
+        }
+      : {
+          id: skpId,
+          dosenId: 'dosen-3',
+          dosenNama: 'Agus Miraj Darajat, M.Kep',
+          dosenNip: '198708152019031008',
+          dosenProdi: 'S1 Keperawatan',
+          dosenPangkat: 'Penata Muda Tk. I, III/b',
+          dosenJabatan: 'Lektor',
+          penilaiNama: 'Ade Iwan Mutiudin, M.Kep',
+          penilaiNip: '198204122014041001',
+          penilaiPangkat: 'Penata, III/c',
+          penilaiJabatan: 'Ketua Program Studi S1 Keperawatan',
+          penilaiUnit: 'Fakultas Keperawatan',
+          penilaiRole: 'Kaprodi',
+          tahunAkademik: '2025/2026',
+          semester: 'Genap',
+          status: 'Dinilai Kaprodi',
+          totalSksRencana: 16,
+          totalSksRealisasi: 16,
+          persentaseCapaian: 100,
+          nilaiKinerjaSKP: 90,
+          tanggalPengajuan: '15 Oktober 2026',
+          catatanKaprodi: notes,
+          catatanSDM: '',
+          ttdKaprodiUrl: ttdUrl,
+          tanggalPenilaianKaprodi: '20 Oktober 2026',
+          items: [],
+        }
+
+    const existsInList = skpList.some((s) => s.id === skpId)
+    if (existsInList) {
+      setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
+    } else {
+      setSkpList([updated, ...skpList])
+    }
+
+    api.skp.reviewKaprodi(skpId, 'approve', notes, ttdUrl).catch(() => {
+      api.skp.update(skpId, updated).catch(() => api.skp.create(updated).catch(() => {}))
+    })
   }
 
   const handleRejectSKPByKaprodi = (skpId: string, notes: string) => {
@@ -203,20 +263,55 @@ export default function App() {
   }
 
   const handleApproveSKPByDekan = (skpId: string, notes: string, ttdUrl?: string) => {
-    setSkpList(
-      skpList.map((s) =>
-        s.id === skpId
-          ? {
-              ...s,
-              status: 'Dinilai Dekan',
-              catatanDekan: notes,
-              ttdDekanUrl: ttdUrl || s.ttdDekanUrl,
-              tanggalPenilaianDekan: '23 Oktober 2026',
-            }
-          : s
-      )
-    )
-    api.skp.reviewDekan(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+    const existing = skpList.find((s) => s.id === skpId)
+    const updated: PengajuanSKP = existing
+      ? {
+          ...existing,
+          status: 'Dinilai Dekan',
+          catatanDekan: notes,
+          ttdDekanUrl: ttdUrl || existing.ttdDekanUrl,
+          tanggalPenilaianDekan: '23 Oktober 2026',
+        }
+      : {
+          id: skpId,
+          dosenId: 'dosen-2',
+          dosenNama: 'Ade Iwan Mutiudin, M.Kep',
+          dosenNip: '198204122014041001',
+          dosenProdi: 'S1 Keperawatan',
+          dosenPangkat: 'Penata, III/c',
+          dosenJabatan: 'Ketua Program Studi S1 Keperawatan',
+          penilaiNama: 'Dr. Hj. Ratna Dian Saraswati, M.Kes',
+          penilaiNip: '197506122005012001',
+          penilaiPangkat: 'Pembina Utama Muda, IV/c',
+          penilaiJabatan: 'Dekan Fakultas Keperawatan',
+          penilaiUnit: 'Fakultas Keperawatan',
+          penilaiRole: 'Dekan',
+          tahunAkademik: '2025/2026',
+          semester: 'Genap',
+          status: 'Dinilai Dekan',
+          totalSksRencana: 16,
+          totalSksRealisasi: 16,
+          persentaseCapaian: 100,
+          nilaiKinerjaSKP: 90,
+          tanggalPengajuan: '18 Oktober 2026',
+          catatanKaprodi: '',
+          catatanDekan: notes,
+          catatanSDM: '',
+          ttdDekanUrl: ttdUrl,
+          tanggalPenilaianDekan: '23 Oktober 2026',
+          items: [],
+        }
+
+    const existsInList = skpList.some((s) => s.id === skpId)
+    if (existsInList) {
+      setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
+    } else {
+      setSkpList([updated, ...skpList])
+    }
+
+    api.skp.reviewDekan(skpId, 'approve', notes, ttdUrl).catch(() => {
+      api.skp.update(skpId, updated).catch(() => api.skp.create(updated).catch(() => {}))
+    })
   }
 
   const handleRejectSKPByDekan = (skpId: string, notes: string) => {
@@ -244,6 +339,12 @@ export default function App() {
   }
 
   const handleAddPenilaian = (item: PenilaianKuesioner) => {
+    const existing = penilaianList.find(
+      (p) =>
+        p.id === item.id ||
+        (p.dosenId === item.dosenId && p.tahun === item.tahun && p.periode === item.periode)
+    )
+
     setPenilaianList((prev) => {
       const idx = prev.findIndex(
         (p) =>
@@ -257,12 +358,25 @@ export default function App() {
       }
       return [item, ...prev]
     })
-    api.penilaian.create(item).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+
+    if (existing) {
+      api.penilaian.update(existing.id, item).catch(() => {
+        api.penilaian.create(item).catch(() => {})
+      })
+    } else {
+      api.penilaian.create(item).catch(() => {})
+    }
   }
 
   const handleUpdateMySKP = (updated: PengajuanSKP) => {
-    setSkpList(skpList.map((s) => (s.id === updated.id ? updated : s)))
-    api.skp.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+    const exists = skpList.some((s) => s.id === updated.id)
+    if (exists) {
+      setSkpList(skpList.map((s) => (s.id === updated.id ? updated : s)))
+      api.skp.update(updated.id, updated).catch((err) => console.warn('Sync update SKP gagal:', err))
+    } else {
+      setSkpList([updated, ...skpList])
+      api.skp.create(updated).catch((err) => console.warn('Sync create SKP gagal:', err))
+    }
   }
 
   const handleMarkNotificationAsRead = (id: string) => {
@@ -315,7 +429,10 @@ export default function App() {
                   skpList={skpList}
                   onNavigate={(v) => setActiveNav(v)}
                   onAddDosenModal={() => setActiveNav('data-dosen')}
-                  onSelectSKPToReview={() => setActiveNav('skp-dosen')}
+                  onSelectSKPToReview={(skp) => {
+                    setSelectedSKPForReview(skp)
+                    setActiveNav('skp-dosen')
+                  }}
                   onShowToast={showToast}
                 />
               )}
@@ -335,6 +452,7 @@ export default function App() {
                   }
                   komponenList={komponenList}
                   onUpdateSKP={handleUpdateMySKP}
+                  onSubmitSKP={handleSubmitSKP}
                   onShowToast={showToast}
                 />
               )}
@@ -366,6 +484,7 @@ export default function App() {
               {activeNav === 'skp-dosen' && (
                 <KelolaSKPDosen
                   skpList={skpList}
+                  initialSelectedSKP={selectedSKPForReview}
                   onApproveSKP={handleApproveSKPBySDM}
                   onRejectSKP={handleRejectSKPBySDM}
                   onShowToast={showToast}
@@ -416,6 +535,7 @@ export default function App() {
                   mySKP={dosenMySKP}
                   komponenList={komponenList}
                   onUpdateSKP={handleUpdateMySKP}
+                  onSubmitSKP={handleSubmitSKP}
                   onShowToast={showToast}
                 />
               )}
@@ -440,7 +560,10 @@ export default function App() {
                   onNavigateToReview={() => setActiveNav('review-skp-kaprodi')}
                   onNavigateToKuesioner={() => setActiveNav('kuesioner-kaprodi')}
                   onNavigateToHasilKinerjaSelf={() => setActiveNav('hasil-kinerja-kaprodi')}
-                  onSelectSKP={() => setActiveNav('review-skp-kaprodi')}
+                  onSelectSKP={(skp) => {
+                    setSelectedSKPForReview(skp)
+                    setActiveNav('review-skp-kaprodi')
+                  }}
                 />
               )}
               {activeNav === 'skp-kaprodi-self' && (
@@ -457,6 +580,7 @@ export default function App() {
                   }
                   komponenList={komponenList}
                   onUpdateSKP={handleUpdateMySKP}
+                  onSubmitSKP={handleSubmitSKP}
                   onShowToast={showToast}
                 />
               )}
@@ -465,6 +589,7 @@ export default function App() {
                   user={currentUser}
                   skpList={skpList}
                   dosenList={dosenList}
+                  initialSelectedSKP={selectedSKPForReview}
                   onApproveByKaprodi={handleApproveSKPByKaprodi}
                   onRejectByKaprodi={handleRejectSKPByKaprodi}
                   onShowToast={showToast}
@@ -519,6 +644,7 @@ export default function App() {
                   }
                   komponenList={komponenList}
                   onUpdateSKP={handleUpdateMySKP}
+                  onSubmitSKP={handleSubmitSKP}
                   onShowToast={showToast}
                 />
               )}

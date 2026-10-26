@@ -243,6 +243,46 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
   }
 
+  const handleExportExcel = () => {
+    const headers = [
+      'NIP',
+      'Nama Dosen',
+      'NUPTK',
+      'Prodi',
+      'Jafung',
+      'Golongan',
+      'Pendidikan',
+      'Status Kepegawaian',
+      'Status SKP',
+      'Nilai Akhir',
+      'Email',
+    ]
+    const rows = filteredDosen.map((d) => [
+      `"${d.nip || ''}"`,
+      `"${d.nama || ''}"`,
+      `"${d.nuptk || ''}"`,
+      `"${d.prodi || ''}"`,
+      `"${d.jafung || ''}"`,
+      `"${d.golongan || ''}"`,
+      `"${d.pendidikan || ''}"`,
+      `"${d.status || ''}"`,
+      `"${d.skpStatus || ''}"`,
+      d.nilaiAkhir || 0,
+      `"${d.email || ''}"`,
+    ])
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `Master_Data_Dosen_UBK_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    onShowToast('File Excel/CSV data dosen berhasil diunduh ke komputer Anda!')
+  }
+
   const renderManageProdiModal = () => {
     if (!isManageProdiOpen) return null
     return (
@@ -873,7 +913,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <span>Tambah Dosen Baru</span>
           </button>
           <button
-            onClick={() => onShowToast('Rekapan master data dosen berhasil diekspor ke Excel!')}
+            onClick={handleExportExcel}
             className="brand-btn btn-action-print"
           >
             <Download size={16} />
