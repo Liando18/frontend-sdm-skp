@@ -41,7 +41,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
           skp.items.reduce((acc, curr) => acc + (Number(curr.kualitasMutu) || 0), 0) /
           skp.items.length
         ).toFixed(2)
-      : (skp.nilaiKinerjaSKP || 90.58).toFixed(2)
+      : (skp.nilaiKinerjaSKP ?? skp.persentaseCapaian ?? 0).toFixed(2)
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
@@ -324,7 +324,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
           {/* Bagian Tanda Tangan & Pengesahan */}
           <div style={{ marginTop: 24, fontSize: '11.5px' }}>
             <div style={{ textAlign: 'right', marginBottom: 12, paddingRight: 40, fontWeight: 500 }}>
-              Bandung, 20 Oktober 2026
+              Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </div>
 
             <div

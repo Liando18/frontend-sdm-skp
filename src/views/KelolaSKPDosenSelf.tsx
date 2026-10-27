@@ -8,7 +8,7 @@ import {
   Printer,
   Send,
 } from 'lucide-react'
-import { PengajuanSKP, SKPItem, KomponenSKP, UserSession } from '../types'
+import { PengajuanSKP, SKPItem, KomponenSKP, UserSession, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -17,6 +17,7 @@ interface KelolaSKPDosenSelfProps {
   user?: UserSession
   skpList?: PengajuanSKP[]
   mySKP?: PengajuanSKP
+  dosenList?: Dosen[]
   komponenList: KomponenSKP[]
   onUpdateSKP: (skp: PengajuanSKP) => void
   onSubmitSKP?: (skpId: string) => void
@@ -50,6 +51,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   user,
   skpList = [],
   mySKP,
+  dosenList = [],
   komponenList,
   onUpdateSKP,
   onSubmitSKP,
@@ -72,8 +74,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   const isSDM = Boolean(user?.role === 'sdm')
   const isDekan = Boolean(
     user?.role === 'dekan' ||
-    user?.rank?.toLowerCase().includes('dekan') ||
-    candidateName.includes('Ratna Dian')
+    user?.rank?.toLowerCase().includes('dekan')
   )
 
   const isKaprodi =
@@ -85,14 +86,14 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
     )
 
   const targetDosenId =
-    user?.id || mySKP?.dosenId || (isDekan ? 'dosen-dekan-1' : isKaprodi ? 'dosen-2' : isSDM ? 'user-sdm-1' : 'dosen-3')
+    user?.id || mySKP?.dosenId || ''
   const targetDosenNama =
-    user?.name || mySKP?.dosenNama || (isDekan ? 'Dr. Hj. Ratna Dian Saraswati, M.Kes' : isKaprodi ? 'Ade Iwan Mutiudin, M.Kep' : isSDM ? 'Asep Rohimat, S.Kom., M.T.' : 'Agus Miraj Darajat, M.Kep')
+    user?.name || mySKP?.dosenNama || (isDekan ? 'Dekan Fakultas' : isKaprodi ? 'Ketua Program Studi' : isSDM ? 'SDM' : 'Dosen')
   const targetDosenNip =
-    user?.nip || mySKP?.dosenNip || (isDekan ? '197506122005012001' : isKaprodi ? '7737027039520350' : isSDM ? '198104152011011002' : '873841838401375170')
-  const targetDosenProdi = user?.prodi || mySKP?.dosenProdi || (isSDM ? 'Direktorat Sumber Daya Manusia' : 'S1 Keperawatan')
+    user?.nip || mySKP?.dosenNip || ''
+  const targetDosenProdi = user?.prodi || mySKP?.dosenProdi || (isSDM ? 'Direktorat Sumber Daya Manusia' : '')
   const targetDosenRank =
-    user?.rank || mySKP?.dosenPangkat || (isDekan ? 'Dekan Fakultas Keperawatan (Pembina IVc)' : isKaprodi ? 'Ketua Program Studi (Lektor IIId)' : isSDM ? 'Kepala Bagian SDM' : 'Penata Tk I / IIId')
+    user?.rank || mySKP?.dosenPangkat || (isDekan ? 'Dekan Fakultas' : isKaprodi ? 'Ketua Program Studi' : isSDM ? 'Staf SDM' : 'Dosen Tetap')
 
   // Find existing SKP for this lecturer/kaprodi/dekan, semester, and academic year
   const getActiveSKP = (): PengajuanSKP => {
@@ -108,6 +109,12 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       return mySKP
     }
 
+    // Dynamic assessor resolution from database dosenList
+    const kaprodiDosen = dosenList.find((d) => d.isKaprodi && (d.prodi === targetDosenProdi || !targetDosenProdi)) || dosenList.find((d) => d.isKaprodi)
+    const dekanDosen = dosenList.find((d) => d.isDekan || d.jafung?.toLowerCase().includes('dekan')) || dosenList[0]
+
+    const penilai = isKaprodi ? dekanDosen : kaprodiDosen
+
     return {
       id: `skp-${targetDosenId}-${selectedSemester.toLowerCase()}-${selectedTahun.replace('/', '-')}`,
       dosenId: targetDosenId,
@@ -115,13 +122,13 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       dosenNip: targetDosenNip,
       dosenProdi: targetDosenProdi,
       dosenPangkat: targetDosenRank,
-      dosenJabatan: isDekan ? 'Dekan Fakultas Keperawatan' : isKaprodi ? 'Ketua Program Studi' : isSDM ? 'Kepala Bagian SDM' : 'Dosen Tetap',
-      penilaiNama: isDekan ? 'Ade Iwan Mutiudin, M.Kep' : isKaprodi ? 'Dr. Hj. Ratna Dian Saraswati, M.Kes' : 'Ade Iwan Mutiudin, M.Kep',
-      penilaiNip: isDekan ? '7737027039520350' : isKaprodi ? '197506122005012001' : '7737027039520350',
-      penilaiPangkat: isDekan ? 'Penata Tk I / IIId' : isKaprodi ? 'Pembina Utama Muda / IVc' : 'Penata Tk I / IIId',
-      penilaiJabatan: isDekan ? 'Ketua Program Studi S1 Keperawatan' : isKaprodi ? 'Dekan Fakultas Keperawatan' : 'Ketua Program Studi S1 Keperawatan',
-      penilaiUnit: isDekan ? 'S1 Keperawatan' : isKaprodi ? 'Fakultas Keperawatan UBK' : 'S1 Keperawatan',
-      penilaiRole: isDekan ? 'Kaprodi' : isKaprodi ? 'Dekan' : 'Kaprodi',
+      dosenJabatan: isDekan ? `Dekan ${user?.fakultas || 'Fakultas'}` : isKaprodi ? `Ketua Program Studi ${targetDosenProdi}` : isSDM ? 'Kepala Bagian SDM' : 'Dosen Tetap',
+      penilaiNama: penilai ? penilai.nama : (isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi'),
+      penilaiNip: penilai ? penilai.nip : '',
+      penilaiPangkat: penilai ? penilai.golongan : '',
+      penilaiJabatan: isKaprodi ? `Dekan ${user?.fakultas || 'Fakultas'}` : `Ketua Program Studi ${targetDosenProdi}`,
+      penilaiUnit: isKaprodi ? (user?.fakultas || 'Fakultas') : targetDosenProdi,
+      penilaiRole: isKaprodi ? 'Dekan' : 'Kaprodi',
       semester: selectedSemester,
       tahunAkademik: selectedTahun,
       totalSksRencana: 0,
@@ -317,14 +324,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
   const kategoriList = [
     'Semua',
-    'Pendidikan',
-    'Penelitian',
-    'Pengabdian',
-    'Penunjang',
-    'Tugas Tambahan',
-    'Layanan Akademik',
-    'Administrasi & Tata Usaha',
-    'Tata Kelola & Keuangan',
+    ...Array.from(new Set(komponenList.map((k) => k.kategori).filter(Boolean))),
   ]
 
   return (
@@ -508,7 +508,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
               <strong>
                 {activeSKP.penilaiNama
                   ? `${activeSKP.penilaiNama} (${activeSKP.penilaiJabatan})`
-                  : activeSKP.penilaiJabatan || (isDekan ? 'Ketua Program Studi S1 Keperawatan' : isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi')}
+                  : activeSKP.penilaiJabatan || (isDekan ? `Ketua Program Studi ${targetDosenProdi}` : isKaprodi ? `Dekan ${user?.fakultas || 'Fakultas'}` : 'Ketua Program Studi')}
               </strong>
             </span>
           </span>

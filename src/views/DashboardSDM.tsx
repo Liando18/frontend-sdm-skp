@@ -37,15 +37,33 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
   const skpMenunggu = skpList.filter((s) => s.status === 'Diajukan' || s.status === 'Dinilai Kaprodi').length
   const skpRevisi = skpList.filter((s) => s.status === 'Perlu Revisi').length
 
-  const chartData = [
-    { label: 'Farmasi', value: 16.4, height: 92, active: true },
-    { label: 'Keperawatan', value: 15.8, height: 86, active: true },
-    { label: 'Kebidanan', value: 14.6, height: 78, active: true },
-    { label: 'Infokes', value: 15.2, height: 82, active: true },
-    { label: 'Psikologi', value: 14.0, height: 74, active: false },
-    { label: 'Kesmas', value: 13.8, height: 72, active: false },
-    { label: 'Anestesi', value: 15.0, height: 80, active: false },
-  ]
+  // Dynamically calculate JAD distribution from database
+  const countGuruBesar = dosenList.filter((d) => d.jafung === 'Guru Besar').length
+  const countLektorKepala = dosenList.filter((d) => d.jafung === 'Lektor Kepala').length
+  const countLektor = dosenList.filter((d) => d.jafung === 'Lektor').length
+  const countAsistenAhli = dosenList.filter((d) => d.jafung === 'Asisten Ahli' || d.jafung === 'Tenaga Pengajar').length
+
+  // Dynamically calculate SKS per prodi from database skpList & dosenList
+  const prodis = Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
+  const latestSkp = skpList[0]
+  const activePeriode = latestSkp ? `${latestSkp.semester} ${latestSkp.tahunAkademik}` : 'Semester Berjalan'
+
+  const chartData = prodis.map((prodi, idx) => {
+    const dosenInProdi = dosenList.filter((d) => d.prodi === prodi).map((d) => d.id)
+    const skpInProdi = skpList.filter((s) => dosenInProdi.includes(s.dosenId) || s.dosenProdi === prodi)
+    const avgSks = skpInProdi.length > 0
+      ? skpInProdi.reduce((acc, curr) => acc + (curr.totalSksRealisasi || curr.totalSksRencana || 0), 0) / skpInProdi.length
+      : 0
+    const val = Number(avgSks.toFixed(1))
+    const maxVal = Math.max(16, ...skpList.map((s) => s.totalSksRealisasi || 0), 20)
+    const height = Math.min(100, Math.max(val > 0 ? 30 : 8, Math.round((val / maxVal) * 100)))
+    return {
+      label: prodi.replace('S1 ', '').replace('D3 ', '').replace('Profesi ', '').slice(0, 12),
+      value: val,
+      height,
+      active: idx < 4,
+    }
+  })
 
   const handleSendReminder = () => {
     onShowToast('Notifikasi pengingat batas waktu SKP telah dikirimkan ke email dosen UBK.')
@@ -119,13 +137,13 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </button>
           </div>
           <div style={{ marginTop: 16 }}>
-            <div className="kpi-count-up" data-count={totalDosen * 20 + 8} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em' }}>
-              {totalDosen * 20 + 8}
+            <div className="kpi-count-up" data-count={totalDosen} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em' }}>
+              {totalDosen}
             </div>
             <div style={{ marginTop: 8 }}>
               <span className="kpi-badge">
                 <TrendingUp size={12} />
-                <span>+12 dosen baru semester ini</span>
+                <span>{totalDosen} Dosen Aktif UBK</span>
               </span>
             </div>
           </div>
@@ -145,13 +163,13 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </button>
           </div>
           <div style={{ marginTop: 16 }}>
-            <div className="kpi-count-up" data-count={skpDisetujui * 60 + 4} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
-              {skpDisetujui * 60 + 4}
+            <div className="kpi-count-up" data-count={skpDisetujui} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
+              {skpDisetujui}
             </div>
             <div style={{ marginTop: 8 }}>
               <span className="badge-pill badge-pill--green">
                 <CheckCircle size={12} />
-                <span>74.2% dari target universitas</span>
+                <span>{totalDosen > 0 ? ((skpDisetujui / totalDosen) * 100).toFixed(1) : 0}% dari seluruh dosen</span>
               </span>
             </div>
           </div>
@@ -171,8 +189,8 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </button>
           </div>
           <div style={{ marginTop: 16 }}>
-            <div className="kpi-count-up" data-count={skpMenunggu * 20 + 6} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
-              {skpMenunggu * 20 + 6}
+            <div className="kpi-count-up" data-count={skpMenunggu} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
+              {skpMenunggu}
             </div>
             <div style={{ marginTop: 8 }}>
               <span className="badge-pill badge-pill--orange">
@@ -197,8 +215,8 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </button>
           </div>
           <div style={{ marginTop: 16 }}>
-            <div className="kpi-count-up" data-count={skpRevisi * 8 + 2} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
-              {skpRevisi * 8 + 2}
+            <div className="kpi-count-up" data-count={skpRevisi} style={{ fontSize: '36px', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--ink)' }}>
+              {skpRevisi}
             </div>
             <div style={{ marginTop: 8 }}>
               <span className="badge-pill badge-pill--red">
@@ -249,7 +267,7 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
                 borderRadius: 'var(--r-sm)',
               }}
             >
-              Genap 2025/2026
+              {activePeriode}
             </span>
           </div>
 
@@ -373,10 +391,10 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </div>
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--navy-900)', lineHeight: 1.3 }}>
-                Batas Akhir Validasi SKP Semester Genap
+                Batas Akhir Validasi SKP {activePeriode}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: 4 }}>
-                30 November 2026 &bull; 23:59 WIB
+                Sesuai Kalender Akademik Institusi &bull; 23:59 WIB
               </div>
             </div>
 
@@ -416,19 +434,19 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
               <div style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Guru Besar (GB)</div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>6 Dosen</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>{countGuruBesar} Dosen</div>
               </div>
               <div style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Lektor Kepala (LK)</div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>42 Dosen</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>{countLektorKepala} Dosen</div>
               </div>
               <div style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Lektor (L)</div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>118 Dosen</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>{countLektor} Dosen</div>
               </div>
               <div style={{ padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Asisten Ahli (AA)</div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>82 Dosen</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 2 }}>{countAsistenAhli} Dosen</div>
               </div>
             </div>
           </div>

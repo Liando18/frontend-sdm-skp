@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Download, Printer, Search, FileText, CheckCircle2 } from 'lucide-react'
 import { Dosen, PengajuanSKP, PenilaianKuesioner } from '../types'
-import { PRODI_LIST } from '../data'
 import { CetakOutputFinalTahunan, OutputFinalData } from '../components/CetakOutputFinalTahunan'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 
@@ -9,6 +8,7 @@ interface LaporanViewProps {
   dosenList: Dosen[]
   skpList: PengajuanSKP[]
   penilaianList: PenilaianKuesioner[]
+  prodiList?: string[]
   onShowToast: (msg: string) => void
 }
 
@@ -16,9 +16,22 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   dosenList,
   skpList,
   penilaianList,
+  prodiList: prodiListProp,
   onShowToast,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState('2025/2026')
+  const availableProdis = prodiListProp && prodiListProp.length > 0
+    ? (prodiListProp[0] === 'Semua Program Studi' ? prodiListProp : ['Semua Program Studi', ...prodiListProp])
+    : ['Semua Program Studi', ...Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))]
+
+  const availableYears = Array.from(
+    new Set([
+      ...skpList.map((s) => s.tahunAkademik).filter(Boolean),
+      ...penilaianList.map((p) => p.tahun).filter(Boolean),
+      '2025/2026',
+    ])
+  )
+
+  const [selectedTahun, setSelectedTahun] = useState(availableYears[0] || '2025/2026')
   const [selectedProdi, setSelectedProdi] = useState('Semua Program Studi')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOutputFinal, setSelectedOutputFinal] = useState<OutputFinalData | null>(null)
@@ -26,32 +39,25 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   // Rekapitulasi Tahunan: 2x SKP (Ganjil & Genap) + 1x Kuesioner Tahunan
   const laporanData: OutputFinalData[] = dosenList.map((dosen) => {
     const skpGanjil = skpList.find(
-      (s) => s.dosenId === dosen.id && s.semester === 'Ganjil'
+      (s) => s.dosenId === dosen.id && s.semester === 'Ganjil' && (!s.tahunAkademik || s.tahunAkademik === selectedTahun)
     )
     const skpGenap = skpList.find(
-      (s) => s.dosenId === dosen.id && s.semester === 'Genap'
+      (s) => s.dosenId === dosen.id && s.semester === 'Genap' && (!s.tahunAkademik || s.tahunAkademik === selectedTahun)
     )
-    const kuesioner = penilaianList.find((k) => k.dosenId === dosen.id)
+    const kuesioner = penilaianList.find((k) => k.dosenId === dosen.id && (!k.tahun || k.tahun === selectedTahun))
 
-    const nilaiSKPGanjil = skpGanjil
-      ? skpGanjil.nilaiKinerjaSKP || 92.4
-      : dosen.id === 'dosen-3'
-      ? 92.4
-      : 93.5
-    const nilaiSKPGenap = skpGenap
-      ? skpGenap.nilaiKinerjaSKP || 90.58
-      : dosen.id === 'dosen-3'
-      ? 90.58
-      : 94.0
+    const nilaiSKPGanjil = skpGanjil ? (skpGanjil.nilaiKinerjaSKP || 0) : (dosen.nilaiAkhir || 0)
+    const nilaiSKPGenap = skpGenap ? (skpGenap.nilaiKinerjaSKP || 0) : (dosen.nilaiAkhir || 0)
 
-    const rataRataSKP = Number(((nilaiSKPGanjil + nilaiSKPGenap) / 2).toFixed(2))
+    const skpDivisor = (skpGanjil && skpGenap) ? 2 : (skpGanjil || skpGenap) ? 1 : 1
+    const rataRataSKP = Number(((nilaiSKPGanjil + nilaiSKPGenap) / (skpGanjil && skpGenap ? 2 : 1)).toFixed(2))
     const bobotSKP60 = Number((rataRataSKP * 0.6).toFixed(2))
 
-    const nilaiKuisSkala4 = kuesioner ? kuesioner.rataRata : 3.75
+    const nilaiKuisSkala4 = kuesioner ? kuesioner.rataRata : 0
     const nilaiKuisSkala100 = Number(((nilaiKuisSkala4 / 4) * 100).toFixed(2))
     const bobotKuis40 = Number((nilaiKuisSkala100 * 0.4).toFixed(2))
 
-    const nilaiAkhirTahunan = Number((bobotSKP60 + bobotKuis40).toFixed(2))
+    const nilaiAkhirTahunan = Number((bobotSKP60 + (kuesioner ? bobotKuis40 : (bobotSKP60 > 0 ? Number((rataRataSKP * 0.4).toFixed(2)) : 0))).toFixed(2))
 
     const predikat =
       nilaiAkhirTahunan >= 90
@@ -161,43 +167,62 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       </div>
 
       {/* KPI Cards */}
-      <div className="kpi-bento-grid-3">
-        <div className="kpi-card">
-          <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
-            Rata-rata Kinerja Tahunan Universitas
-          </div>
-          <div style={{ fontSize: '34px', fontWeight: 800, color: 'var(--navy-900)', marginTop: 8, letterSpacing: '-0.02em' }}>
-            <span className="kpi-count-up" data-count="91.82">91.82</span> <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--muted)' }}>/ 100</span>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--brand-700)', marginTop: 6 }}>
-            Predikat Institusi: <strong>Sangat Baik</strong>
-          </div>
-        </div>
+      {(() => {
+        const avgInstitusiNum = laporanData.length > 0
+          ? Number((laporanData.reduce((acc, c) => acc + c.nilaiAkhirTahunan, 0) / laporanData.length).toFixed(2))
+          : 0
+        const avgInstitusi = avgInstitusiNum.toFixed(2)
+        const predikatInstitusi =
+          avgInstitusiNum >= 90 ? 'Sangat Baik' : avgInstitusiNum >= 76 ? 'Baik' : avgInstitusiNum >= 60 ? 'Cukup' : avgInstitusiNum > 0 ? 'Kurang' : 'Belum Ada Data'
 
-        <div className="kpi-card">
-          <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
-            Formula Integrasi Tahunan UBK
-          </div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginTop: 8 }}>
-            (SKP 2x × 60%) + (Kuesioner 1x × 40%)
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 6 }}>
-            Rata-rata SKP Ganjil &amp; Genap (60%) + Perilaku Tahunan (40%)
-          </div>
-        </div>
+        const bkdCompliantCount = laporanData.filter((d) => {
+          const sks = d.skpGenap?.totalSksRealisasi ?? d.skpGanjil?.totalSksRealisasi ?? 0
+          return sks >= 12 && sks <= 16
+        }).length
+        const bkdPersen = laporanData.length > 0
+          ? ((bkdCompliantCount / laporanData.length) * 100).toFixed(0)
+          : '0'
 
-        <div className="kpi-card">
-          <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
-            Kepatuhan Beban Kerja (BKD)
+        return (
+          <div className="kpi-bento-grid-3">
+            <div className="kpi-card">
+              <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                Rata-rata Kinerja Tahunan Universitas
+              </div>
+              <div style={{ fontSize: '34px', fontWeight: 800, color: 'var(--navy-900)', marginTop: 8, letterSpacing: '-0.02em' }}>
+                <span className="kpi-count-up" data-count={avgInstitusi}>{avgInstitusi}</span> <span style={{ fontSize: '16px', fontWeight: 500, color: 'var(--muted)' }}>/ 100</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--brand-700)', marginTop: 6 }}>
+                Predikat Institusi: <strong>{predikatInstitusi}</strong>
+              </div>
+            </div>
+
+            <div className="kpi-card">
+              <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                Formula Integrasi Tahunan UBK
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginTop: 8 }}>
+                (SKP 2x × 60%) + (Kuesioner 1x × 40%)
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 6 }}>
+                Rata-rata SKP Ganjil &amp; Genap (60%) + Perilaku Tahunan (40%)
+              </div>
+            </div>
+
+            <div className="kpi-card">
+              <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                Kepatuhan Beban Kerja (BKD)
+              </div>
+              <div style={{ fontSize: '34px', fontWeight: 800, color: 'var(--status-success-ink)', marginTop: 8, letterSpacing: '-0.02em' }}>
+                <span className="kpi-count-up" data-count={bkdPersen}>{bkdPersen}</span>%
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 6 }}>
+                {bkdCompliantCount} dari {laporanData.length} Dosen Memenuhi Standar BKD (12-16 SKS)
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: '34px', fontWeight: 800, color: 'var(--status-success-ink)', marginTop: 8, letterSpacing: '-0.02em' }}>
-            <span className="kpi-count-up" data-count="100">100</span>%
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 6 }}>
-            Seluruh Dosen Homebase Memenuhi Standar BKD &amp; JAD
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
       {/* Filter Toolbar */}
       <div
@@ -222,12 +247,15 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </span>
             <select
               className="custom-select"
-              style={{ height: 38, minWidth: 240, width: 'auto', fontSize: '13px' }}
+              style={{ height: 38, minWidth: 220, width: 'auto', fontSize: '13px' }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
             >
-              <option value="2025/2026">2025/2026 (Tahunan)</option>
-              <option value="2024/2025">2024/2025</option>
+              {availableYears.map((thn) => (
+                <option key={thn} value={thn}>
+                  {thn} (Tahunan)
+                </option>
+              ))}
             </select>
           </div>
 
@@ -242,7 +270,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               value={selectedProdi}
               onChange={(e) => setSelectedProdi(e.target.value)}
             >
-              {PRODI_LIST.map((prodi, idx) => (
+              {availableProdis.map((prodi, idx) => (
                 <option key={idx} value={prodi}>
                   {prodi}
                 </option>

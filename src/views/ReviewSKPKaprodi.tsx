@@ -64,54 +64,36 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
 
   // Dosen homebase prodi (excluding Kaprodi himself, as Kaprodi is evaluated by Dekan)
   const prodiDosen = dosenList.filter(
-    (d) => (d.prodi === user.prodi || d.prodi === 'S1 Keperawatan') && !d.isKaprodi
+    (d) => d.prodi === user.prodi && !d.isKaprodi
   )
+  const prodiDosenIds = new Set(prodiDosen.map((d) => d.id))
+  const prodiDosenNames = new Set(prodiDosen.map((d) => d.nama))
 
-  const filteredRows = prodiDosen.flatMap((dosen) => {
-    const semestersToCheck: ('Ganjil' | 'Genap')[] =
-      selectedSemester === 'Semua' ? ['Genap', 'Ganjil'] : [selectedSemester]
+  const filteredRows = skpList.filter((skp) => {
+    const isProdiDosen =
+      prodiDosenIds.has(skp.dosenId) ||
+      prodiDosenNames.has(skp.dosenNama) ||
+      skp.dosenProdi === user.prodi
 
-    return semestersToCheck.map((sem) => {
-      const found = skpList.find(
-        (s) =>
-          s.dosenId === dosen.id &&
-          s.semester === sem &&
-          (s.tahunAkademik === selectedTahun || !s.tahunAkademik)
+    if (!isProdiDosen) return false
+
+    if (selectedTahun && skp.tahunAkademik && skp.tahunAkademik !== selectedTahun) {
+      return false
+    }
+
+    if (selectedSemester !== 'Semua' && skp.semester !== selectedSemester) {
+      return false
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      return (
+        skp.dosenNama.toLowerCase().includes(q) ||
+        (skp.dosenNip && skp.dosenNip.toLowerCase().includes(q))
       )
-      if (found) return found
+    }
 
-      const fallbackSKP: PengajuanSKP = {
-        id: `skp-${dosen.id}-${sem.toLowerCase()}-${selectedTahun.replace('/', '-')}`,
-        dosenId: dosen.id,
-        dosenNama: dosen.nama,
-        dosenNip: dosen.nip,
-        dosenProdi: dosen.prodi,
-        dosenPangkat: dosen.golongan,
-        dosenJabatan: dosen.jafung,
-        penilaiNama: user.name,
-        penilaiNip: user.nip,
-        penilaiJabatan: `Ketua Program Studi ${user.prodi}`,
-        penilaiUnit: user.prodi,
-        penilaiRole: 'Kaprodi',
-        semester: sem,
-        tahunAkademik: selectedTahun,
-        totalSksRencana: 16,
-        totalSksRealisasi: sem === 'Genap' ? 15 : 16,
-        persentaseCapaian: 93.75,
-        nilaiKinerjaSKP: 90.58,
-        status: 'Diajukan',
-        tanggalPengajuan: sem === 'Genap' ? '18 Oktober 2026' : '20 Februari 2026',
-        catatanKaprodi: '',
-        catatanSDM: '',
-        ttdKaprodiUrl: undefined,
-        items: [],
-      }
-      return fallbackSKP
-    })
-  }).filter((skp) => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    return skp.dosenNama.toLowerCase().includes(q) || skp.dosenNip.toLowerCase().includes(q)
+    return true
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -217,7 +199,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 Realisasi &amp; Total Mutu
               </div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--brand-700)', marginTop: 4 }}>
-                {activeReviewSKP.totalSksRealisasi} SKS / Mutu {activeReviewSKP.nilaiKinerjaSKP || 90.58}%
+                {activeReviewSKP.totalSksRealisasi} SKS / Mutu {activeReviewSKP.nilaiKinerjaSKP ?? activeReviewSKP.persentaseCapaian ?? 0}%
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
                 Semester {activeReviewSKP.semester} {activeReviewSKP.tahunAkademik}
@@ -580,77 +562,94 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((skp) => {
-              const status = skp.status
-              const realisasi = skp.totalSksRealisasi || 15
-              const capaian = skp.nilaiKinerjaSKP || skp.persentaseCapaian || 90.58
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                  Tidak ada data pengajuan SKP dosen prodi untuk filter periode yang dipilih.
+                </td>
+              </tr>
+            ) : (
+              filteredRows.map((skp) => {
+                const status = skp.status
+                const realisasi =
+                  skp.totalSksRealisasi ??
+                  (skp.items && skp.items.length > 0
+                    ? skp.items.reduce((acc, it) => acc + (it.realisasi || 0), 0)
+                    : 0)
+                const capaian =
+                  skp.nilaiKinerjaSKP ??
+                  skp.persentaseCapaian ??
+                  (skp.totalSksRencana && skp.totalSksRencana > 0
+                    ? Number(((realisasi / skp.totalSksRencana) * 100).toFixed(2))
+                    : 0)
 
-              return (
-                <tr key={skp.id}>
-                  <td>
-                    <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '14px' }}>{skp.dosenNama}</div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                      NIP {skp.dosenNip} &bull; {skp.dosenProdi}
-                    </div>
-                  </td>
-                  <td>
-                    <span className="badge-pill badge-pill--gray" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                      Semester {skp.semester} {skp.tahunAkademik}
-                    </span>
-                  </td>
-                  <td>{skp.dosenJabatan || 'Lektor'} ({skp.dosenPangkat || 'Penata Tk I / IIId'})</td>
-                  <td>
-                    <span
-                      className={`badge-pill ${
-                        status === 'Disetujui SDM'
-                          ? 'badge-pill--green'
-                          : status === 'Dinilai Kaprodi'
-                          ? 'badge-pill--blue'
-                          : 'badge-pill--orange'
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: 'var(--brand-700)' }}>{realisasi} SKS</span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700 }}>{capaian}%</span>
-                  </td>
-                  <td>
-                    {skp?.ttdKaprodiUrl ? (
-                      <span className="badge-pill badge-pill--green" style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Check size={11} />
-                        <span>TTD Tertera</span>
+                return (
+                  <tr key={skp.id}>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '14px' }}>{skp.dosenNama}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
+                        NIP {skp.dosenNip} &bull; {skp.dosenProdi}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="badge-pill badge-pill--gray" style={{ fontSize: '11.5px', fontWeight: 600 }}>
+                        Semester {skp.semester} {skp.tahunAkademik}
                       </span>
-                    ) : (
-                      <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Belum TTD</span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <button
-                        className="brand-btn btn-action-view"
-                        style={{ padding: '6px 14px', fontSize: '12px' }}
-                        onClick={() => handleOpenReview(skp)}
+                    </td>
+                    <td>{skp.dosenJabatan || '-'} {skp.dosenPangkat ? `(${skp.dosenPangkat})` : ''}</td>
+                    <td>
+                      <span
+                        className={`badge-pill ${
+                          status === 'Disetujui SDM'
+                            ? 'badge-pill--green'
+                            : status === 'Dinilai Kaprodi'
+                            ? 'badge-pill--blue'
+                            : 'badge-pill--orange'
+                        }`}
                       >
-                        <FileCheck2 size={13} />
-                        <span>Verifikasi &amp; TTD</span>
-                      </button>
-                      <button
-                        className="brand-btn btn-action-print"
-                        style={{ padding: '6px 10px', fontSize: '12px' }}
-                        title="Cetak Formulir SKP"
-                        onClick={() => setPrintSKPTarget(skp)}
-                      >
-                        <Printer size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
+                        {status}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: 'var(--brand-700)' }}>{realisasi} SKS</span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 700 }}>{capaian}%</span>
+                    </td>
+                    <td>
+                      {skp?.ttdKaprodiUrl ? (
+                        <span className="badge-pill badge-pill--green" style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Check size={11} />
+                          <span>TTD Tertera</span>
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Belum TTD</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          className="brand-btn btn-action-view"
+                          style={{ padding: '6px 14px', fontSize: '12px' }}
+                          onClick={() => handleOpenReview(skp)}
+                        >
+                          <FileCheck2 size={13} />
+                          <span>Verifikasi &amp; TTD</span>
+                        </button>
+                        <button
+                          className="brand-btn btn-action-print"
+                          style={{ padding: '6px 10px', fontSize: '12px' }}
+                          title="Cetak Formulir SKP"
+                          onClick={() => setPrintSKPTarget(skp)}
+                        >
+                          <Printer size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>

@@ -10,13 +10,13 @@ import {
   Calendar,
 } from 'lucide-react'
 import { PengajuanSKP } from '../types'
-import { PRODI_LIST } from '../data'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { useStaggerEntrance } from '../utils/animations'
 
 interface KelolaSKPDosenProps {
   skpList: PengajuanSKP[]
+  prodiList?: string[]
   onApproveSKP: (id: string, notes: string) => void
   onRejectSKP: (id: string, notes: string) => void
   initialSelectedSKP?: PengajuanSKP | null
@@ -25,11 +25,15 @@ interface KelolaSKPDosenProps {
 
 export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   skpList,
+  prodiList: prodiListProp,
   initialSelectedSKP,
   onApproveSKP,
   onRejectSKP,
   onShowToast,
 }) => {
+  const availableProdis = prodiListProp && prodiListProp.length > 0
+    ? (prodiListProp[0] === 'Semua Program Studi' ? prodiListProp : ['Semua Program Studi', ...prodiListProp])
+    : ['Semua Program Studi', ...Array.from(new Set(skpList.map((s) => s.dosenProdi).filter(Boolean)))]
   const [viewMode, setViewMode] = useState<'list' | 'review'>('list')
   const [selectedSKP, setSelectedSKP] = useState<PengajuanSKP | null>(null)
   const [sdmNotes, setSdmNotes] = useState('')
@@ -138,7 +142,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Realisasi SKS &amp; Mutu</div>
               <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--brand-700)', marginTop: 2 }}>
-                {selectedSKP.totalSksRealisasi} SKS ({selectedSKP.nilaiKinerjaSKP || 90.58}%)
+                {selectedSKP.totalSksRealisasi} SKS {selectedSKP.nilaiKinerjaSKP ? `(${selectedSKP.nilaiKinerjaSKP}%)` : ''}
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>Semester {selectedSKP.semester} {selectedSKP.tahunAkademik}</div>
             </div>
@@ -388,7 +392,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             onChange={(e) => setSelectedProdi(e.target.value)}
             style={{ width: 'auto', minWidth: 200, height: 38, fontSize: '13px', fontWeight: 600 }}
           >
-            {PRODI_LIST.map((p, idx) => (
+            {availableProdis.map((p, idx) => (
               <option key={idx} value={p}>
                 {p}
               </option>
@@ -443,7 +447,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                   </span>
                 </td>
                 <td>
-                  <span style={{ fontWeight: 700 }}>{skp.nilaiKinerjaSKP || 90.58}%</span>
+                  <span style={{ fontWeight: 700 }}>{skp.nilaiKinerjaSKP ? `${skp.nilaiKinerjaSKP}%` : '-'}</span>
                 </td>
                 <td>
                   <span

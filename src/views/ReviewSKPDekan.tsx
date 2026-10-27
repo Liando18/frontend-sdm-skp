@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   FileCheck2,
   CheckCircle,
@@ -19,8 +19,6 @@ import { PengajuanSKP, Dosen, UserSession } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { useStaggerEntrance } from '../utils/animations'
-
-const TAHUN_OPTIONS = ['2025/2026', '2024/2025', '2026/2027']
 
 interface ReviewSKPDekanProps {
   user: UserSession
@@ -46,65 +44,52 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   const [confirmReject, setConfirmReject] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
 
+  const availableYears = useMemo(() => {
+    const years = Array.from(new Set(skpList.map((s) => s.tahunAkademik).filter(Boolean)))
+    return years.length > 0 ? years : ['2025/2026']
+  }, [skpList])
+
   // Filters: Tahun Ajaran, Semester, Search
-  const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2025/2026')
   const [selectedSemester, setSelectedSemester] = useState<'Semua' | 'Genap' | 'Ganjil'>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Default Digital Signature for Dekan
   const defaultDekanTTD =
-    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="70"><path d="M15 50 Q 55 15 100 45 T 165 25" fill="none" stroke="%231e3a5f" stroke-width="3"/><text x="18" y="62" font-family="sans-serif" font-weight="bold" font-size="10.5" fill="%231e3a5f">Dr. Hj. Ratna Dian - Dekan</text></svg>'
+    `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="70"><path d="M15 50 Q 55 15 100 45 T 165 25" fill="none" stroke="%231e3a5f" stroke-width="3"/><text x="18" y="62" font-family="sans-serif" font-weight="bold" font-size="10.5" fill="%231e3a5f">${encodeURIComponent(user.name || 'Dekan')} - Dekan</text></svg>`
   const [ttdPreview, setTtdPreview] = useState<string>(defaultDekanTTD)
 
   // Filter kaprodi
   const kaprodiList = dosenList.filter((d) => d.isKaprodi)
+  const kaprodiIds = new Set(kaprodiList.map((d) => d.id))
+  const kaprodiNames = new Set(kaprodiList.map((d) => d.nama))
 
-  const filteredRows = kaprodiList.flatMap((dosen) => {
-    const semestersToCheck: ('Ganjil' | 'Genap')[] =
-      selectedSemester === 'Semua' ? ['Genap', 'Ganjil'] : [selectedSemester]
+  const filteredRows = skpList.filter((skp) => {
+    const isKap =
+      kaprodiIds.has(skp.dosenId) ||
+      kaprodiNames.has(skp.dosenNama) ||
+      kaprodiList.some((k) => k.prodi === skp.dosenProdi)
 
-    return semestersToCheck.map((sem) => {
-      const found = skpList.find(
-        (s) =>
-          (s.dosenId === dosen.id || s.dosenNama === dosen.nama) &&
-          s.semester === sem &&
-          (s.tahunAkademik === selectedTahun || !s.tahunAkademik)
+    if (!isKap) return false
+
+    if (selectedTahun && skp.tahunAkademik && skp.tahunAkademik !== selectedTahun) {
+      return false
+    }
+
+    if (selectedSemester !== 'Semua' && skp.semester !== selectedSemester) {
+      return false
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      return (
+        skp.dosenNama.toLowerCase().includes(q) ||
+        (skp.dosenNip && skp.dosenNip.toLowerCase().includes(q)) ||
+        (skp.dosenProdi && skp.dosenProdi.toLowerCase().includes(q))
       )
-      if (found) return found
+    }
 
-      const fallbackSKP: PengajuanSKP = {
-        id: `skp-${dosen.id}-${sem.toLowerCase()}-${selectedTahun.replace('/', '-')}`,
-        dosenId: dosen.id,
-        dosenNama: dosen.nama,
-        dosenNip: dosen.nip,
-        dosenProdi: dosen.prodi,
-        dosenPangkat: dosen.golongan,
-        dosenJabatan: `Ketua Program Studi ${dosen.prodi}`,
-        penilaiNama: user.name,
-        penilaiNip: user.nip,
-        penilaiJabatan: 'Dekan Fakultas Keperawatan',
-        penilaiUnit: 'Fakultas Keperawatan UBK',
-        penilaiRole: 'Dekan',
-        semester: sem,
-        tahunAkademik: selectedTahun,
-        totalSksRencana: 16,
-        totalSksRealisasi: sem === 'Genap' ? 16 : 15,
-        persentaseCapaian: 93.75,
-        nilaiKinerjaSKP: 95.0,
-        status: 'Diajukan',
-        tanggalPengajuan: sem === 'Genap' ? '17 Oktober 2026' : '21 Februari 2026',
-        catatanKaprodi: '',
-        catatanDekan: '',
-        catatanSDM: '',
-        ttdDekanUrl: undefined,
-        items: [],
-      }
-      return fallbackSKP
-    })
-  }).filter((skp) => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    return skp.dosenNama.toLowerCase().includes(q) || skp.dosenNip.toLowerCase().includes(q) || skp.dosenProdi.toLowerCase().includes(q)
+    return true
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -112,7 +97,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
 
   const handleOpenReview = (skp: PengajuanSKP) => {
     setActiveReviewSKP(skp)
-    setDekanNotes(skp.catatanDekan || 'Kinerja kepemimpinan prodi, manajemen kurikulum, dan Tridharma semester ini sangat memuaskan.')
+    setDekanNotes(skp.catatanDekan || '')
     setTtdPreview(skp.ttdDekanUrl || defaultDekanTTD)
     setViewMode('review')
   }
@@ -516,7 +501,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
             >
-              {TAHUN_OPTIONS.map((thn, idx) => (
+              {availableYears.map((thn, idx) => (
                 <option key={idx} value={thn}>
                   {thn}
                 </option>
@@ -616,10 +601,10 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                     {skp.semester} {skp.tahunAkademik}
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                    {skp.totalSksRealisasi} SKS
+                    {skp.totalSksRealisasi ?? (skp.items && skp.items.length > 0 ? skp.items.reduce((a, b) => a + (b.realisasi || 0), 0) : 0)} SKS
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--brand-700)' }}>
-                    {skp.nilaiKinerjaSKP}%
+                    {skp.nilaiKinerjaSKP ?? skp.persentaseCapaian ?? 0}%
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     <span

@@ -37,11 +37,16 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
   const { dosen, tahunAkademik } = data
 
-  const penilaiNama = data.skpGenap?.penilaiNama || 'Dr. Apt Entris Sutrisno, MH.Kes'
-  const penilaiNip = data.skpGenap?.penilaiNip || '8750757658130140'
-  const penilaiPangkat = data.skpGenap?.penilaiPangkat || 'Penata Tk I/ IIId'
-  const penilaiJabatan = data.skpGenap?.penilaiJabatan || 'Rektor'
-  const penilaiUnit = data.skpGenap?.penilaiUnit || 'S1 Farmasi'
+  const penilaiNama = data.skpGenap?.penilaiNama || 'Atasan Penilai'
+  const penilaiNip = data.skpGenap?.penilaiNip || '-'
+  const penilaiPangkat = data.skpGenap?.penilaiPangkat || '-'
+  const penilaiJabatan = data.skpGenap?.penilaiJabatan || 'Pejabat Penilai Kinerja'
+  const penilaiUnit = data.skpGenap?.penilaiUnit || dosen.prodi
+  const tanggalCetak = data.skpGenap?.tanggalPenilaianDekan
+    || data.skpGenap?.tanggalPenilaianKaprodi
+    || data.skpGenap?.tanggalPengajuan
+    || data.kuesioner?.tanggal 
+    || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 
   const handlePrint = () => {
     const originalTitle = document.title
@@ -206,7 +211,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   PENDEKATAN HASIL KERJA KUALITATIF BAGI PEJABAT ADMINISTRASI / FUNGSIONAL
                 </div>
                 <div style={{ fontSize: '11.5px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: 01 Januari 2026 s/d 31 Desember 2026
+                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
                 </div>
               </div>
 
@@ -375,7 +380,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20, textAlign: 'center' }}>
                 <div style={{ width: 220 }}>
                   <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pegawai yang Dinilai,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosen.nama}</div>
@@ -384,7 +389,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
                 <div style={{ width: 220 }}>
                   <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
@@ -411,7 +416,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   LAMPIRAN SASARAN KINERJA PEGAWAI
                 </div>
                 <div style={{ fontSize: '11.5px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: 01 Januari 2026 s/d 31 Desember 2026
+                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
                 </div>
               </div>
 
@@ -442,7 +447,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, textAlign: 'center' }}>
                 <div style={{ width: 220 }}>
                   <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pegawai yang Dinilai,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosen.nama}</div>
@@ -451,7 +456,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
                 <div style={{ width: 220 }}>
                   <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
@@ -481,7 +486,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   BAGI PEJABAT ADMINISTRASI / FUNGSIONAL &bull; PERIODE: AKHIR* (TAHUNAN)
                 </div>
                 <div style={{ fontSize: '11.5px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: 01 Januari 2026 s/d 31 Desember 2026
+                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
                 </div>
               </div>
 
@@ -522,7 +527,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                       </div>
                     </td>
                     <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                      <div>Pengajaran mata kuliah TA 2025/2026</div>
+                      <div>Pengajaran mata kuliah TA {tahunAkademik}</div>
                       <a href="https://siakad.bku.ac.id/dokumen/pengajaran" target="_blank" rel="noreferrer" style={{ color: '#1d4ed8' }}>
                         https://siakad.bku.ac.id/dokumen/pengajaran
                       </a>
@@ -629,7 +634,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24, textAlign: 'center' }}>
                 <div style={{ width: 220 }}>
                   <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
@@ -654,7 +659,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   PERIODE: AKHIR* (TAHUNAN)
                 </div>
                 <div style={{ fontSize: '12px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: 01 Januari 2026 s/d 31 Desember 2026
+                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
                 </div>
               </div>
 
@@ -706,7 +711,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, textAlign: 'center' }}>
                 <div style={{ width: 240 }}>
                   <div style={{ marginBottom: 60 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pegawai yang Dinilai,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosen.nama}</div>
@@ -715,7 +720,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
                 <div style={{ width: 240 }}>
                   <div style={{ marginBottom: 60 }}>
-                    <div>Bandung, 30 Desember 2026</div>
+                    <div>Bandung, {tanggalCetak}</div>
                     <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
                   </div>
                   <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>

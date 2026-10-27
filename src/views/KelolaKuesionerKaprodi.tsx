@@ -7,13 +7,14 @@ import {
   ArrowLeft,
   Filter,
 } from 'lucide-react'
-import { Dosen, PenilaianKuesioner, UserSession } from '../types'
+import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 
 interface KelolaKuesionerKaprodiProps {
   user: UserSession
   dosenList: Dosen[]
   penilaianList: PenilaianKuesioner[]
+  indikatorList?: IndikatorKuesioner[]
   onSaveKuesioner: (penilaian: PenilaianKuesioner) => void
   onShowToast: (msg: string) => void
 }
@@ -62,6 +63,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   user,
   dosenList,
   penilaianList,
+  indikatorList = [],
   onSaveKuesioner,
   onShowToast,
 }) => {
@@ -83,7 +85,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
 
   // Dosen homebase prodi (excluding Kaprodi himself)
   const prodiDosen = dosenList.filter(
-    (d) => (d.prodi === user.prodi || d.prodi === 'S1 Keperawatan') && !d.isKaprodi
+    (d) => d.prodi === user.prodi && !d.isKaprodi
   )
 
   const filteredDosen = prodiDosen.filter((d) => {
@@ -129,7 +131,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
         nilaiLoyal: 4,
         nilaiAdaptif: 4,
         nilaiKolaboratif: 4,
-        catatan: 'Disiplin mengajar dan kepatuhan Tridharma dosen homebase prodi sangat baik dan kooperatif.',
+        catatan: '',
       })
     }
     setViewMode('evaluate')
@@ -179,8 +181,8 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
       nilaiKolaboratif: Number(kuisScores.nilaiKolaboratif),
       rataRata: avg,
       predikat: currentPredikat,
-      tanggal: '24 Oktober 2026',
-      catatan: kuisScores.catatan || 'Kinerja perilaku kerja tahunan memenuhi standar BerAKHLAK UBK.',
+      tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      catatan: kuisScores.catatan || '',
     }
 
     onSaveKuesioner(newPenilaian)
@@ -273,6 +275,24 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
                     <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>
                       {item.sub}
                     </div>
+                    {(() => {
+                      const keyword = item.label.split('.')[1]?.trim().toLowerCase() || ''
+                      const count = (indikatorList || []).filter(
+                        (ind) =>
+                          ind.aspek.toLowerCase().includes(keyword) ||
+                          keyword.includes(ind.aspek.toLowerCase())
+                      ).length
+                      return count > 0 ? (
+                        <div style={{ marginTop: 6 }}>
+                          <span
+                            className="badge-pill badge-pill--blue"
+                            style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <span>{count} Butir Indikator SDM Aktif</span>
+                          </span>
+                        </div>
+                      ) : null
+                    })()}
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

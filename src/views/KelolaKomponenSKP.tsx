@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Plus, Edit2, Trash2, ArrowLeft, Search, Filter, ShieldCheck, Users, Settings, X, Check } from 'lucide-react'
 import { KomponenSKP, TargetJabatanSKP, KategoriKomponenSKP } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -66,7 +66,36 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
   const [filterKategori, setFilterKategori] = useState<string>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const [kategoriList, setKategoriList] = useState<string[]>(KATEGORI_OPTIONS)
+  // Derive categories dynamically from database components
+  const [kategoriList, setKategoriList] = useState<string[]>(() => {
+    const fromDb = Array.from(new Set(komponenList.map((k) => k.kategori).filter(Boolean)))
+    return fromDb.length > 0 ? fromDb : KATEGORI_OPTIONS
+  })
+
+  useEffect(() => {
+    if (komponenList && komponenList.length > 0) {
+      setKategoriList((prev) => {
+        const fromDb = Array.from(new Set(komponenList.map((k) => k.kategori).filter(Boolean)))
+        return Array.from(new Set([...fromDb, ...prev]))
+      })
+    }
+  }, [komponenList])
+
+  const availableTargetJabatan = Array.from(
+    new Set([
+      'Semua Jabatan',
+      ...komponenList.map((k) => k.targetJabatan).filter(Boolean),
+      ...TARGET_JABATAN_OPTIONS,
+    ])
+  ) as TargetJabatanSKP[]
+
+  const availableSatuan = Array.from(
+    new Set([
+      ...komponenList.map((k) => k.satuan).filter(Boolean),
+      ...COMMON_SATUAN_LIST,
+    ])
+  )
+
   const [isManageKategoriOpen, setIsManageKategoriOpen] = useState(false)
   const [newKategoriInput, setNewKategoriInput] = useState('')
   const [editingKategoriIdx, setEditingKategoriIdx] = useState<number | null>(null)
@@ -476,7 +505,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                   value={formData.targetJabatan}
                   onChange={(e) => setFormData({ ...formData, targetJabatan: e.target.value as TargetJabatanSKP })}
                 >
-                  {TARGET_JABATAN_OPTIONS.map((jab, idx) => (
+                  {availableTargetJabatan.filter((j) => j !== 'Semua Jabatan').map((jab, idx) => (
                     <option key={idx} value={jab}>
                       {jab}
                     </option>
@@ -553,7 +582,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                   placeholder="Misal: SKS, Mahasiswa, Kegiatan, Jurnal"
                 />
                 <datalist id="satuan-options-list">
-                  {COMMON_SATUAN_LIST.map((st, idx) => (
+                  {availableSatuan.map((st, idx) => (
                     <option key={idx} value={st} />
                   ))}
                 </datalist>
@@ -664,7 +693,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
               onChange={(e) => setFilterTargetJabatan(e.target.value)}
             >
               <option value="Semua">Semua Target Jabatan</option>
-              {TARGET_JABATAN_OPTIONS.map((jab, idx) => (
+              {availableTargetJabatan.filter((j) => j !== 'Semua Jabatan').map((jab, idx) => (
                 <option key={idx} value={jab}>
                   {jab}
                 </option>

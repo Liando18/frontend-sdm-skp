@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   Plus,
   Search,
@@ -16,23 +16,30 @@ import {
   Check,
 } from 'lucide-react'
 import { Dosen } from '../types'
-import { PRODI_LIST } from '../data'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
 
 interface KelolaDataDosenProps {
   dosenList: Dosen[]
+  prodiList?: string[]
   onAddDosen: (dosen: Dosen) => void
   onUpdateDosen: (dosen: Dosen) => void
   onDeleteDosen: (id: string) => void
+  onAddProdi?: (name: string) => Promise<void> | void
+  onUpdateProdi?: (oldName: string, newName: string) => Promise<void> | void
+  onDeleteProdi?: (name: string) => Promise<void> | void
   onShowToast: (msg: string) => void
 }
 
 export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   dosenList,
+  prodiList: prodiListProp,
   onAddDosen,
   onUpdateDosen,
   onDeleteDosen,
+  onAddProdi,
+  onUpdateProdi,
+  onDeleteProdi,
   onShowToast,
 }) => {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
@@ -41,34 +48,54 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [selectedDosen, setSelectedDosen] = useState<Dosen | null>(null)
   const [deleteConfirmDosen, setDeleteConfirmDosen] = useState<Dosen | null>(null)
 
-  const [prodiList, setProdiList] = useState<string[]>(() =>
-    PRODI_LIST.filter((p) => p !== 'Semua Program Studi')
-  )
+  // Derive prodi list dynamically from database / props
+  const [localProdiList, setLocalProdiList] = useState<string[]>(() => {
+    if (prodiListProp && prodiListProp.length > 0) return prodiListProp
+    const uniqueFromDosen = Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
+    return uniqueFromDosen.length > 0 ? uniqueFromDosen : ['S1 Keperawatan']
+  })
+
+  useEffect(() => {
+    if (prodiListProp && prodiListProp.length > 0) {
+      setLocalProdiList(prodiListProp)
+    }
+  }, [prodiListProp])
+
+  const prodiList = localProdiList
   const [isManageProdiOpen, setIsManageProdiOpen] = useState(false)
   const [newProdiInput, setNewProdiInput] = useState('')
   const [editingProdiIdx, setEditingProdiIdx] = useState<number | null>(null)
   const [editingProdiValue, setEditingProdiValue] = useState('')
 
-  const handleAddProdi = () => {
+  const handleAddProdi = async () => {
     const val = newProdiInput.trim()
     if (!val) return
     if (prodiList.includes(val)) {
       onShowToast('Program Studi tersebut sudah ada!')
       return
     }
-    setProdiList([...prodiList, val])
+    if (onAddProdi) {
+      await onAddProdi(val)
+    } else {
+      setLocalProdiList((prev) => [...prev, val])
+      onShowToast(`Program Studi "${val}" berhasil ditambahkan!`)
+    }
     setFormData((prev) => ({ ...prev, prodi: val }))
     setNewProdiInput('')
-    onShowToast(`Program Studi "${val}" berhasil ditambahkan!`)
   }
 
-  const handleSaveEditProdi = (index: number) => {
+  const handleSaveEditProdi = async (index: number) => {
     const val = editingProdiValue.trim()
     if (!val) return
     const oldVal = prodiList[index]
-    const updated = [...prodiList]
-    updated[index] = val
-    setProdiList(updated)
+    if (onUpdateProdi) {
+      await onUpdateProdi(oldVal, val)
+    } else {
+      const updated = [...prodiList]
+      updated[index] = val
+      setLocalProdiList(updated)
+      onShowToast('Nama Program Studi berhasil diperbarui!')
+    }
     if (formData.prodi === oldVal) {
       setFormData((prev) => ({ ...prev, prodi: val }))
     }
@@ -77,35 +104,40 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
     setEditingProdiIdx(null)
     setEditingProdiValue('')
-    onShowToast('Nama Program Studi berhasil diperbarui!')
   }
 
-  const handleDeleteProdi = (index: number) => {
+  const handleDeleteProdi = async (index: number) => {
     if (prodiList.length <= 1) {
       onShowToast('Minimal harus ada 1 program studi!')
       return
     }
     const removed = prodiList[index]
-    const updated = prodiList.filter((_, i) => i !== index)
-    setProdiList(updated)
+    if (onDeleteProdi) {
+      await onDeleteProdi(removed)
+    } else {
+      const updated = prodiList.filter((_, i) => i !== index)
+      setLocalProdiList(updated)
+      onShowToast(`Program Studi "${removed}" telah dihapus.`)
+    }
     if (formData.prodi === removed) {
-      setFormData((prev) => ({ ...prev, prodi: updated[0] }))
+      setFormData((prev) => ({ ...prev, prodi: prodiList[0] || '' }))
     }
     if (selectedProdi === removed) {
       setSelectedProdi('Semua Program Studi')
     }
-    onShowToast(`Program Studi "${removed}" telah dihapus.`)
   }
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedProdi, setSelectedProdi] = useState('Semua Program Studi')
   const [selectedStatus, setSelectedStatus] = useState('Semua Status')
 
+  const defaultProdi = prodiList[0] || 'S1 Keperawatan'
+
   const [formData, setFormData] = useState({
     nama: '',
     nip: '',
     nuptk: '',
-    prodi: 'S1 Keperawatan',
+    prodi: defaultProdi,
     jafung: 'Asisten Ahli',
     golongan: 'Penata Muda Tk I / IIIb',
     pendidikanS1: '',
@@ -137,7 +169,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       nama: '',
       nip: '',
       nuptk: '',
-      prodi: 'S1 Keperawatan',
+      prodi: defaultProdi,
       jafung: 'Asisten Ahli',
       golongan: 'Penata Muda Tk I / IIIb',
       pendidikanS1: '',
@@ -225,9 +257,9 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
         pendidikan: combinedPendidikan,
         status: formData.status,
         skpStatus: 'Draft',
-        nilaiAkhir: 86.0,
+        nilaiAkhir: 0,
         email: formData.email || `${formData.nama.toLowerCase().replace(/[^a-z]/g, '')}@bku.ac.id`,
-        phone: formData.phone || '081234567890',
+        phone: formData.phone || '',
       }
       onAddDosen(newDosen)
       onShowToast(`Dosen baru ${formData.nama} berhasil ditambahkan!`)

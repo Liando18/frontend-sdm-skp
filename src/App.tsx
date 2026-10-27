@@ -1,16 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Role, UserSession, Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem } from './types'
+import { Role, UserSession, Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, ProgramStudi } from './types'
 import { useViewTransition } from './utils/animations'
 import { api } from './services/api'
-import {
-  DEMO_USERS,
-  INITIAL_DOSEN,
-  INITIAL_KOMPONEN,
-  INITIAL_PENGAJUAN_SKP,
-  INITIAL_INDIKATOR,
-  INITIAL_PENILAIAN_KUESIONER,
-  INITIAL_NOTIFICATIONS,
-} from './data'
+import { DEMO_USERS } from './data'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { CommandPalette } from './components/CommandPalette'
@@ -54,12 +46,14 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success')
 
-  const [dosenList, setDosenList] = useState<Dosen[]>(INITIAL_DOSEN)
-  const [komponenList, setKomponenList] = useState<KomponenSKP[]>(INITIAL_KOMPONEN)
-  const [skpList, setSkpList] = useState<PengajuanSKP[]>(INITIAL_PENGAJUAN_SKP)
-  const [indikatorList, setIndikatorList] = useState<IndikatorKuesioner[]>(INITIAL_INDIKATOR)
-  const [penilaianList, setPenilaianList] = useState<PenilaianKuesioner[]>(INITIAL_PENILAIAN_KUESIONER)
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS)
+  const [demoUsers, setDemoUsers] = useState<Record<string, UserSession>>(DEMO_USERS)
+  const [dosenList, setDosenList] = useState<Dosen[]>([])
+  const [prodiList, setProdiList] = useState<ProgramStudi[]>([])
+  const [komponenList, setKomponenList] = useState<KomponenSKP[]>([])
+  const [skpList, setSkpList] = useState<PengajuanSKP[]>([])
+  const [indikatorList, setIndikatorList] = useState<IndikatorKuesioner[]>([])
+  const [penilaianList, setPenilaianList] = useState<PenilaianKuesioner[]>([])
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'offline'>('checking')
   const [selectedSKPForReview, setSelectedSKPForReview] = useState<PengajuanSKP | null>(null)
 
@@ -68,29 +62,35 @@ export default function App() {
     let isMounted = true
     const initDataFromApi = async () => {
       try {
-        const [dosenData, komponenData, skpData, indikatorData, penilaianData, notifData] = await Promise.all([
+        const [dosenData, komponenData, skpData, indikatorData, penilaianData, notifData, prodiData, demoUsersData] = await Promise.all([
           api.dosen.list().catch(() => null),
           api.komponen.list().catch(() => null),
           api.skp.list().catch(() => null),
           api.indikator.list().catch(() => null),
           api.penilaian.list().catch(() => null),
           api.notifications.list().catch(() => null),
+          api.prodi.list().catch(() => null),
+          api.auth.getDemoUsers().catch(() => null),
         ])
 
         if (!isMounted) return
 
-        if (dosenData && Array.isArray(dosenData) && dosenData.length > 0) {
+        if (dosenData && Array.isArray(dosenData)) {
           setDosenList(dosenData)
           setBackendStatus('connected')
         } else {
           setBackendStatus('offline')
         }
 
-        if (komponenData && Array.isArray(komponenData) && komponenData.length > 0) setKomponenList(komponenData)
-        if (skpData && Array.isArray(skpData) && skpData.length > 0) setSkpList(skpData)
-        if (indikatorData && Array.isArray(indikatorData) && indikatorData.length > 0) setIndikatorList(indikatorData)
-        if (penilaianData && Array.isArray(penilaianData) && penilaianData.length > 0) setPenilaianList(penilaianData)
-        if (notifData && Array.isArray(notifData) && notifData.length > 0) setNotifications(notifData)
+        if (prodiData && Array.isArray(prodiData)) setProdiList(prodiData)
+        if (komponenData && Array.isArray(komponenData)) setKomponenList(komponenData)
+        if (skpData && Array.isArray(skpData)) setSkpList(skpData)
+        if (indikatorData && Array.isArray(indikatorData)) setIndikatorList(indikatorData)
+        if (penilaianData && Array.isArray(penilaianData)) setPenilaianList(penilaianData)
+        if (notifData && Array.isArray(notifData)) setNotifications(notifData)
+        if (demoUsersData && typeof demoUsersData === 'object' && Object.keys(demoUsersData).length > 0) {
+          setDemoUsers(demoUsersData as Record<string, UserSession>)
+        }
       } catch (err) {
         if (isMounted) setBackendStatus('offline')
       }
@@ -102,7 +102,7 @@ export default function App() {
     }
   }, [])
 
-  const currentUser: UserSession = DEMO_USERS[currentRole] || DEMO_USERS['sdm']
+  const currentUser: UserSession = demoUsers[currentRole] || DEMO_USERS[currentRole] || DEMO_USERS['sdm']
 
   const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMessage(msg)
@@ -115,7 +115,8 @@ export default function App() {
   const handleSwitchRole = (role: Role) => {
     setCurrentRole(role)
     setActiveNav('dashboard')
-    showToast(`Beralih ke mode ${role.toUpperCase()} (${DEMO_USERS[role].name})`)
+    const userObj = demoUsers[role] || DEMO_USERS[role]
+    showToast(`Beralih ke mode ${role.toUpperCase()} (${userObj?.name || role})`)
   }
 
   const handleLogin = async (role: Role, email?: string, password?: string) => {
@@ -150,19 +151,92 @@ export default function App() {
     api.dosen.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
-  const handleAddKomponen = (item: KomponenSKP) => {
-    setKomponenList([...komponenList, item])
-    api.komponen.create(item).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  const prodiNames = prodiList.length > 0
+    ? prodiList.map((p) => p.nama)
+    : Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
+
+  const handleAddProdi = async (nama: string) => {
+    try {
+      const res = await api.prodi.create({ nama })
+      if (res?.data) {
+        setProdiList((prev) => [...prev, res.data])
+      } else {
+        setProdiList((prev) => [
+          ...prev,
+          { id: `prodi-${Date.now()}`, nama, jenjang: 'S1', fakultas: 'Fakultas Keperawatan dan Kebidanan', kampus: 'Pusat', akreditasi: 'Baik Sekali' },
+        ])
+      }
+      showToast(`Program Studi "${nama}" berhasil disimpan ke basis data!`, 'success')
+    } catch (err: any) {
+      showToast(`Gagal menambahkan program studi: ${err?.message || 'Error'}`, 'error')
+    }
   }
 
-  const handleUpdateKomponen = (updated: KomponenSKP) => {
-    setKomponenList(komponenList.map((k) => (k.id === updated.id ? updated : k)))
-    api.komponen.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  const handleUpdateProdi = async (oldName: string, newName: string) => {
+    try {
+      const target = prodiList.find((p) => p.nama === oldName)
+      if (target) {
+        await api.prodi.update(target.id, { nama: newName })
+        setProdiList((prev) => prev.map((p) => (p.id === target.id ? { ...p, nama: newName } : p)))
+      } else {
+        await api.prodi.update(oldName, { nama: newName })
+        setProdiList((prev) => prev.map((p) => (p.nama === oldName ? { ...p, nama: newName } : p)))
+      }
+      showToast(`Program Studi berhasil diubah menjadi "${newName}"!`, 'success')
+    } catch (err: any) {
+      showToast(`Gagal memperbarui program studi: ${err?.message || 'Error'}`, 'error')
+    }
   }
 
-  const handleDeleteKomponen = (id: string) => {
-    setKomponenList(komponenList.filter((k) => k.id !== id))
-    api.komponen.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  const handleDeleteProdi = async (nama: string) => {
+    try {
+      const target = prodiList.find((p) => p.nama === nama)
+      if (target) {
+        await api.prodi.delete(target.id)
+        setProdiList((prev) => prev.filter((p) => p.id !== target.id))
+      } else {
+        await api.prodi.delete(nama)
+        setProdiList((prev) => prev.filter((p) => p.nama !== nama))
+      }
+      showToast(`Program Studi "${nama}" berhasil dihapus dari basis data!`, 'success')
+    } catch (err: any) {
+      showToast(`Gagal menghapus program studi: ${err?.message || 'Error'}`, 'error')
+    }
+  }
+
+  const handleAddKomponen = async (item: KomponenSKP) => {
+    try {
+      const res = await api.komponen.create(item)
+      const created = res?.data || item
+      setKomponenList((prev) => [created, ...prev.filter((k) => k.id !== item.id && k.id !== created.id)])
+      showToast(`Komponen SKP ${item.kode} berhasil disimpan ke basis data!`, 'success')
+    } catch (err: any) {
+      setKomponenList((prev) => [item, ...prev])
+      showToast(`Komponen disimpan secara lokal: ${err?.message || ''}`, 'info')
+    }
+  }
+
+  const handleUpdateKomponen = async (updated: KomponenSKP) => {
+    try {
+      const res = await api.komponen.update(updated.id, updated)
+      const saved = res?.data || updated
+      setKomponenList((prev) => prev.map((k) => (k.id === updated.id ? saved : k)))
+      showToast(`Komponen SKP ${updated.kode} berhasil diperbarui di basis data!`, 'success')
+    } catch (err: any) {
+      setKomponenList((prev) => prev.map((k) => (k.id === updated.id ? updated : k)))
+      showToast(`Komponen diperbarui secara lokal: ${err?.message || ''}`, 'info')
+    }
+  }
+
+  const handleDeleteKomponen = async (id: string) => {
+    try {
+      await api.komponen.delete(id)
+      setKomponenList((prev) => prev.filter((k) => k.id !== id))
+      showToast('Komponen SKP berhasil dihapus dari basis data!', 'success')
+    } catch (err: any) {
+      setKomponenList((prev) => prev.filter((k) => k.id !== id))
+      showToast(`Komponen dihapus secara lokal: ${err?.message || ''}`, 'info')
+    }
   }
 
   const handleSubmitSKP = async (skpId: string) => {
@@ -204,53 +278,19 @@ export default function App() {
 
   const handleApproveSKPByKaprodi = (skpId: string, notes: string, ttdUrl?: string) => {
     const existing = skpList.find((s) => s.id === skpId)
-    const updated: PengajuanSKP = existing
-      ? {
-          ...existing,
-          status: 'Dinilai Kaprodi',
-          catatanKaprodi: notes,
-          ttdKaprodiUrl: ttdUrl || existing.ttdKaprodiUrl,
-          tanggalPenilaianKaprodi: '20 Oktober 2026',
-        }
-      : {
-          id: skpId,
-          dosenId: 'dosen-3',
-          dosenNama: 'Agus Miraj Darajat, M.Kep',
-          dosenNip: '198708152019031008',
-          dosenProdi: 'S1 Keperawatan',
-          dosenPangkat: 'Penata Muda Tk. I, III/b',
-          dosenJabatan: 'Lektor',
-          penilaiNama: 'Ade Iwan Mutiudin, M.Kep',
-          penilaiNip: '198204122014041001',
-          penilaiPangkat: 'Penata, III/c',
-          penilaiJabatan: 'Ketua Program Studi S1 Keperawatan',
-          penilaiUnit: 'Fakultas Keperawatan',
-          penilaiRole: 'Kaprodi',
-          tahunAkademik: '2025/2026',
-          semester: 'Genap',
-          status: 'Dinilai Kaprodi',
-          totalSksRencana: 16,
-          totalSksRealisasi: 16,
-          persentaseCapaian: 100,
-          nilaiKinerjaSKP: 90,
-          tanggalPengajuan: '15 Oktober 2026',
-          catatanKaprodi: notes,
-          catatanSDM: '',
-          ttdKaprodiUrl: ttdUrl,
-          tanggalPenilaianKaprodi: '20 Oktober 2026',
-          items: [],
-        }
-
-    const existsInList = skpList.some((s) => s.id === skpId)
-    if (existsInList) {
-      setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
-    } else {
-      setSkpList([updated, ...skpList])
+    if (!existing) {
+      showToast('Data pengajuan SKP tidak ditemukan di database.', 'error')
+      return
     }
-
-    api.skp.reviewKaprodi(skpId, 'approve', notes, ttdUrl).catch(() => {
-      api.skp.update(skpId, updated).catch(() => api.skp.create(updated).catch(() => {}))
-    })
+    const updated: PengajuanSKP = {
+      ...existing,
+      status: 'Dinilai Kaprodi',
+      catatanKaprodi: notes,
+      ttdKaprodiUrl: ttdUrl || existing.ttdKaprodiUrl,
+      tanggalPenilaianKaprodi: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+    }
+    setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
+    api.skp.reviewKaprodi(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync review Kaprodi gagal:', err))
   }
 
   const handleRejectSKPByKaprodi = (skpId: string, notes: string) => {
@@ -264,54 +304,19 @@ export default function App() {
 
   const handleApproveSKPByDekan = (skpId: string, notes: string, ttdUrl?: string) => {
     const existing = skpList.find((s) => s.id === skpId)
-    const updated: PengajuanSKP = existing
-      ? {
-          ...existing,
-          status: 'Dinilai Dekan',
-          catatanDekan: notes,
-          ttdDekanUrl: ttdUrl || existing.ttdDekanUrl,
-          tanggalPenilaianDekan: '23 Oktober 2026',
-        }
-      : {
-          id: skpId,
-          dosenId: 'dosen-2',
-          dosenNama: 'Ade Iwan Mutiudin, M.Kep',
-          dosenNip: '198204122014041001',
-          dosenProdi: 'S1 Keperawatan',
-          dosenPangkat: 'Penata, III/c',
-          dosenJabatan: 'Ketua Program Studi S1 Keperawatan',
-          penilaiNama: 'Dr. Hj. Ratna Dian Saraswati, M.Kes',
-          penilaiNip: '197506122005012001',
-          penilaiPangkat: 'Pembina Utama Muda, IV/c',
-          penilaiJabatan: 'Dekan Fakultas Keperawatan',
-          penilaiUnit: 'Fakultas Keperawatan',
-          penilaiRole: 'Dekan',
-          tahunAkademik: '2025/2026',
-          semester: 'Genap',
-          status: 'Dinilai Dekan',
-          totalSksRencana: 16,
-          totalSksRealisasi: 16,
-          persentaseCapaian: 100,
-          nilaiKinerjaSKP: 90,
-          tanggalPengajuan: '18 Oktober 2026',
-          catatanKaprodi: '',
-          catatanDekan: notes,
-          catatanSDM: '',
-          ttdDekanUrl: ttdUrl,
-          tanggalPenilaianDekan: '23 Oktober 2026',
-          items: [],
-        }
-
-    const existsInList = skpList.some((s) => s.id === skpId)
-    if (existsInList) {
-      setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
-    } else {
-      setSkpList([updated, ...skpList])
+    if (!existing) {
+      showToast('Data pengajuan SKP tidak ditemukan di database.', 'error')
+      return
     }
-
-    api.skp.reviewDekan(skpId, 'approve', notes, ttdUrl).catch(() => {
-      api.skp.update(skpId, updated).catch(() => api.skp.create(updated).catch(() => {}))
-    })
+    const updated: PengajuanSKP = {
+      ...existing,
+      status: 'Dinilai Dekan',
+      catatanDekan: notes,
+      ttdDekanUrl: ttdUrl || existing.ttdDekanUrl,
+      tanggalPenilaianDekan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+    }
+    setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
+    api.skp.reviewDekan(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync review Dekan gagal:', err))
   }
 
   const handleRejectSKPByDekan = (skpId: string, notes: string) => {
@@ -323,19 +328,48 @@ export default function App() {
     api.skp.reviewDekan(skpId, 'reject', notes).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
   }
 
-  const handleAddIndikator = (item: IndikatorKuesioner) => {
-    setIndikatorList([...indikatorList, item])
-    api.indikator.create(item).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  const handleAddIndikator = async (item: IndikatorKuesioner) => {
+    setIndikatorList((prev) => [...prev, item])
+    try {
+      const res = await api.indikator.create(item)
+      if (res && res.data) {
+        setIndikatorList((prev) => prev.map((i) => (i.id === item.id ? res.data : i)))
+      }
+    } catch (err: any) {
+      console.error('Gagal menambahkan indikator ke database:', err)
+      showToast('Gagal menyimpan indikator ke database: ' + (err.message || 'Koneksi terputus'))
+      setIndikatorList((prev) => prev.filter((i) => i.id !== item.id))
+      throw err
+    }
   }
 
-  const handleUpdateIndikator = (updated: IndikatorKuesioner) => {
-    setIndikatorList(indikatorList.map((i) => (i.id === updated.id ? updated : i)))
-    api.indikator.update(updated.id, updated).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  const handleUpdateIndikator = async (updated: IndikatorKuesioner) => {
+    const prevList = [...indikatorList]
+    setIndikatorList((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
+    try {
+      const res = await api.indikator.update(updated.id, updated)
+      if (res && res.data) {
+        setIndikatorList((prev) => prev.map((i) => (i.id === updated.id ? res.data : i)))
+      }
+    } catch (err: any) {
+      console.error('Gagal memperbarui indikator di database:', err)
+      showToast('Gagal memperbarui indikator di database: ' + (err.message || 'Koneksi terputus'))
+      setIndikatorList(prevList)
+      throw err
+    }
   }
 
-  const handleDeleteIndikator = (id: string) => {
-    setIndikatorList(indikatorList.filter((i) => i.id !== id))
-    api.indikator.delete(id).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  const handleDeleteIndikator = async (id: string) => {
+    const prevList = [...indikatorList]
+    setIndikatorList((prev) => prev.filter((i) => i.id !== id))
+    try {
+      await api.indikator.delete(id)
+    } catch (err: any) {
+      console.error('Gagal menghapus indikator dari database:', err)
+      showToast('Gagal menghapus indikator dari database: ' + (err.message || 'Koneksi terputus'))
+      setIndikatorList(prevList)
+      throw err
+    }
   }
 
   const handleAddPenilaian = (item: PenilaianKuesioner) => {
@@ -440,6 +474,7 @@ export default function App() {
                 <KelolaSKPDosenSelf
                   user={currentUser}
                   skpList={skpList}
+                  dosenList={dosenList}
                   mySKP={
                     skpList.find(
                       (s) =>
@@ -466,9 +501,13 @@ export default function App() {
               {activeNav === 'data-dosen' && (
                 <KelolaDataDosen
                   dosenList={dosenList}
+                  prodiList={prodiNames}
                   onAddDosen={handleAddDosen}
                   onUpdateDosen={handleUpdateDosen}
                   onDeleteDosen={handleDeleteDosen}
+                  onAddProdi={handleAddProdi}
+                  onUpdateProdi={handleUpdateProdi}
+                  onDeleteProdi={handleDeleteProdi}
                   onShowToast={showToast}
                 />
               )}
@@ -484,6 +523,7 @@ export default function App() {
               {activeNav === 'skp-dosen' && (
                 <KelolaSKPDosen
                   skpList={skpList}
+                  prodiList={prodiNames}
                   initialSelectedSKP={selectedSKPForReview}
                   onApproveSKP={handleApproveSKPBySDM}
                   onRejectSKP={handleRejectSKPBySDM}
@@ -512,6 +552,7 @@ export default function App() {
                   dosenList={dosenList}
                   skpList={skpList}
                   penilaianList={penilaianList}
+                  prodiList={prodiNames}
                   onShowToast={showToast}
                 />
               )}
@@ -524,6 +565,7 @@ export default function App() {
                 <DashboardDosen
                   user={currentUser}
                   mySKP={dosenMySKP}
+                  penilaianList={penilaianList}
                   onNavigateToSKP={() => setActiveNav('skp-dosen-self')}
                   onNavigateToHasilKinerja={() => setActiveNav('hasil-kinerja-dosen')}
                 />
@@ -532,6 +574,7 @@ export default function App() {
                 <KelolaSKPDosenSelf
                   user={currentUser}
                   skpList={skpList}
+                  dosenList={dosenList}
                   mySKP={dosenMySKP}
                   komponenList={komponenList}
                   onUpdateSKP={handleUpdateMySKP}
@@ -556,6 +599,7 @@ export default function App() {
                   user={currentUser}
                   skpList={skpList}
                   dosenList={dosenList}
+                  penilaianList={penilaianList}
                   onNavigateToSKP={() => setActiveNav('skp-kaprodi-self')}
                   onNavigateToReview={() => setActiveNav('review-skp-kaprodi')}
                   onNavigateToKuesioner={() => setActiveNav('kuesioner-kaprodi')}
@@ -570,6 +614,7 @@ export default function App() {
                 <KelolaSKPDosenSelf
                   user={currentUser}
                   skpList={skpList}
+                  dosenList={dosenList}
                   mySKP={
                     skpList.find(
                       (s) =>
@@ -600,6 +645,7 @@ export default function App() {
                   user={currentUser}
                   dosenList={dosenList}
                   penilaianList={penilaianList}
+                  indikatorList={indikatorList}
                   onSaveKuesioner={handleAddPenilaian}
                   onShowToast={showToast}
                 />
@@ -632,6 +678,7 @@ export default function App() {
                 <KelolaSKPDosenSelf
                   user={currentUser}
                   skpList={skpList}
+                  dosenList={dosenList}
                   mySKP={
                     skpList.find(
                       (s) =>
@@ -663,6 +710,7 @@ export default function App() {
                   user={currentUser}
                   dosenList={dosenList}
                   penilaianList={penilaianList}
+                  indikatorList={indikatorList}
                   onSavePenilaian={handleAddPenilaian}
                   onShowToast={showToast}
                 />

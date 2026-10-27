@@ -1,4 +1,4 @@
-import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role } from '../types'
+import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role, ProgramStudi } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
@@ -60,6 +60,21 @@ export const api = {
     delete: (id: string) => request<{ message: string }>(`/dosen/${id}`, { method: 'DELETE' }),
   },
 
+  prodi: {
+    list: async (params?: { fakultas?: string; jenjang?: string; kampus?: string }): Promise<ProgramStudi[]> => {
+      const q = new URLSearchParams(params as Record<string, string>).toString()
+      const res = await request<{ success: boolean; data: ProgramStudi[] }>(`/program-studi${q ? `?${q}` : ''}`)
+      return res.data || []
+    },
+    get: async (id: string): Promise<ProgramStudi> => {
+      const res = await request<{ success: boolean; data: ProgramStudi }>(`/program-studi/${id}`)
+      return res.data
+    },
+    create: (data: Partial<ProgramStudi>) => request<{ success: boolean; data: ProgramStudi }>('/program-studi', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<ProgramStudi>) => request<{ success: boolean; data: ProgramStudi }>(`/program-studi/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<{ success: boolean; message: string }>(`/program-studi/${id}`, { method: 'DELETE' }),
+  },
+
   komponen: {
     list: (params?: { kategori?: string; target_jabatan?: string; search?: string }) => {
       const q = new URLSearchParams(params as Record<string, string>).toString()
@@ -102,6 +117,7 @@ export const api = {
       const q = new URLSearchParams(params as Record<string, string>).toString()
       return request<IndikatorKuesioner[]>(`/indikator-kuesioner${q ? `?${q}` : ''}`)
     },
+    getAspek: () => request<string[]>('/indikator-kuesioner/aspek'),
     create: (data: Partial<IndikatorKuesioner>) => request<{ data: IndikatorKuesioner }>('/indikator-kuesioner', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<IndikatorKuesioner>) => request<{ data: IndikatorKuesioner }>(`/indikator-kuesioner/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<{ message: string }>(`/indikator-kuesioner/${id}`, { method: 'DELETE' }),
@@ -144,6 +160,12 @@ export const api = {
       return request<Dosen[]>(`/man-power/dosen-lengkap${q ? `?${q}` : ''}`)
     },
     stats: () => request<any>('/man-power/stats'),
+  },
+
+  reference: {
+    getTahunAkademik: () => request<string[]>('/reference/tahun-akademik'),
+    getTargetJabatan: () => request<string[]>('/reference/target-jabatan'),
+    getKategoriKomponen: () => request<string[]>('/reference/kategori-komponen'),
   },
 }
 

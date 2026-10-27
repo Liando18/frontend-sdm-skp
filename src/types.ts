@@ -163,3 +163,17 @@ export interface NotificationItem {
   type?: 'info' | 'warning' | 'success'
   tag?: string
 }
+
+export interface ProgramStudi {
+  id: string
+  kode?: string
+  nama: string
+  jenjang: string
+  fakultas: string
+  kampus: string
+  kaprodiNama?: string
+  kaprodiNip?: string
+  kaprodiId?: string
+  akreditasi: string
+  isActive?: boolean
+}

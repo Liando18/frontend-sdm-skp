@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   Award,
   Filter,
@@ -18,8 +18,6 @@ interface HasilKinerjaTahunanSelfProps {
   penilaianList: PenilaianKuesioner[]
   onShowToast: (msg: string) => void
 }
-
-const TAHUN_OPTIONS = ['2025/2026', '2024/2025', '2026/2027']
 
 const BERAKHLAK_DIMENSIONS = [
   {
@@ -64,7 +62,12 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
   penilaianList,
   onShowToast,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')
+  const availableYears = useMemo(() => {
+    const years = Array.from(new Set(penilaianList.map((p) => p.tahun).filter(Boolean)))
+    return years.length > 0 ? years : ['2025/2026']
+  }, [penilaianList])
+
+  const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2025/2026')
 
   // Find user's annual evaluation for selected academic year
   const myEvaluation = penilaianList.find(
@@ -169,7 +172,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
             >
-              {TAHUN_OPTIONS.map((thn, idx) => (
+              {availableYears.map((thn, idx) => (
                 <option key={idx} value={thn}>
                   {thn}
                 </option>

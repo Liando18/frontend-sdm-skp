@@ -7,12 +7,13 @@ import {
   FileText,
   ChevronRight,
 } from 'lucide-react'
-import { UserSession, PengajuanSKP } from '../types'
+import { UserSession, PengajuanSKP, PenilaianKuesioner } from '../types'
 import { useStaggerEntrance, useGSAP, gsap, GSAP_EASE, useCountUp, useInteractiveCards } from '../utils/animations'
 
 interface DashboardDosenProps {
   user: UserSession
   mySKP?: PengajuanSKP
+  penilaianList?: PenilaianKuesioner[]
   onNavigateToSKP: () => void
   onNavigateToHasilKinerja?: () => void
 }
@@ -20,13 +21,32 @@ interface DashboardDosenProps {
 export const DashboardDosen: React.FC<DashboardDosenProps> = ({
   user,
   mySKP,
+  penilaianList = [],
   onNavigateToSKP,
   onNavigateToHasilKinerja,
 }) => {
-  const skpStatus = mySKP?.status || 'Disetujui SDM'
-  const realisasiSks = mySKP?.totalSksRealisasi || 16
-  const rencanaSks = mySKP?.totalSksRencana || 16
-  const capaianPersen = mySKP?.persentaseCapaian || 100
+  const skpStatus = mySKP?.status || 'Draft'
+  const realisasiSks = mySKP?.totalSksRealisasi || 0
+  const rencanaSks = mySKP?.totalSksRencana || 0
+  const capaianPersen = mySKP?.persentaseCapaian || 0
+
+  const myPenilaian = penilaianList.find(
+    (p) => p.dosenId === user.id || p.dosenNama === user.name
+  )
+  const kuisScore = myPenilaian ? Number(myPenilaian.rataRata.toFixed(2)) : 0
+  const kuisPredikat = myPenilaian?.predikat || (kuisScore >= 3.5 ? 'Sangat Baik' : kuisScore >= 2.5 ? 'Baik' : kuisScore > 0 ? 'Cukup' : 'Belum Dinilai')
+
+  const totalBerkas = mySKP?.items ? mySKP.items.reduce((acc, it) => acc + (it.linkDokumen ? 1 : 0), 0) : 0
+  const displayBerkas = totalBerkas > 0 ? totalBerkas : (mySKP?.items?.length || 0)
+
+  const progressItems = mySKP?.items && mySKP.items.length > 0
+    ? mySKP.items.slice(0, 4).map((it, idx) => ({
+        label: it.kegiatan,
+        sub: `${it.kategori || 'Tridharma'} • Target: ${it.rencanaAwal || 0} ${it.satuan} • Realisasi: ${it.realisasi || 0} ${it.satuan}`,
+        val: it.kualitasMutu || it.nilaiCapaian || 0,
+        color: idx % 2 === 0 ? 'var(--brand-600)' : 'var(--navy-800)',
+      }))
+    : []
 
   const containerRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 16, stagger: 0.06 })
@@ -122,7 +142,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
         {/* Card 1: Status SKP */}
         <div className="kpi-card kpi-card--hero">
           <span style={{ fontSize: '12.5px', color: 'rgba(255,255,255,0.82)', fontWeight: 500 }}>
-            Status SKP Semester Genap
+            Status SKP {mySKP?.semester ? `Semester ${mySKP.semester}` : 'Periode Berjalan'}
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
@@ -168,7 +188,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              <span className="kpi-count-up" data-count="3.86">3.86</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>/ 4.00</span>
+              <span className="kpi-count-up" data-count={kuisScore}>{kuisScore > 0 ? kuisScore.toFixed(2) : '-'}</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>/ 4.00</span>
             </div>
             <div style={{ marginTop: 10 }}>
               <span
@@ -179,7 +199,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
                 }}
               >
                 <Award size={12} />
-                <span>Predikat Sangat Baik</span>
+                <span>{kuisPredikat}</span>
               </span>
             </div>
           </div>
@@ -192,7 +212,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              <span className="kpi-count-up" data-count="8">8</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
+              <span className="kpi-count-up" data-count={displayBerkas}>{displayBerkas}</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
             </div>
             <div style={{ marginTop: 10 }}>
               <span
@@ -203,7 +223,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
                 }}
               >
                 <FileText size={12} />
-                <span>100% Bukti Fisik Valid</span>
+                <span>Bukti Kegiatan Tridharma</span>
               </span>
             </div>
           </div>
@@ -228,39 +248,16 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
                 Progress Tridharma Perguruan Tinggi
               </div>
               <div style={{ fontSize: '12.5px', color: 'var(--muted)' }}>
-                Sasaran Kinerja Semester Genap 2025/2026 &bull; Capaian {capaianPersen}%
+                Sasaran Kinerja Semester {mySKP?.semester || 'Genap'} {mySKP?.tahunAkademik || '2025/2026'} &bull; Capaian {capaianPersen}%
               </div>
             </div>
-            <span className="badge-pill badge-pill--green">Memenuhi Standar</span>
+            <span className="badge-pill badge-pill--green">
+              {capaianPersen >= 80 ? 'Memenuhi Standar' : 'Dalam Proses'}
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {[
-              {
-                label: 'Pendidikan & Pengajaran',
-                sub: 'Perkuliahan tatap muka, RPS, BAP & penilaian Siakad',
-                val: 94,
-                color: 'var(--brand-600)',
-              },
-              {
-                label: 'Bimbingan Seminar & Skripsi',
-                sub: '4 Mahasiswa bimbingan tugas akhir & naskah publikasi',
-                val: 100,
-                color: 'var(--navy-800)',
-              },
-              {
-                label: 'Penelitian & Publikasi Jurnal',
-                sub: '1 Naskah Jurnal Nasional Terakreditasi SINTA 2',
-                val: 100,
-                color: 'var(--brand-700)',
-              },
-              {
-                label: 'Pengabdian kepada Masyarakat (PKM)',
-                sub: 'Bimbingan desa sehat binaan Farmasi UBK',
-                val: 100,
-                color: 'var(--navy-900)',
-              },
-            ].map((tridharma, idx) => (
+            {progressItems.map((tridharma, idx) => (
               <div key={idx}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
                   <div>
@@ -334,11 +331,11 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
                 fontStyle: 'italic',
               }}
             >
-              "{mySKP?.catatanKaprodi || 'Seluruh luaran Tridharma telah sesuai dengan standar SPMI UBK dan telah diverifikasi lengkap oleh Ketua Program Studi.'}"
+              "{mySKP?.catatanKaprodi || 'Belum ada catatan evaluasi dari Ketua Program Studi.'}"
             </div>
 
             <div style={{ marginTop: 14, fontSize: '12px', color: 'var(--muted)' }}>
-              Terakhir diperbarui: <strong>20 Oktober 2026</strong>
+              Terakhir diperbarui: <strong>{mySKP?.tanggalPengajuan || mySKP?.tanggalPenilaianKaprodi || 'Periode Berjalan'}</strong>
             </div>
           </div>
 

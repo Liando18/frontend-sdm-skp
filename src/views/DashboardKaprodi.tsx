@@ -9,13 +9,14 @@ import {
   FileCheck2,
   FileText,
 } from 'lucide-react'
-import { UserSession, PengajuanSKP, Dosen } from '../types'
+import { UserSession, PengajuanSKP, Dosen, PenilaianKuesioner } from '../types'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 
 interface DashboardKaprodiProps {
   user: UserSession
   skpList: PengajuanSKP[]
   dosenList: Dosen[]
+  penilaianList?: PenilaianKuesioner[]
   onNavigateToSKP?: () => void
   onNavigateToReview: () => void
   onNavigateToKuesioner?: () => void
@@ -27,26 +28,33 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
   user,
   skpList,
   dosenList,
+  penilaianList = [],
   onNavigateToSKP,
   onNavigateToReview,
   onNavigateToKuesioner,
   onNavigateToHasilKinerjaSelf,
   onSelectSKP,
 }) => {
-  const prodiDosen = dosenList.filter((d) => d.prodi === user.prodi || d.prodi === 'S1 Keperawatan')
-  const totalProdiDosen = prodiDosen.length > 0 ? prodiDosen.length : 14
+  const prodiDosen = dosenList.filter((d) => d.prodi === user.prodi)
+  const totalProdiDosen = prodiDosen.length
 
   const prodiSKP = skpList.filter(
-    (s) => s.dosenProdi === user.prodi || s.dosenProdi === 'S1 Keperawatan'
+    (s) => s.dosenProdi === user.prodi
   )
   const pendingReview = prodiSKP.filter((s) => s.status === 'Diajukan').length
   const approvedReview = prodiSKP.filter(
     (s) => s.status === 'Dinilai Kaprodi' || s.status === 'Disetujui SDM'
   ).length
 
+  const prodiDosenIds = prodiDosen.map((d) => d.id)
+  const prodiPenilaianCount = penilaianList.filter(
+    (p) => prodiDosenIds.includes(p.dosenId) || p.dosenProdi === user.prodi
+  ).length
+  const kuisPersen = totalProdiDosen > 0 ? ((prodiPenilaianCount / totalProdiDosen) * 100).toFixed(1) : '0'
+
   const containerRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 16, stagger: 0.06 })
-  useCountUp(containerRef, '.kpi-count-up', [totalProdiDosen, pendingReview, approvedReview])
+  useCountUp(containerRef, '.kpi-count-up', [totalProdiDosen, pendingReview, approvedReview, prodiPenilaianCount])
   useInteractiveCards(containerRef, '.kpi-card')
   useStaggerEntrance(containerRef, '.custom-table tbody tr', [skpList], { y: 8, stagger: 0.04, delay: 0.15 })
 
@@ -168,7 +176,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              <span className="kpi-count-up" data-count={pendingReview + 3}>{pendingReview + 3}</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
+              <span className="kpi-count-up" data-count={pendingReview}>{pendingReview}</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
             </div>
             <div style={{ marginTop: 10 }}>
               <span
@@ -192,7 +200,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              <span className="kpi-count-up" data-count={approvedReview + 7}>{approvedReview + 7}</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>Dosen</span>
+              <span className="kpi-count-up" data-count={approvedReview}>{approvedReview}</span> <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>Dosen</span>
             </div>
             <div style={{ marginTop: 10 }}>
               <span
@@ -220,7 +228,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              {totalProdiDosen - 2} <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>/ {totalProdiDosen}</span>
+              {prodiPenilaianCount} <span style={{ fontSize: '16px', color: 'var(--muted)', fontWeight: 500 }}>/ {totalProdiDosen}</span>
             </div>
             <div style={{ marginTop: 10 }}>
               <span
@@ -231,7 +239,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
                 }}
               >
                 <Award size={12} />
-                <span>85.7% Partisipasi</span>
+                <span>{kuisPersen}% Partisipasi</span>
               </span>
             </div>
           </div>
@@ -299,10 +307,10 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
                       <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>NUPTK: {dosen.nuptk || '-'}</div>
                     </td>
                     <td>{dosen.jafung} ({dosen.golongan})</td>
-                    <td>{skp ? skp.totalSksRencana : 16} SKS</td>
+                    <td>{skp ? `${skp.totalSksRencana} SKS` : '-'}</td>
                     <td>
                       <span style={{ fontWeight: 600, color: 'var(--brand-700)' }}>
-                        {skp ? skp.totalSksRealisasi : 15} SKS
+                        {skp ? `${skp.totalSksRealisasi} SKS` : '-'}
                       </span>
                     </td>
                     <td>

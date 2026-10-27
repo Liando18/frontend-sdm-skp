@@ -15,13 +15,14 @@ import {
   Check,
   CheckSquare,
 } from 'lucide-react'
-import { Dosen, PenilaianKuesioner, UserSession } from '../types'
+import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 
 interface CekHasilKuesionerDekanProps {
   user: UserSession
   dosenList: Dosen[]
   penilaianList: PenilaianKuesioner[]
+  indikatorList?: IndikatorKuesioner[]
   onSavePenilaian?: (penilaian: PenilaianKuesioner) => void
   onShowToast: (msg: string) => void
 }
@@ -70,6 +71,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   user,
   dosenList,
   penilaianList,
+  indikatorList = [],
   onSavePenilaian,
   onShowToast,
 }) => {
@@ -212,10 +214,10 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
       nilaiKolaboratif: evalScores.nilaiKolaboratif,
       rataRata: avg,
       predikat,
-      tanggal: '25 Oktober 2026',
+      tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
       catatan:
         evalScores.catatan ||
-        `Evaluasi kepemimpinan dan integritas BerAKHLAK Ketua Program Studi ${evaluatingTarget.dosen.prodi} oleh Dekan Fakultas Keperawatan.`,
+        `Evaluasi kepemimpinan dan integritas BerAKHLAK Ketua Program Studi ${evaluatingTarget.dosen.prodi} oleh Dekan ${user.fakultas || 'Fakultas'}.`,
     }
 
     if (onSavePenilaian) {
