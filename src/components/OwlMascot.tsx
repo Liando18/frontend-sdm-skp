@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useId } from 'react'
 import { motion } from 'motion/react'
-import { useRive, useStateMachineInput } from '@rive-app/react-webgl2'
 
 export interface OwlMascotProps {
   isChecking?: boolean
@@ -10,52 +9,6 @@ export interface OwlMascotProps {
   isWaving?: boolean
   useRiveFile?: boolean
   className?: string
-}
-
-/* ==========================================================================
-   Mode A: Rive Runtime (Opsional jika file /owl-login.riv tersedia)
-   ========================================================================== */
-const RiveMascot: React.FC<Omit<OwlMascotProps, 'useRiveFile'>> = ({
-  isChecking = false,
-  numLook = 0,
-  isHandsUp = false,
-  isPeeking = false,
-  className = '',
-}) => {
-  const { rive, RiveComponent } = useRive({
-    src: '/owl-login.riv',
-    stateMachines: 'Login Machine',
-    autoplay: true,
-  })
-
-  const isCheckingInput = useStateMachineInput(rive, 'Login Machine', 'isChecking')
-  const numLookInput = useStateMachineInput(rive, 'Login Machine', 'numLook')
-  const isHandsUpInput = useStateMachineInput(rive, 'Login Machine', 'isHandsUp')
-  const isPeekingInput = useStateMachineInput(rive, 'Login Machine', 'isPeeking')
-
-  useEffect(() => {
-    if (isCheckingInput) isCheckingInput.value = isChecking
-  }, [isChecking, isCheckingInput])
-
-  useEffect(() => {
-    if (numLookInput) numLookInput.value = Math.min(100, Math.max(0, numLook))
-  }, [numLook, numLookInput])
-
-  useEffect(() => {
-    if (isHandsUpInput) isHandsUpInput.value = isHandsUp
-  }, [isHandsUp, isHandsUpInput])
-
-  useEffect(() => {
-    if (isPeekingInput) isPeekingInput.value = isPeeking
-  }, [isPeeking, isPeekingInput])
-
-  return (
-    <div
-      className={`w-full max-w-[240px] h-[190px] mx-auto flex items-center justify-center overflow-visible select-none ${className}`}
-    >
-      <RiveComponent className="w-full h-full" />
-    </div>
-  )
 }
 
 /* ==========================================================================
@@ -755,21 +708,8 @@ export const OwlMascot: React.FC<OwlMascotProps> = ({
   isHandsUp = false,
   isPeeking = false,
   isWaving,
-  useRiveFile = false,
   className = '',
 }) => {
-  if (useRiveFile) {
-    return (
-      <RiveMascot
-        isChecking={isChecking}
-        numLook={numLook}
-        isHandsUp={isHandsUp}
-        isPeeking={isPeeking}
-        className={className}
-      />
-    )
-  }
-
   return (
     <Interactive3DOwl
       isChecking={isChecking}

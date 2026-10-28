@@ -77,7 +77,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               3. Format Nilai Akhir Kinerja Pegawai
             </div>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>
-              Nilai Kinerja Dosen dihitung dengan formula pembobotan: Nilai Kinerja = (Nilai SKP × 60%) + (Nilai Perilaku Kuesioner × 40%).
+              Nilai Kinerja Dosen dihitung dengan formula pembobotan resmi SPMI UBK: Nilai Kinerja = (Nilai SKP × 70%) + (Nilai Perilaku Kuesioner × 30%) sesuai Pedoman Evaluasi Kinerja No. 03.07.00/PD/SDM-SPMI.
             </div>
           </div>
         </div>

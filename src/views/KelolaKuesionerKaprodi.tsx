@@ -6,6 +6,7 @@ import {
   Clock,
   ArrowLeft,
   Filter,
+  Sparkles,
 } from 'lucide-react'
 import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
@@ -137,6 +138,20 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
     setViewMode('evaluate')
   }
 
+  const handleAutoFillDummyKuesioner = () => {
+    setKuisScores({
+      nilaiPelayanan: 4,
+      nilaiAkuntabel: 4,
+      nilaiKompeten: 4,
+      nilaiHarmonis: 4,
+      nilaiLoyal: 4,
+      nilaiAdaptif: 4,
+      nilaiKolaboratif: 4,
+      catatan: 'Dosen menunjukkan integritas, kedisiplinan mengajar, dan kolaborasi yang sangat baik serta menjadi teladan bagi mahasiswa.',
+    })
+    onShowToast('Data dummy nilai kuesioner berhasil diisi otomatis! Silakan klik Simpan.')
+  }
+
   const currentAverage = (
     (Number(kuisScores.nilaiPelayanan) +
       Number(kuisScores.nilaiAkuntabel) +
@@ -194,7 +209,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   if (viewMode === 'evaluate' && activeDosen) {
     return (
       <div className="page-container" ref={containerRef}>
-        <div className="page-header">
+        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <button className="btn-back" onClick={() => setViewMode('list')}>
               <ArrowLeft size={16} />
@@ -207,6 +222,29 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
               Instrumen evaluasi perilaku BerAKHLAK 7 dimensi (dilakukan 1 kali setahun) untuk Tahun Akademik {selectedTahun}.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleAutoFillDummyKuesioner}
+            className="brand-btn"
+            style={{
+              background: '#fef3c7',
+              color: '#b45309',
+              border: '1px solid #fde68a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginTop: 10,
+            }}
+            title="Isi form otomatis dengan nilai evaluasi dummy"
+          >
+            <Sparkles size={14} className="text-amber-600 animate-pulse" />
+            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+          </button>
         </div>
 
         <form onSubmit={handleSave} className="form-page-card">
@@ -451,7 +489,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
             Pelaksanaan Evaluasi Kuesioner Perilaku (Tahunan)
           </div>
           <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>
-            Kuesioner perilaku kerja dievaluasi satu kali setiap tahun akademik (bobot 40% pada Laporan Rekapitulasi Akhir UBK). Instrumen mencakup 7 dimensi BerAKHLAK dengan skala 1.00 sampai 4.00.
+            Kuesioner perilaku kerja dievaluasi satu kali setiap tahun akademik (bobot 30% pada Laporan Rekapitulasi Akhir UBK sesuai Pedoman SPMI No. 03.07.00/PD/SDM-SPMI). Instrumen mencakup 7 dimensi BerAKHLAK dengan skala 1.00 sampai 4.00.
           </div>
         </div>
       </div>
@@ -533,10 +571,10 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
 
       {/* Table Dosen Homebase & Nilai Kuesioner */}
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Nama Dosen Homebase</th>
+              <th style={{ minWidth: 220 }}>Nama Dosen Homebase</th>
               <th>Jabatan Fungsional</th>
               <th>Periode Evaluasi</th>
               <th>Status Kuesioner</th>

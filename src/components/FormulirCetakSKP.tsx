@@ -1,7 +1,10 @@
-import React, { useRef } from 'react'
-import { Printer, X, Download, ExternalLink } from 'lucide-react'
+import React, { useRef, useState, useMemo } from 'react'
+import { Printer, X, ExternalLink, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { PengajuanSKP } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
+import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
+import { exportSKPToExcel } from '../utils/skpExcelExport'
+import { printDocument } from '../utils/printDocument'
 
 interface FormulirCetakSKPProps {
   skp: PengajuanSKP
@@ -14,25 +17,50 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
   isOpen,
   onClose,
 }) => {
-  if (!isOpen) return null
-
-  const handlePrint = () => {
-    window.print()
-  }
-
   const modalRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
 
   useGSAP(
     () => {
-      if (!modalRef.current) return
+      if (!isOpen || !modalRef.current) return
       gsap.fromTo(
         modalRef.current,
         { scale: 0.96, opacity: 0, y: 12 },
         { scale: 1, opacity: 1, y: 0, duration: 0.26, ease: GSAP_EASE.smooth }
       )
     },
-    { scope: modalRef }
+    { scope: modalRef, dependencies: [isOpen] }
   )
+
+  const itemsPage1 = useMemo(() => skp.items.slice(0, 7), [skp.items])
+  const itemsPage2 = useMemo(() => skp.items.slice(7), [skp.items])
+  const hasPage2 = useMemo(() => itemsPage2.length > 0, [itemsPage2])
+
+  if (!isOpen) return null
+
+  const handlePrint = () => {
+    if (viewportRef.current) {
+      printDocument(
+        viewportRef.current,
+        `Formulir SKP - ${skp.dosenNama} - Semester ${skp.semester} TA ${skp.tahunAkademik}`
+      )
+    } else {
+      window.print()
+    }
+  }
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExportingExcel(true)
+      await exportSKPToExcel(skp)
+    } catch (err) {
+      console.error('Gagal mengekspor SKP ke Excel:', err)
+      alert('Terjadi kesalahan saat membuat file Excel. Silakan coba kembali.')
+    } finally {
+      setIsExportingExcel(false)
+    }
+  }
 
   // Hitung total rata-rata mutu
   const totalMutu =
@@ -83,8 +111,34 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
-              onClick={handlePrint}
+              onClick={handleExportExcel}
+              disabled={isExportingExcel}
               className="brand-btn"
+              style={{
+                padding: '8px 16px',
+                fontSize: '13px',
+                background: '#15803d',
+                borderColor: '#166534',
+                color: '#ffffff',
+                gap: 6,
+              }}
+              title="Ekspor Formulir SKP ke File Excel (.xlsx) 1-Sheet sesuai format resmi UBK"
+            >
+              {isExportingExcel ? (
+                <>
+                  <Loader2 size={15} className="spinner" />
+                  <span>Membuat Excel...</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet size={15} />
+                  <span>Ekspor Excel (.xlsx)</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={handlePrint}
+              className="brand-btn btn-action-print"
               style={{ padding: '8px 18px', fontSize: '13px' }}
             >
               <Printer size={15} />
@@ -108,19 +162,18 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Printable Document Area */}
+        {/* Scrollable Printable Document Area with A4 Viewport */}
         <div
+          ref={viewportRef}
+          className="a4-print-viewport"
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '28px 36px',
-            background: '#ffffff',
-            color: '#000000',
-            fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           }}
         >
-          {/* Document Header */}
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div className="a4-sheet avoid-break">
+            {/* Document Header */}
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
             <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
               FORMULIR SASARAN KINERJA DOSEN
             </div>
@@ -225,228 +278,488 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
           <table
             style={{
               width: '100%',
+              tableLayout: 'fixed',
               borderCollapse: 'collapse',
               fontSize: '11px',
               border: '1.5px solid #000000',
+              wordBreak: 'break-word',
             }}
           >
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #000000', textAlign: 'center' }}>
-                <th rowSpan={2} style={{ width: 32, border: '1px solid #000000', padding: 6 }}>NO</th>
-                <th rowSpan={2} style={{ border: '1px solid #000000', padding: 6 }}>III. KEGIATAN TUGAS JABATAN</th>
-                <th rowSpan={2} style={{ width: 85, border: '1px solid #000000', padding: 6 }}>Rencana Awal Semester</th>
-                <th rowSpan={2} style={{ width: 95, border: '1px solid #000000', padding: 6 }}>Perubahan Tengah Semester</th>
+                <th rowSpan={2} style={{ width: 32, border: '1px solid #000000', padding: '6px 4px' }}>NO</th>
+                <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px' }}>III. KEGIATAN TUGAS JABATAN</th>
+                <th rowSpan={2} style={{ width: 65, border: '1px solid #000000', padding: '6px 4px' }}>Rencana Awal</th>
+                <th rowSpan={2} style={{ width: 65, border: '1px solid #000000', padding: '6px 4px' }}>Perubahan</th>
                 <th colSpan={4} style={{ border: '1px solid #000000', padding: 4 }}>Realisasi</th>
               </tr>
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                <th style={{ width: 85, border: '1px solid #000000', padding: 4 }}>KUANT/OUTPUT</th>
-                <th style={{ width: 65, border: '1px solid #000000', padding: 4 }}>KUAL/MUTU</th>
+                <th style={{ width: 75, border: '1px solid #000000', padding: 4 }}>KUANT/OUTPUT</th>
+                <th style={{ width: 55, border: '1px solid #000000', padding: 4 }}>MUTU</th>
                 <th style={{ width: 55, border: '1px solid #000000', padding: 4 }}>WAKTU</th>
-                <th style={{ width: 110, border: '1px solid #000000', padding: 4 }}>Link Dokumen</th>
+                <th style={{ width: 95, border: '1px solid #000000', padding: 4 }}>Bukti Dukung</th>
               </tr>
             </thead>
             <tbody>
-              {skp.items.map((item, idx) => {
-                // Background color sesuai kategori seperti gambar lampiran
-                let rowBg = '#ffffff'
-                if (item.kategori === 'Penelitian') rowBg = '#fef08a' // kuning
-                else if (item.kategori === 'Pengabdian') rowBg = '#93c5fd' // biru muda
-                else if (item.kategori === 'Penunjang') rowBg = '#bbf7d0' // hijau muda
+              {(hasPage2 ? itemsPage1 : skp.items).map((item, idx) => (
+                <tr
+                  key={item.id}
+                  style={{
+                    background: '#ffffff',
+                    borderBottom: '1px solid #000000',
+                  }}
+                >
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontWeight: 600 }}>
+                    {idx + 1}
+                  </td>
+                  <td style={{ border: '1px solid #000000', padding: '5px 8px', fontWeight: 500 }}>
+                    {item.kegiatan}
+                  </td>
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
+                    {item.rencanaAwal}
+                  </td>
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
+                    {item.perubahanTengah}
+                  </td>
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontWeight: 600 }}>
+                    {item.realisasi} {item.satuan}
+                  </td>
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontWeight: 700 }}>
+                    {item.kualitasMutu}
+                  </td>
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
+                    {item.waktuNilai || 12} {item.waktuSatuan || 'bln'}
+                  </td>
+                  <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontSize: '10.5px' }}>
+                    {item.linkDokumen ? (
+                      <a
+                        href={sanitizeUrl(item.linkDokumen)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          color: '#1d4ed8',
+                          textDecoration: 'underline',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 2,
+                        }}
+                      >
+                        <span>Tautan di sini</span>
+                        <ExternalLink size={10} />
+                      </a>
+                    ) : (
+                      <span style={{ color: '#64748b' }}>-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
 
-                return (
+              {!hasPage2 && (
+                <tr style={{ background: '#f1f5f9', fontWeight: 800 }}>
+                  <td colSpan={5} style={{ border: '1.5px solid #000000', textAlign: 'right', padding: '7px 12px' }}>
+                    TOTAL KUALITAS MUTU:
+                  </td>
+                  <td style={{ border: '1.5px solid #000000', textAlign: 'center', padding: '7px 4px', fontSize: '12px' }}>
+                    {totalMutu}
+                  </td>
+                  <td colSpan={2} style={{ border: '1.5px solid #000000' }} />
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* Bagian Tanda Tangan & Pengesahan (Jika muat 1 halaman) */}
+          {!hasPage2 && (
+            <div className="avoid-break" style={{ marginTop: 24, fontSize: '11.5px' }}>
+              <div style={{ textAlign: 'right', marginBottom: 12, paddingRight: 40, fontWeight: 500 }}>
+                Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  textAlign: 'center',
+                  gap: 40,
+                }}
+              >
+                {/* Pejabat Penilai */}
+                <div>
+                  <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
+                    {skp.penilaiJabatan}
+                  </div>
+
+                  <div
+                    style={{
+                      height: 64,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {(skp.ttdDekanUrl || skp.ttdKaprodiUrl) ? (
+                      <img
+                        src={resolveStorageUrl(skp.ttdDekanUrl || skp.ttdKaprodiUrl)}
+                        alt="Tanda Tangan Pejabat Penilai"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                        }}
+                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: '4px 12px',
+                          border: '1px dashed #94a3b8',
+                          borderRadius: 4,
+                          fontSize: '10.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        (Tanda Tangan Digital Terverifikasi)
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
+                    {skp.penilaiNama}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#334155' }}>
+                    NIP. {skp.penilaiNip}
+                  </div>
+                </div>
+
+                {/* Dosen Yang Dinilai */}
+                <div>
+                  <div style={{ fontWeight: 700 }}>Dosen Yang Dinilai,</div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
+                    {skp.dosenJabatan}
+                  </div>
+
+                  <div
+                    style={{
+                      height: 64,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {skp.ttdDosenUrl ? (
+                      <img
+                        src={resolveStorageUrl(skp.ttdDosenUrl)}
+                        alt="Tanda Tangan Dosen"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                        }}
+                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: '4px 12px',
+                          border: '1px dashed #94a3b8',
+                          borderRadius: 4,
+                          fontSize: '10.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        (Tanda Tangan Digital Dosen)
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
+                    {skp.dosenNama}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#334155' }}>
+                    NIP. {skp.dosenNip}
+                  </div>
+                </div>
+              </div>
+
+              {/* Catatan Pengisian Resmi (Sesuai Lampiran) */}
+              <div
+                style={{
+                  marginTop: 24,
+                  padding: '10px 14px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 'var(--r-sm)',
+                  background: '#f8fafc',
+                  fontSize: '10.5px',
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>Catatan Pengisian :</div>
+                <ol style={{ margin: 0, paddingLeft: 18, color: '#334155' }}>
+                  <li>Pengisian ini akan dituangkan dalam SKP dosen dan Syarat Kenaikan JAD tahunan.</li>
+                  <li>Untuk Link dokumen bisa diambil dari BKD dan digabungkan.</li>
+                  <li>Data yang Terealisasi harus sama dengan dokumen yang di-upload.</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {/* Footer Hal. 1 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+            <span>Dokumen milik {skp.dosenNama} ({skp.dosenNip})</span>
+            <span style={{ fontStyle: 'italic' }}>Hal. 1 {hasPage2 ? 'dari 2' : 'dari 1'}</span>
+          </div>
+        </div>
+
+        {/* HALAMAN 2: LEMBAR LANJUTAN SKP (JIKA ITEM > 7) */}
+        {hasPage2 && (
+          <div className="a4-sheet avoid-break">
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                FORMULIR SASARAN KINERJA DOSEN (LEMBAR LANJUTAN)
+              </div>
+              <div style={{ fontSize: '11px', color: '#475569', marginTop: 2 }}>
+                Semester {skp.semester} &bull; Tahun Akademik {skp.tahunAkademik} &bull; {skp.dosenNama} ({skp.dosenNip})
+              </div>
+            </div>
+
+            {/* Tabel Lanjutan */}
+            <table
+              style={{
+                width: '100%',
+                tableLayout: 'fixed',
+                borderCollapse: 'collapse',
+                fontSize: '11px',
+                border: '1.5px solid #000000',
+                wordBreak: 'break-word',
+              }}
+            >
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #000000', textAlign: 'center' }}>
+                  <th rowSpan={2} style={{ width: 32, border: '1px solid #000000', padding: '6px 4px' }}>NO</th>
+                  <th rowSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px' }}>III. KEGIATAN TUGAS JABATAN (LANJUTAN)</th>
+                  <th rowSpan={2} style={{ width: 65, border: '1px solid #000000', padding: '6px 4px' }}>Rencana Awal</th>
+                  <th rowSpan={2} style={{ width: 65, border: '1px solid #000000', padding: '6px 4px' }}>Perubahan</th>
+                  <th colSpan={4} style={{ border: '1px solid #000000', padding: 4 }}>Realisasi</th>
+                </tr>
+                <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                  <th style={{ width: 75, border: '1px solid #000000', padding: 4 }}>KUANT/OUTPUT</th>
+                  <th style={{ width: 55, border: '1px solid #000000', padding: 4 }}>MUTU</th>
+                  <th style={{ width: 55, border: '1px solid #000000', padding: 4 }}>WAKTU</th>
+                  <th style={{ width: 95, border: '1px solid #000000', padding: 4 }}>Bukti Dukung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itemsPage2.map((item, idx) => (
                   <tr
                     key={item.id}
                     style={{
-                      background: rowBg,
-                      borderBottom: '1px solid #94a3b8',
+                      background: '#ffffff',
+                      borderBottom: '1px solid #000000',
                     }}
                   >
-                    <td style={{ border: '1px solid #64748b', textAlign: 'center', padding: '5px 4px', fontWeight: 600 }}>
-                      {idx + 1}
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontWeight: 600 }}>
+                      {itemsPage1.length + idx + 1}
                     </td>
-                    <td style={{ border: '1px solid #64748b', padding: '5px 8px', fontWeight: 500 }}>
+                    <td style={{ border: '1px solid #000000', padding: '5px 8px', fontWeight: 500 }}>
                       {item.kegiatan}
                     </td>
-                    <td style={{ border: '1px solid #64748b', textAlign: 'center', padding: '5px 4px' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
                       {item.rencanaAwal}
                     </td>
-                    <td style={{ border: '1px solid #64748b', textAlign: 'center', padding: '5px 4px' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
                       {item.perubahanTengah}
                     </td>
-                    <td style={{ border: '1px solid #64748b', textAlign: 'center', padding: '5px 4px', fontWeight: 600 }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontWeight: 600 }}>
                       {item.realisasi} {item.satuan}
                     </td>
-                    <td style={{ border: '1px solid #64748b', textAlign: 'center', padding: '5px 4px', fontWeight: 700 }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontWeight: 700 }}>
                       {item.kualitasMutu}
                     </td>
-                    <td style={{ border: '1px solid #64748b', textAlign: 'center', padding: '5px 4px' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px' }}>
                       {item.waktuNilai || 12} {item.waktuSatuan || 'bln'}
                     </td>
-                    <td style={{ border: '1px solid #64748b', padding: '5px 6px', fontSize: '10px' }}>
+                    <td style={{ border: '1px solid #000000', textAlign: 'center', padding: '5px 4px', fontSize: '10.5px' }}>
                       {item.linkDokumen ? (
                         <a
-                          href={item.linkDokumen}
+                          href={sanitizeUrl(item.linkDokumen)}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           style={{
                             color: '#1d4ed8',
                             textDecoration: 'underline',
-                            wordBreak: 'break-all',
+                            fontWeight: 600,
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 2,
                           }}
                         >
-                          <span>Tautan Bukti</span>
+                          <span>Tautan di sini</span>
                           <ExternalLink size={10} />
                         </a>
                       ) : (
-                        <span style={{ color: '#94a3b8' }}>-</span>
+                        <span style={{ color: '#64748b' }}>-</span>
                       )}
                     </td>
                   </tr>
-                )
-              })}
+                ))}
 
-              {/* Baris Total */}
-              <tr style={{ background: '#f1f5f9', fontWeight: 800 }}>
-                <td colSpan={5} style={{ border: '1.5px solid #000000', textAlign: 'right', padding: '7px 12px' }}>
-                  TOTAL KUALITAS MUTU:
-                </td>
-                <td style={{ border: '1.5px solid #000000', textAlign: 'center', padding: '7px 4px', fontSize: '12px' }}>
-                  {totalMutu}
-                </td>
-                <td colSpan={2} style={{ border: '1.5px solid #000000' }} />
-              </tr>
-            </tbody>
-          </table>
+                <tr style={{ background: '#f1f5f9', fontWeight: 800 }}>
+                  <td colSpan={5} style={{ border: '1.5px solid #000000', textAlign: 'right', padding: '7px 12px' }}>
+                    TOTAL KUALITAS MUTU:
+                  </td>
+                  <td style={{ border: '1.5px solid #000000', textAlign: 'center', padding: '7px 4px', fontSize: '12px' }}>
+                    {totalMutu}
+                  </td>
+                  <td colSpan={2} style={{ border: '1.5px solid #000000' }} />
+                </tr>
+              </tbody>
+            </table>
 
-          {/* Bagian Tanda Tangan & Pengesahan */}
-          <div style={{ marginTop: 24, fontSize: '11.5px' }}>
-            <div style={{ textAlign: 'right', marginBottom: 12, paddingRight: 40, fontWeight: 500 }}>
-              Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </div>
+            {/* Bagian Tanda Tangan & Pengesahan di Lembar Lanjutan */}
+            <div className="avoid-break" style={{ marginTop: 24, fontSize: '11.5px' }}>
+              <div style={{ textAlign: 'right', marginBottom: 12, paddingRight: 40, fontWeight: 500 }}>
+                Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                textAlign: 'center',
-                gap: 40,
-              }}
-            >
-              {/* Pejabat Penilai */}
-              <div>
-                <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
-                <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
-                  {skp.penilaiJabatan}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  textAlign: 'center',
+                  gap: 40,
+                }}
+              >
+                {/* Pejabat Penilai */}
+                <div>
+                  <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
+                    {skp.penilaiJabatan}
+                  </div>
+
+                  <div
+                    style={{
+                      height: 64,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {(skp.ttdDekanUrl || skp.ttdKaprodiUrl) ? (
+                      <img
+                        src={resolveStorageUrl(skp.ttdDekanUrl || skp.ttdKaprodiUrl)}
+                        alt="Tanda Tangan Pejabat Penilai"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                        }}
+                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: '4px 12px',
+                          border: '1px dashed #94a3b8',
+                          borderRadius: 4,
+                          fontSize: '10.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        (Tanda Tangan Digital Terverifikasi)
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
+                    {skp.penilaiNama}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#334155' }}>
+                    NIP. {skp.penilaiNip}
+                  </div>
                 </div>
 
-                {/* TTD Image / Preview */}
-                <div
-                  style={{
-                    height: 64,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {(skp.ttdDekanUrl || skp.ttdKaprodiUrl) ? (
-                    <img
-                      src={skp.ttdDekanUrl || skp.ttdKaprodiUrl}
-                      alt="Tanda Tangan Pejabat Penilai"
-                      style={{ maxHeight: 56, objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        padding: '4px 12px',
-                        border: '1px dashed #94a3b8',
-                        borderRadius: 4,
-                        fontSize: '10.5px',
-                        color: '#64748b',
-                      }}
-                    >
-                      (Tanda Tangan Digital Terverifikasi)
-                    </div>
-                  )}
-                </div>
+                {/* Dosen Yang Dinilai */}
+                <div>
+                  <div style={{ fontWeight: 700 }}>Dosen Yang Dinilai,</div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
+                    {skp.dosenJabatan}
+                  </div>
 
-                <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
-                  {skp.penilaiNama}
-                </div>
-                <div style={{ fontSize: '11px', color: '#334155' }}>
-                  NIP. {skp.penilaiNip}
+                  <div
+                    style={{
+                      height: 64,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {skp.ttdDosenUrl ? (
+                      <img
+                        src={resolveStorageUrl(skp.ttdDosenUrl)}
+                        alt="Tanda Tangan Dosen"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                        }}
+                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: '4px 12px',
+                          border: '1px dashed #94a3b8',
+                          borderRadius: 4,
+                          fontSize: '10.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        (Tanda Tangan Digital Dosen)
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
+                    {skp.dosenNama}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#334155' }}>
+                    NIP. {skp.dosenNip}
+                  </div>
                 </div>
               </div>
 
-              {/* Dosen Yang Dinilai */}
-              <div>
-                <div style={{ fontWeight: 700 }}>Dosen Yang Dinilai,</div>
-                <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
-                  {skp.dosenJabatan}
-                </div>
-
-                <div
-                  style={{
-                    height: 64,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {skp.ttdDosenUrl ? (
-                    <img
-                      src={skp.ttdDosenUrl}
-                      alt="Tanda Tangan Dosen"
-                      style={{ maxHeight: 56, objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        padding: '4px 12px',
-                        border: '1px dashed #94a3b8',
-                        borderRadius: 4,
-                        fontSize: '10.5px',
-                        color: '#64748b',
-                      }}
-                    >
-                      (Tanda Tangan Digital Dosen)
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
-                  {skp.dosenNama}
-                </div>
-                <div style={{ fontSize: '11px', color: '#334155' }}>
-                  NIP. {skp.dosenNip}
-                </div>
+              {/* Catatan Pengisian Resmi (Sesuai Lampiran) */}
+              <div
+                style={{
+                  marginTop: 24,
+                  padding: '10px 14px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 'var(--r-sm)',
+                  background: '#f8fafc',
+                  fontSize: '10.5px',
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>Catatan Pengisian :</div>
+                <ol style={{ margin: 0, paddingLeft: 18, color: '#334155' }}>
+                  <li>Pengisian ini akan dituangkan dalam SKP dosen dan Syarat Kenaikan JAD tahunan.</li>
+                  <li>Untuk Link dokumen bisa diambil dari BKD dan digabungkan.</li>
+                  <li>Data yang Terealisasi harus sama dengan dokumen yang di-upload.</li>
+                </ol>
               </div>
             </div>
 
-            {/* Catatan Pengisian Resmi (Sesuai Lampiran) */}
-            <div
-              style={{
-                marginTop: 24,
-                padding: '10px 14px',
-                border: '1px solid #cbd5e1',
-                borderRadius: 'var(--r-sm)',
-                background: '#f8fafc',
-                fontSize: '10.5px',
-                lineHeight: 1.5,
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 2 }}>Catatan Pengisian :</div>
-              <ol style={{ margin: 0, paddingLeft: 18, color: '#334155' }}>
-                <li>Pengisian ini akan dituangkan dalam SKP dosen dan Syarat Kenaikan JAD tahunan.</li>
-                <li>Untuk Link dokumen bisa diambil dari BKD dan digabungkan.</li>
-                <li>Data yang Terealisasi harus sama dengan dokumen yang di-upload.</li>
-              </ol>
+            {/* Footer Hal. 2 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+              <span>Dokumen milik {skp.dosenNama} ({skp.dosenNip})</span>
+              <span style={{ fontStyle: 'italic' }}>Hal. 2 dari 2</span>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
+  </div>
   )
 }

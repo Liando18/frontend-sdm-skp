@@ -1,6 +1,5 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useMemo } from 'react'
 import {
-  TrendingUp,
   Clock,
   CheckCircle,
   Users,
@@ -8,9 +7,15 @@ import {
   ChevronRight,
   FileCheck2,
   FileText,
+  Search,
+  Filter,
+  Check,
+  Send,
+  Calendar,
 } from 'lucide-react'
 import { UserSession, PengajuanSKP, Dosen, PenilaianKuesioner } from '../types'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
+import { TablePagination } from '../components/TablePagination'
 
 interface DashboardKaprodiProps {
   user: UserSession
@@ -35,8 +40,24 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
   onNavigateToHasilKinerjaSelf,
   onSelectSKP,
 }) => {
+  const [searchDosen, setSearchDosen] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+
   const prodiDosen = dosenList.filter((d) => d.prodi === user.prodi)
   const totalProdiDosen = prodiDosen.length
+
+  const filteredProdiDosen = useMemo(() => {
+    return prodiDosen.filter((d) => {
+      const q = searchDosen.toLowerCase().trim()
+      return q === '' || d.nama.toLowerCase().includes(q) || (d.nuptk || '').includes(q) || d.jafung.toLowerCase().includes(q)
+    })
+  }, [prodiDosen, searchDosen])
+
+  const paginatedDosen = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredProdiDosen.slice(start, start + pageSize)
+  }, [filteredProdiDosen, page, pageSize])
 
   const prodiSKP = skpList.filter(
     (s) => s.dosenProdi === user.prodi
@@ -56,7 +77,8 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 16, stagger: 0.06 })
   useCountUp(containerRef, '.kpi-count-up', [totalProdiDosen, pendingReview, approvedReview, prodiPenilaianCount])
   useInteractiveCards(containerRef, '.kpi-card')
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [skpList], { y: 8, stagger: 0.04, delay: 0.15 })
+  // Pass empty deps to stop table row blinking on search
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.04, delay: 0.15 })
 
   return (
     <div className="page-container" ref={containerRef}>
@@ -254,42 +276,68 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
           padding: '24px 28px',
           border: '1px solid var(--hair)',
           boxShadow: 'var(--shadow-xs)',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)' }}>
-              Daftar Dosen Prodi {user.prodi}
+              Daftar Dosen Homebase {user.prodi}
             </div>
             <div style={{ fontSize: '12.5px', color: 'var(--muted)' }}>
               Verifikasi sasaran kinerja semester genap dan berikan penilaian perilaku Tridharma
             </div>
           </div>
 
-          <button
-            onClick={onNavigateToReview}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--brand-600)',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            <span>Buka Panel Review SKP Lengkap</span>
-            <ChevronRight size={16} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--panel-bg)',
+                border: '1px solid var(--hair)',
+                borderRadius: 'var(--r-md)',
+                padding: '6px 12px',
+                minWidth: 200,
+              }}
+            >
+              <Search size={14} style={{ color: 'var(--muted)' }} />
+              <input
+                type="text"
+                value={searchDosen}
+                onChange={(e) => {
+                  setSearchDosen(e.target.value)
+                  setPage(1)
+                }}
+                placeholder="Cari dosen prodi..."
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: '12.5px',
+                  color: 'var(--ink)',
+                  width: '100%',
+                }}
+              />
+            </div>
+
+            <button
+              onClick={onNavigateToReview}
+              className="btn-back"
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+            >
+              <span>Panel Verifikasi</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
 
         <div className="table-container">
-          <table className="custom-table">
+          <table className="custom-table custom-table--sticky-1">
             <thead>
               <tr>
-                <th>Nama Dosen</th>
+                <th style={{ minWidth: 200 }}>Nama Dosen</th>
                 <th>Jabatan Fungsional</th>
                 <th>Target SKS</th>
                 <th>Realisasi SKS</th>
@@ -298,53 +346,70 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
               </tr>
             </thead>
             <tbody>
-              {prodiDosen.map((dosen) => {
-                const skp = skpList.find((s) => s.dosenId === dosen.id)
-                return (
-                  <tr key={dosen.id}>
-                    <td>
-                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{dosen.nama}</div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>NUPTK: {dosen.nuptk || '-'}</div>
-                    </td>
-                    <td>{dosen.jafung} ({dosen.golongan})</td>
-                    <td>{skp ? `${skp.totalSksRencana} SKS` : '-'}</td>
-                    <td>
-                      <span style={{ fontWeight: 600, color: 'var(--brand-700)' }}>
-                        {skp ? `${skp.totalSksRealisasi} SKS` : '-'}
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={`badge-pill ${
-                          dosen.skpStatus === 'Disetujui SDM'
-                            ? 'badge-pill--green'
-                            : dosen.skpStatus === 'Dinilai Kaprodi'
-                            ? 'badge-pill--blue'
-                            : 'badge-pill--orange'
-                        }`}
-                      >
-                        {dosen.skpStatus}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="btn-action-view"
-                        style={{ padding: '6px 14px', fontSize: '12.5px' }}
-                        onClick={() => {
-                          if (skp) onSelectSKP(skp)
-                          else onNavigateToReview()
-                        }}
-                      >
-                        <FileCheck2 size={13} />
-                        <span>Verifikasi SKP</span>
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
+              {paginatedDosen.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                    Tidak ada data dosen yang sesuai dengan pencarian.
+                  </td>
+                </tr>
+              ) : (
+                paginatedDosen.map((dosen) => {
+                  const skp = skpList.find((s) => s.dosenId === dosen.id)
+                  return (
+                    <tr key={dosen.id}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{dosen.nama}</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>NUPTK: {dosen.nuptk || '-'}</div>
+                      </td>
+                      <td>{dosen.jafung} ({dosen.golongan})</td>
+                      <td>{skp ? `${skp.totalSksRencana} SKS` : '-'}</td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: 'var(--brand-700)' }}>
+                          {skp ? `${skp.totalSksRealisasi} SKS` : '-'}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge-pill ${
+                            dosen.skpStatus === 'Disetujui SDM'
+                              ? 'badge-pill--green'
+                              : dosen.skpStatus === 'Dinilai Kaprodi'
+                              ? 'badge-pill--blue'
+                              : 'badge-pill--orange'
+                          }`}
+                        >
+                          {dosen.skpStatus}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          className="btn-action-view"
+                          style={{ padding: '6px 14px', fontSize: '12.5px' }}
+                          onClick={() => {
+                            if (skp) onSelectSKP(skp)
+                            else onNavigateToReview()
+                          }}
+                        >
+                          <FileCheck2 size={13} />
+                          <span>Verifikasi SKP</span>
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          totalItems={filteredProdiDosen.length}
+          currentPage={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[5, 10, 20]}
+        />
       </div>
     </div>
   )

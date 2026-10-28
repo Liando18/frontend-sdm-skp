@@ -14,9 +14,11 @@ import {
   Edit2,
   Check,
   CheckSquare,
+  Sparkles,
 } from 'lucide-react'
 import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
+import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 
 interface CekHasilKuesionerDekanProps {
   user: UserSession
@@ -71,7 +73,6 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   user,
   dosenList,
   penilaianList,
-  indikatorList = [],
   onSavePenilaian,
   onShowToast,
 }) => {
@@ -80,6 +81,11 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   const [activeDetailItem, setActiveDetailItem] = useState<{
     dosen: Dosen
     penilaian: PenilaianKuesioner | null
+  } | null>(null)
+
+  const [transcriptToPrint, setTranscriptToPrint] = useState<{
+    dosen: Dosen
+    penilaian: PenilaianKuesioner
   } | null>(null)
 
   // Filter kaprodi
@@ -176,6 +182,20 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
       })
     }
     setEvaluatingTarget({ dosen, penilaian: existingPenilaian || null })
+  }
+
+  const handleAutoFillDummyDekanEval = () => {
+    setEvalScores({
+      nilaiPelayanan: 4,
+      nilaiAkuntabel: 4,
+      nilaiKompeten: 4,
+      nilaiHarmonis: 4,
+      nilaiLoyal: 4,
+      nilaiAdaptif: 4,
+      nilaiKolaboratif: 4,
+      catatan: 'Kaprodi menunjukkan kepemimpinan kurikulum, tata kelola mutu Tridharma, dan koordinasi yang sangat efektif.',
+    })
+    onShowToast('Data dummy evaluasi kaprodi berhasil diisi otomatis!')
   }
 
   const handleSaveEvaluation = (e: React.FormEvent) => {
@@ -483,10 +503,10 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
 
       {/* Main Table */}
       <div className="table-container" style={{ marginTop: 16 }}>
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Ketua Program Studi</th>
+              <th style={{ minWidth: 220 }}>Ketua Program Studi</th>
               <th>Program Studi</th>
               <th style={{ textAlign: 'center' }}>Tahun Evaluasi</th>
               <th>Dimensi BerAKHLAK (1-4)</th>
@@ -733,10 +753,34 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
               </div>
             </div>
 
-            <form onSubmit={handleSaveEvaluation} style={{ marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={handleAutoFillDummyDekanEval}
+                className="brand-btn"
+                style={{
+                  background: '#fef3c7',
+                  color: '#b45309',
+                  border: '1px solid #fde68a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+                title="Isi form otomatis dengan nilai evaluasi dummy"
+              >
+                <Sparkles size={14} className="text-amber-600 animate-pulse" />
+                <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEvaluation} style={{ marginTop: 14 }}>
               {/* 7 Dimensions Scoring */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {BERAKHLAK_DIMENSIONS.map((dim, idx) => {
+                {BERAKHLAK_DIMENSIONS.map((dim) => {
                   const currentValue = evalScores[dim.key] as number
                   return (
                     <div
@@ -1088,8 +1132,10 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
               {activeDetailItem.penilaian && (
                 <button
                   onClick={() => {
-                    onShowToast(`Mencetak transkrip evaluasi BerAKHLAK ${activeDetailItem.dosen.nama}...`)
-                    window.print()
+                    setTranscriptToPrint({
+                      dosen: activeDetailItem.dosen,
+                      penilaian: activeDetailItem.penilaian!,
+                    })
                   }}
                   className="brand-btn btn-action-print"
                   style={{ padding: '8px 16px', fontSize: '12.5px' }}
@@ -1108,6 +1154,21 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Cetak Transkrip BerAKHLAK Standar A4 Resmi */}
+      {transcriptToPrint && (
+        <CetakTranskripKuesioner
+          isOpen={!!transcriptToPrint}
+          onClose={() => setTranscriptToPrint(null)}
+          penilaian={transcriptToPrint.penilaian}
+          dosenNama={transcriptToPrint.dosen.nama}
+          dosenNip={transcriptToPrint.dosen.nip}
+          dosenProdi={transcriptToPrint.dosen.prodi}
+          dosenJafung={transcriptToPrint.dosen.jafung}
+          dosenGolongan={transcriptToPrint.dosen.golongan}
+          tahunAkademik={selectedTahun}
+        />
       )}
     </div>
   )

@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react'
-import { Download, Printer, Search, FileText, CheckCircle2 } from 'lucide-react'
+import React, { useState, useRef, useMemo } from 'react'
+import { Download, Search, FileText } from 'lucide-react'
 import { Dosen, PengajuanSKP, PenilaianKuesioner } from '../types'
 import { CetakOutputFinalTahunan, OutputFinalData } from '../components/CetakOutputFinalTahunan'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
+import { TablePagination } from '../components/TablePagination'
 
 interface LaporanViewProps {
   dosenList: Dosen[]
@@ -49,24 +50,35 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     const nilaiSKPGanjil = skpGanjil ? (skpGanjil.nilaiKinerjaSKP || 0) : (dosen.nilaiAkhir || 0)
     const nilaiSKPGenap = skpGenap ? (skpGenap.nilaiKinerjaSKP || 0) : (dosen.nilaiAkhir || 0)
 
-    const skpDivisor = (skpGanjil && skpGenap) ? 2 : (skpGanjil || skpGenap) ? 1 : 1
-    const rataRataSKP = Number(((nilaiSKPGanjil + nilaiSKPGenap) / (skpGanjil && skpGenap ? 2 : 1)).toFixed(2))
-    const bobotSKP60 = Number((rataRataSKP * 0.6).toFixed(2))
+    const skpDivisor = (skpGanjil && skpGenap) ? 2 : 1
+    const rataRataSKP = Number(((nilaiSKPGanjil + nilaiSKPGenap) / skpDivisor).toFixed(2))
+    const bobotSKP70 = Number((rataRataSKP * 0.70).toFixed(2))
 
     const nilaiKuisSkala4 = kuesioner ? kuesioner.rataRata : 0
     const nilaiKuisSkala100 = Number(((nilaiKuisSkala4 / 4) * 100).toFixed(2))
-    const bobotKuis40 = Number((nilaiKuisSkala100 * 0.4).toFixed(2))
+    const bobotKuis30 = Number((nilaiKuisSkala100 * 0.30).toFixed(2))
 
-    const nilaiAkhirTahunan = Number((bobotSKP60 + (kuesioner ? bobotKuis40 : (bobotSKP60 > 0 ? Number((rataRataSKP * 0.4).toFixed(2)) : 0))).toFixed(2))
+    // Rumus SPMI UBK No: 03.07.00/PD/SDM-SPMI: N = (70% × S) + (30% × P)
+    const nilaiAkhirTahunan = Number(
+      (bobotSKP70 + (kuesioner ? bobotKuis30 : (bobotSKP70 > 0 ? Number((rataRataSKP * 0.30).toFixed(2)) : 0))).toFixed(2)
+    )
 
+    // Skala Penilaian SPMI UBK No: 03.07.00/PD/SDM-SPMI
+    // 91 - 100% : Sangat Baik
+    // 81 - 90%  : Baik
+    // 71 - 80%  : Cukup
+    // 61 - 70%  : Kurang
+    // <= 60%    : Sangat Kurang
     const predikat =
-      nilaiAkhirTahunan >= 90
+      nilaiAkhirTahunan > 90
         ? 'Sangat Baik'
-        : nilaiAkhirTahunan >= 76
+        : nilaiAkhirTahunan >= 81
         ? 'Baik'
-        : nilaiAkhirTahunan >= 60
+        : nilaiAkhirTahunan >= 71
         ? 'Cukup'
-        : 'Kurang'
+        : nilaiAkhirTahunan >= 61
+        ? 'Kurang'
+        : 'Sangat Kurang'
 
     return {
       dosen,
@@ -77,10 +89,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       nilaiSKPGanjil,
       nilaiSKPGenap,
       rataRataSKP,
-      bobotSKP60,
+      bobotSKP70,
+      bobotSKP60: bobotSKP70,
       nilaiKuisSkala4,
       nilaiKuisSkala100,
-      bobotKuis40,
+      bobotKuis30,
+      bobotKuis40: bobotKuis30,
       nilaiAkhirTahunan,
       predikat,
     }
@@ -137,11 +151,24 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     onShowToast('File Excel Rekapitulasi Kinerja Tahunan berhasil diunduh!')
   }
 
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  // Reset page to 1 when filters change
+  React.useEffect(() => {
+    setPage(1)
+  }, [searchQuery, selectedProdi, selectedTahun])
+
+  const paginatedLaporan = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredLaporan.slice(start, start + pageSize)
+  }, [filteredLaporan, page, pageSize])
+
   const containerRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 16, stagger: 0.06 })
   useCountUp(containerRef, '.kpi-count-up')
   useInteractiveCards(containerRef, '.kpi-card')
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [selectedProdi, searchQuery, selectedTahun], { y: 8, stagger: 0.04, delay: 0.12 })
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.04, delay: 0.12 })
 
   return (
     <div className="page-container" ref={containerRef}>
@@ -150,7 +177,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         <div>
           <h1 className="page-title">Laporan Rekapitulasi Tahunan Per Dosen (Output Final)</h1>
           <p className="page-desc">
-            Rekapitulasi prestasi kerja individual per dosen yang menggabungkan 2 kali SKP (Semester Ganjil 30% + Semester Genap 30%) dan 1 kali Kuesioner Perilaku Tahunan (40%) UBK.
+            Rekapitulasi prestasi kerja individual per dosen yang menggabungkan 2 kali SKP (70%) dan 1 kali Kuesioner Perilaku Tahunan (30%) sesuai Pedoman SPMI UBK No: 03.07.00/PD/SDM-SPMI.
           </p>
         </div>
 
@@ -173,7 +200,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           : 0
         const avgInstitusi = avgInstitusiNum.toFixed(2)
         const predikatInstitusi =
-          avgInstitusiNum >= 90 ? 'Sangat Baik' : avgInstitusiNum >= 76 ? 'Baik' : avgInstitusiNum >= 60 ? 'Cukup' : avgInstitusiNum > 0 ? 'Kurang' : 'Belum Ada Data'
+          avgInstitusiNum > 90 ? 'Sangat Baik' : avgInstitusiNum >= 81 ? 'Baik' : avgInstitusiNum >= 71 ? 'Cukup' : avgInstitusiNum >= 61 ? 'Kurang' : avgInstitusiNum > 0 ? 'Sangat Kurang' : 'Belum Ada Data'
 
         const bkdCompliantCount = laporanData.filter((d) => {
           const sks = d.skpGenap?.totalSksRealisasi ?? d.skpGanjil?.totalSksRealisasi ?? 0
@@ -199,13 +226,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
             <div className="kpi-card">
               <div style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
-                Formula Integrasi Tahunan UBK
+                Formula Integrasi Tahunan SPMI UBK
               </div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginTop: 8 }}>
-                (SKP 2x × 60%) + (Kuesioner 1x × 40%)
+                N = (70% × S) + (30% × P)
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 6 }}>
-                Rata-rata SKP Ganjil &amp; Genap (60%) + Perilaku Tahunan (40%)
+                Rata-rata SKP (70%) + Perilaku Tahunan (30%)
               </div>
             </div>
 
@@ -293,89 +320,110 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
       {/* Main Table: Rekap Tahunan Gabungan 2x SKP + 1x Kuesioner */}
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Dosen &amp; Homebase</th>
+              <th style={{ minWidth: 240 }}>Dosen &amp; Homebase</th>
               <th>SKP Ganjil</th>
               <th>SKP Genap</th>
-              <th>Rata-rata SKP (60%)</th>
-              <th>Kuesioner Tahunan (40%)</th>
+              <th>Rata-rata SKP (70%)</th>
+              <th>Kuesioner Tahunan (30%)</th>
               <th>Nilai Akhir Tahunan</th>
               <th>Predikat</th>
               <th style={{ textAlign: 'right' }}>Dokumen Output Final (Per Dosen)</th>
             </tr>
           </thead>
           <tbody>
-            {filteredLaporan.map((item) => (
-              <tr key={item.dosen.id}>
-                <td>
-                  <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{item.dosen.nama}</div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                    NUPTK: {item.dosen.nuptk || '-'} &bull; {item.dosen.prodi}
-                  </div>
-                  {item.dosen.isKaprodi && (
-                    <span className="badge-pill badge-pill--blue" style={{ fontSize: '10px', marginTop: 3 }}>
-                      Ketua Program Studi
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <span style={{ fontWeight: 600 }}>{item.nilaiSKPGanjil.toFixed(1)}</span>
-                </td>
-                <td>
-                  <span style={{ fontWeight: 600 }}>{item.nilaiSKPGenap.toFixed(1)}</span>
-                </td>
-                <td>
-                  <div style={{ fontWeight: 700, color: 'var(--navy-900)' }}>
-                    {item.rataRataSKP.toFixed(1)}
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    Bobot 60%: <strong>{item.bobotSKP60.toFixed(1)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <div style={{ fontWeight: 700, color: 'var(--brand-700)' }}>
-                    {item.nilaiKuisSkala4.toFixed(2)} <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 400 }}>/ 4.00</span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    Bobot 40%: <strong>{item.bobotKuis40.toFixed(1)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--navy-900)' }}>
-                    {item.nilaiAkhirTahunan.toFixed(1)}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={`badge-pill ${
-                      item.predikat === 'Sangat Baik'
-                        ? 'badge-pill--green'
-                        : item.predikat === 'Baik'
-                        ? 'badge-pill--blue'
-                        : 'badge-pill--orange'
-                    }`}
-                  >
-                    {item.predikat}
-                  </span>
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    onClick={() => setSelectedOutputFinal(item)}
-                    className="btn-action-print"
-                    style={{ padding: '6px 14px', fontSize: '12px' }}
-                    title={`Cetak Output Final.pdf untuk dosen ${item.dosen.nama}`}
-                  >
-                    <FileText size={13} />
-                    <span>Cetak Output Final.pdf</span>
-                  </button>
+            {paginatedLaporan.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                  Tidak ada data rekapitulasi kinerja untuk filter yang dipilih.
                 </td>
               </tr>
-            ))}
+            ) : (
+              paginatedLaporan.map((item) => (
+                <tr key={item.dosen.id}>
+                  <td>
+                    <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{item.dosen.nama}</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
+                      NUPTK: {item.dosen.nuptk || '-'} &bull; {item.dosen.prodi}
+                    </div>
+                    {item.dosen.isKaprodi && (
+                      <span className="badge-pill badge-pill--blue" style={{ fontSize: '10px', marginTop: 3 }}>
+                        Ketua Program Studi
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600 }}>{item.nilaiSKPGanjil.toFixed(1)}</span>
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600 }}>{item.nilaiSKPGenap.toFixed(1)}</span>
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 700, color: 'var(--navy-900)' }}>
+                      {item.rataRataSKP.toFixed(1)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                      Bobot 70%: <strong>{(item.bobotSKP70 ?? item.bobotSKP60).toFixed(1)}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 700, color: 'var(--brand-700)' }}>
+                      {item.nilaiKuisSkala4.toFixed(2)} <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 400 }}>/ 4.00</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                      Bobot 30%: <strong>{(item.bobotKuis30 ?? item.bobotKuis40).toFixed(1)}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--navy-900)' }}>
+                      {item.nilaiAkhirTahunan.toFixed(1)}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={`badge-pill ${
+                        item.predikat === 'Sangat Baik'
+                          ? 'badge-pill--green'
+                          : item.predikat === 'Baik'
+                          ? 'badge-pill--blue'
+                          : item.predikat === 'Cukup'
+                          ? 'badge-pill--orange'
+                          : 'badge-pill--red'
+                      }`}
+                    >
+                      {item.predikat}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      onClick={() => setSelectedOutputFinal(item)}
+                      className="btn-action-print"
+                      style={{ padding: '6px 14px', fontSize: '12px' }}
+                      title={`Cetak Output Final untuk dosen ${item.dosen.nama}`}
+                    >
+                      <FileText size={13} />
+                      <span>Cetak Output Final</span>
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        currentPage={page}
+        totalItems={filteredLaporan.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize)
+          setPage(1)
+        }}
+      />
 
       {/* Modal Cetak Output Final Tahunan per Dosen */}
       {selectedOutputFinal && (

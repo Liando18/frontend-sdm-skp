@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   FileCheck2,
   Search,
@@ -7,12 +7,13 @@ import {
   XCircle,
   ExternalLink,
   ArrowLeft,
-  Calendar,
 } from 'lucide-react'
 import { PengajuanSKP } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { useStaggerEntrance } from '../utils/animations'
+import { sanitizeUrl } from '../utils/security'
+import { TablePagination } from '../components/TablePagination'
 
 interface KelolaSKPDosenProps {
   skpList: PengajuanSKP[]
@@ -34,20 +35,21 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   const availableProdis = prodiListProp && prodiListProp.length > 0
     ? (prodiListProp[0] === 'Semua Program Studi' ? prodiListProp : ['Semua Program Studi', ...prodiListProp])
     : ['Semua Program Studi', ...Array.from(new Set(skpList.map((s) => s.dosenProdi).filter(Boolean)))]
-  const [viewMode, setViewMode] = useState<'list' | 'review'>('list')
-  const [selectedSKP, setSelectedSKP] = useState<PengajuanSKP | null>(null)
-  const [sdmNotes, setSdmNotes] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'review'>(initialSelectedSKP ? 'review' : 'list')
+  const [selectedSKP, setSelectedSKP] = useState<PengajuanSKP | null>(initialSelectedSKP || null)
+  const [sdmNotes, setSdmNotes] = useState(initialSelectedSKP?.catatanSDM || '')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
 
-  useEffect(() => {
-    if (initialSelectedSKP) {
-      setSelectedSKP(initialSelectedSKP)
-      setSdmNotes(initialSelectedSKP.catatanSDM || '')
-      setViewMode('review')
-    }
-  }, [initialSelectedSKP])
+  // React pattern for adjusting state when prop changes without cascading effect
+  const [prevInitial, setPrevInitial] = useState(initialSelectedSKP)
+  if (initialSelectedSKP && prevInitial?.id !== initialSelectedSKP.id) {
+    setPrevInitial(initialSelectedSKP)
+    setSelectedSKP(initialSelectedSKP)
+    setSdmNotes(initialSelectedSKP.catatanSDM || '')
+    setViewMode('review')
+  }
 
   const [selectedTahun, setSelectedTahun] = useState<string>('Semua')
   const [selectedSemester, setSelectedSemester] = useState<string>('Semua')
@@ -69,8 +71,16 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
     return matchTahun && matchSemester && matchStatus && matchProdi && matchSearch
   })
 
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const paginatedList = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredList.slice(start, start + pageSize)
+  }, [filteredList, page, pageSize])
+
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [filteredList, viewMode], { y: 8, stagger: 0.04 })
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode], { y: 8, stagger: 0.04 })
 
   const handleOpenReview = (skp: PengajuanSKP) => {
     setSelectedSKP(skp)
@@ -174,11 +184,11 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             </div>
 
             <div className="table-container">
-              <table className="custom-table">
+              <table className="custom-table custom-table--sticky-skp">
                 <thead>
                   <tr>
-                    <th style={{ width: 35, textAlign: 'center' }}>No</th>
-                    <th>Uraian Kegiatan Tridharma</th>
+                    <th style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center' }}>No</th>
+                    <th style={{ minWidth: 260 }}>Uraian Kegiatan Tridharma</th>
                     <th style={{ textAlign: 'center' }}>Rencana Awal</th>
                     <th style={{ textAlign: 'center' }}>Perubahan</th>
                     <th style={{ textAlign: 'center' }}>Realisasi</th>
@@ -190,8 +200,8 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                 <tbody>
                   {selectedSKP.items.map((it, idx) => (
                     <tr key={it.id}>
-                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>{idx + 1}</td>
-                      <td style={{ fontWeight: 600 }}>{it.kegiatan}</td>
+                      <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>{idx + 1}</td>
+                      <td style={{ fontWeight: 600, minWidth: 260 }}>{it.kegiatan}</td>
                       <td style={{ textAlign: 'center' }}>{it.rencanaAwal}</td>
                       <td style={{ textAlign: 'center' }}>{it.perubahanTengah}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--brand-700)' }}>
@@ -201,9 +211,9 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                       <td style={{ textAlign: 'center' }}>{it.waktuNilai || 12} {it.waktuSatuan || 'bln'}</td>
                       <td>
                         <a
-                          href={it.linkDokumen}
+                          href={sanitizeUrl(it.linkDokumen)}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -213,7 +223,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                             fontSize: '12px',
                           }}
                         >
-                          <span>Buka Dokumen</span>
+                          <span>Tautan di sini</span>
                           <ExternalLink size={12} />
                         </a>
                       </td>
@@ -414,10 +424,10 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
 
       {/* Table */}
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Dosen / Ka Prodi</th>
+              <th style={{ minWidth: 220 }}>Dosen / Ka Prodi</th>
               <th>Semester &amp; Tahun</th>
               <th>Program Studi</th>
               <th>Realisasi SKS</th>
@@ -428,7 +438,14 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             </tr>
           </thead>
           <tbody>
-            {filteredList.map((skp) => (
+            {paginatedList.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                  Tidak ada berkas SKP yang cocok dengan filter pencarian.
+                </td>
+              </tr>
+            ) : (
+              paginatedList.map((skp) => (
               <tr key={skp.id}>
                 <td>
                   <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{skp.dosenNama}</div>
@@ -494,10 +511,20 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                   </div>
                 </td>
               </tr>
-            ))}
+            )))
+          }
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        totalItems={filteredList.length}
+        currentPage={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[10, 25, 50]}
+      />
 
       {/* Modal Cetak Format Resmi UBK */}
       {printSKPTarget && (

@@ -47,6 +47,42 @@ export const api = {
       }
     },
     getDemoUsers: () => request<Record<string, UserSession>>('/auth/demo-users'),
+    changePassword: (payload: { current_password: string; password: string; password_confirmation: string }) =>
+      request<{ success: boolean; message: string; user?: Partial<UserSession> }>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    uploadSignature: async (file: File, meta?: { userId?: string; nip?: string; email?: string }) => {
+      const formData = new FormData()
+      formData.append('signature', file)
+      if (meta?.userId) formData.append('user_id', meta.userId)
+      if (meta?.nip) formData.append('nip', meta.nip)
+      if (meta?.email) formData.append('email', meta.email)
+
+      const token = localStorage.getItem('ubk_auth_token')
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }
+
+      const response = await fetch(`${API_BASE_URL}/profile/upload-signature`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Unggah tanda tangan gagal (${response.status})`)
+      }
+
+      return response.json() as Promise<{
+        success: boolean
+        message: string
+        signatureUrl: string
+        user?: UserSession
+      }>
+    },
   },
 
   dosen: {
@@ -141,25 +177,37 @@ export const api = {
 
   dashboard: {
     stats: (params?: { role?: string; prodi?: string; dosen_id?: string }) => {
-      const q = new URLSearchParams(params as Record<string, string>).toString()
-      return request<any>(`/dashboard/stats${q ? `?${q}` : ''}`)
+      const q = params ? new URLSearchParams(params as Record<string, string>).toString() : ''
+      return request<Record<string, unknown>>(`/dashboard/stats${q ? `?${q}` : ''}`)
     },
   },
 
   manPower: {
     sotk: (params?: { kategori_unit?: string; search?: string; grouped?: boolean }) => {
-      const q = new URLSearchParams(params as Record<string, any>).toString()
-      return request<any[]>(`/man-power/sotk${q ? `?${q}` : ''}`)
+      const cleanParams: Record<string, string> = {}
+      if (params) {
+        if (params.kategori_unit) cleanParams.kategori_unit = params.kategori_unit
+        if (params.search) cleanParams.search = params.search
+        if (params.grouped !== undefined) cleanParams.grouped = String(params.grouped)
+      }
+      const q = new URLSearchParams(cleanParams).toString()
+      return request<Record<string, unknown>[]>(`/man-power/sotk${q ? `?${q}` : ''}`)
     },
     spmiRekap: (params?: { semester?: string; prodi?: string; kampus?: string }) => {
-      const q = new URLSearchParams(params as Record<string, string>).toString()
-      return request<any[]>(`/man-power/spmi-rekap${q ? `?${q}` : ''}`)
+      const q = params ? new URLSearchParams(params as Record<string, string>).toString() : ''
+      return request<Record<string, unknown>[]>(`/man-power/spmi-rekap${q ? `?${q}` : ''}`)
     },
     dosenLengkap: (params?: { kampus?: string; prodi?: string; jafung?: string; status_keaktifan?: string; serdos?: boolean; studi_lanjut?: string; search?: string }) => {
-      const q = new URLSearchParams(params as Record<string, any>).toString()
+      const cleanParams: Record<string, string> = {}
+      if (params) {
+        for (const [k, v] of Object.entries(params)) {
+          if (v !== undefined && v !== null && v !== '') cleanParams[k] = String(v)
+        }
+      }
+      const q = new URLSearchParams(cleanParams).toString()
       return request<Dosen[]>(`/man-power/dosen-lengkap${q ? `?${q}` : ''}`)
     },
-    stats: () => request<any>('/man-power/stats'),
+    stats: () => request<Record<string, unknown>>('/man-power/stats'),
   },
 
   reference: {

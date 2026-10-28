@@ -8,7 +8,7 @@ interface CommandPaletteProps {
   onClose: () => void
   currentRole: Role
   onSelectNav: (navId: string) => void
-  onSwitchRole: (role: Role) => void
+  onSwitchRole?: (role: Role) => void
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -16,7 +16,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   currentRole,
   onSelectNav,
-  onSwitchRole,
 }) => {
   const [query, setQuery] = useState('')
   const modalRef = useRef<HTMLDivElement>(null)
@@ -190,84 +189,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               )
             })
           )}
-
-          <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 10px 6px' }}>
-            Ganti Mode Peran
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: '4px 6px 8px' }}>
-            <button
-              onClick={() => {
-                onSwitchRole('sdm')
-                onClose()
-              }}
-              style={{
-                padding: '8px 10px',
-                borderRadius: '10px',
-                border: currentRole === 'sdm' ? '1.5px solid var(--g-600)' : '1px solid var(--hair)',
-                background: currentRole === 'sdm' ? 'var(--g-100)' : 'var(--card)',
-                color: currentRole === 'sdm' ? 'var(--g-700)' : 'var(--ink)',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Mode SDM
-            </button>
-            <button
-              onClick={() => {
-                onSwitchRole('dosen')
-                onClose()
-              }}
-              style={{
-                padding: '8px 10px',
-                borderRadius: '10px',
-                border: currentRole === 'dosen' ? '1.5px solid var(--g-600)' : '1px solid var(--hair)',
-                background: currentRole === 'dosen' ? 'var(--g-100)' : 'var(--card)',
-                color: currentRole === 'dosen' ? 'var(--g-700)' : 'var(--ink)',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Mode Dosen
-            </button>
-            <button
-              onClick={() => {
-                onSwitchRole('kaprodi')
-                onClose()
-              }}
-              style={{
-                padding: '8px 10px',
-                borderRadius: '10px',
-                border: currentRole === 'kaprodi' ? '1.5px solid var(--g-600)' : '1px solid var(--hair)',
-                background: currentRole === 'kaprodi' ? 'var(--g-100)' : 'var(--card)',
-                color: currentRole === 'kaprodi' ? 'var(--g-700)' : 'var(--ink)',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Mode Kaprodi
-            </button>
-            <button
-              onClick={() => {
-                onSwitchRole('dekan')
-                onClose()
-              }}
-              style={{
-                padding: '8px 10px',
-                borderRadius: '10px',
-                border: currentRole === 'dekan' ? '1.5px solid var(--g-600)' : '1px solid var(--hair)',
-                background: currentRole === 'dekan' ? 'var(--g-100)' : 'var(--card)',
-                color: currentRole === 'dekan' ? 'var(--g-700)' : 'var(--ink)',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Mode Dekan
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Plus, Edit2, Trash2, ArrowLeft, Award, Settings, X, Check, Loader2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, ArrowLeft, Award, Settings, X, Check, Loader2, Eye, Info, Sparkles } from 'lucide-react'
 import { IndikatorKuesioner } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
@@ -34,6 +34,7 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
   const initialMode = searchParams?.get('mode') === 'create' ? 'create' : 'list'
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit'>(initialMode)
   const [editingItem, setEditingItem] = useState<IndikatorKuesioner | null>(null)
+  const [detailItem, setDetailItem] = useState<IndikatorKuesioner | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<IndikatorKuesioner | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -82,6 +83,22 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
       skalaKeterangan: '4 = Semua indikator terpenuhi; 3 = Termasuk poin utama terpenuhi; 2 = Sebagian terpenuhi; 1 = Belum terpenuhi.',
     })
     setViewMode('create')
+  }
+
+  const handleAutoFillDummyIndikator = () => {
+    const randomSuffix = Math.floor(10 + Math.random() * 90)
+    setFormData({
+      kode: `KO-${randomSuffix}`,
+      aspek: 'Kolaboratif',
+      indikatorUtama: 'Membangun sinergi dan kolaborasi efektif dalam tim pengajaran, penelitian, dan pengabdian masyarakat institusi.',
+      indikatorPendukung: [
+        'Terbuka menerima masukan dan kontribusi dari rekan sejawat program studi',
+        'Menggerakkan pemanfaatan berbagai sumber daya untuk pencapaian tujuan bersama universitas',
+      ],
+      criticalPoint: 'Kemampuan berkolaborasi antardisiplin ilmu untuk memajukan Tridharma perguruan tinggi.',
+      skalaKeterangan: '4 = Konsisten menjadi teladan kolaboratif; 3 = Sering berkolaborasi aktif; 2 = Kadang-kadang; 1 = Pasif.',
+    })
+    onShowToast('Data dummy indikator perilaku berhasil diisi otomatis! Silakan klik Simpan.')
   }
 
   const handleOpenEdit = (item: IndikatorKuesioner) => {
@@ -218,9 +235,10 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
         onShowToast(`Indikator baru "${formData.aspek}" berhasil ditambahkan dan disimpan!`)
       }
       setViewMode('list')
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal menyimpan indikator ke database'
       console.error('Gagal menyimpan indikator:', err)
-      onShowToast(err?.message || 'Gagal menyimpan indikator ke database')
+      onShowToast(msg)
     } finally {
       setIsSaving(false)
     }
@@ -231,9 +249,10 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
       try {
         await onDeleteIndikator(deleteTarget.id)
         onShowToast(`Indikator ${deleteTarget.aspek} telah dihapus.`)
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Gagal menghapus indikator'
         console.error('Gagal menghapus indikator:', err)
-        onShowToast(err?.message || 'Gagal menghapus indikator')
+        onShowToast(msg)
       } finally {
         setDeleteTarget(null)
       }
@@ -479,7 +498,7 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
   if (viewMode === 'create' || viewMode === 'edit') {
     return (
       <div className="page-container" ref={containerRef}>
-        <div className="page-header">
+        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <button className="btn-back" onClick={() => setViewMode('list')}>
               <ArrowLeft size={14} />
@@ -492,6 +511,29 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
               Instrumen penilaian evaluasi perilaku kerja BerAKHLAK Universitas Bhakti Kencana.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleAutoFillDummyIndikator}
+            className="brand-btn"
+            style={{
+              background: '#fef3c7',
+              color: '#b45309',
+              border: '1px solid #fde68a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginTop: 10,
+            }}
+            title="Isi form otomatis dengan data dummy indikator perilaku"
+          >
+            <Sparkles size={14} className="text-amber-600 animate-pulse" />
+            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+          </button>
         </div>
 
         <form onSubmit={handleSave} className="form-page-card">
@@ -715,15 +757,15 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
       </div>
 
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-indikator">
           <thead>
             <tr>
-              <th>Kode</th>
-              <th>Dimensi Perilaku</th>
-              <th>Indikator Utama (Critical Point)</th>
-              <th>Indikator Pendukung</th>
-              <th>Skala Evaluasi</th>
-              <th style={{ textAlign: 'right' }}>Aksi</th>
+              <th style={{ width: '85px', minWidth: '85px', whiteSpace: 'nowrap' }}>Kode</th>
+              <th style={{ minWidth: '150px' }}>Dimensi Perilaku</th>
+              <th style={{ minWidth: '220px' }}>Indikator Utama (Critical Point)</th>
+              <th style={{ minWidth: '160px' }}>Indikator Pendukung</th>
+              <th style={{ minWidth: '110px' }}>Skala Evaluasi</th>
+              <th style={{ textAlign: 'right', minWidth: '130px', whiteSpace: 'nowrap' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -735,7 +777,7 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
 
               return (
                 <tr key={ind.id}>
-                  <td>
+                  <td style={{ width: '85px', minWidth: '85px', whiteSpace: 'nowrap' }}>
                     <span
                       style={{
                         fontFamily: 'monospace',
@@ -745,30 +787,40 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
                         padding: '3px 8px',
                         borderRadius: 'var(--r-xs)',
                         fontSize: '11.5px',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-block',
                       }}
                     >
                       {ind.kode}
                     </span>
                   </td>
                   <td>
-                    <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{ind.aspek}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '13.5px' }}>{ind.aspek}</div>
                   </td>
-                  <td style={{ maxWidth: 300 }}>
-                    <div style={{ fontWeight: 600, color: 'var(--ink)', lineHeight: 1.4 }}>
+                  <td style={{ maxWidth: 280 }}>
+                    <div style={{ fontWeight: 600, color: 'var(--ink)', lineHeight: 1.4, fontSize: '12.5px' }}>
                       1. {ind.indikatorUtama}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--brand-700)', fontWeight: 600, marginTop: 3 }}>
                       [Critical Point]
                     </div>
                   </td>
-                  <td style={{ maxWidth: 340, fontSize: '12.5px', color: 'var(--muted)', lineHeight: 1.5 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {supportingList.map((sup, sIdx) => (
-                        <div key={sIdx}>
-                          {sIdx + 2}. {sup}
-                        </div>
-                      ))}
+                  <td style={{ maxWidth: 260 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span className="badge-pill badge-pill--blue" style={{ fontSize: '10.5px' }}>
+                        {supportingList.length} Indikator Pendukung
+                      </span>
                     </div>
+                    {supportingList.slice(0, 1).map((sup, sIdx) => (
+                      <div key={sIdx} style={{ fontSize: '11.5px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        2. {sup}
+                      </div>
+                    ))}
+                    {supportingList.length > 1 && (
+                      <span style={{ fontSize: '11px', color: 'var(--brand-600)', cursor: 'pointer', fontWeight: 600 }} onClick={() => setDetailItem(ind)}>
+                        +{supportingList.length - 1} lainnya &bull; Lihat Detail
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span
@@ -781,6 +833,7 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
                         color: 'var(--navy-900)',
                         fontWeight: 600,
                         fontSize: '11.5px',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       Skala 1 - 4
@@ -788,6 +841,14 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        onClick={() => setDetailItem(ind)}
+                        title="Lihat Detail Indikator Lengkap"
+                        className="btn-table-action btn-table-action--view"
+                        aria-label={`Detail ${ind.aspek}`}
+                      >
+                        <Eye size={15} />
+                      </button>
                       <button
                         onClick={() => handleOpenEdit(ind)}
                         title="Edit Indikator"
@@ -812,6 +873,115 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
           </tbody>
         </table>
       </div>
+
+      {/* Modal View Detail Indikator */}
+      {detailItem && (
+        <div className="modal-backdrop" onClick={() => setDetailItem(null)}>
+          <div
+            className="modal-card anim-modal"
+            style={{ maxWidth: '580px', padding: '24px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    padding: '3px 9px',
+                    borderRadius: 'var(--r-xs)',
+                    background: 'var(--brand-100)',
+                    color: 'var(--brand-700)',
+                  }}
+                >
+                  {detailItem.kode}
+                </span>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
+                    {detailItem.aspek}
+                  </h3>
+                  <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                    Dimensi Perilaku BerAKHLAK Universitas Bhakti Kencana
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailItem(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Critical Point */}
+              <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#c2410c', letterSpacing: '0.04em', marginBottom: 4 }}>
+                  Indikator Utama [Critical Point Wajib]
+                </div>
+                <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)', lineHeight: 1.45 }}>
+                  1. {detailItem.indikatorUtama}
+                </div>
+                <span style={{ fontSize: '11px', color: '#9a3412', marginTop: 4, display: 'block' }}>
+                  Prasyarat mutlak untuk mendapatkan skor predikat minimal Baik (skala 3 ke atas).
+                </span>
+              </div>
+
+              {/* Indikator Pendukung Lengkap */}
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Daftar Indikator Pendukung
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(detailItem.indikatorPendukung && detailItem.indikatorPendukung.length > 0
+                    ? detailItem.indikatorPendukung
+                    : [detailItem.indikatorDua, detailItem.indikatorTiga].filter(Boolean) as string[]
+                  ).map((sup, sIdx) => (
+                    <div
+                      key={sIdx}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 'var(--r-md)',
+                        background: 'var(--panel-hover)',
+                        border: '1px solid var(--hair)',
+                        fontSize: '12.5px',
+                        color: 'var(--ink)',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <strong>{sIdx + 2}.</strong> {sup}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rubrik Penilaian Skala */}
+              <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--navy-900)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Info size={14} color="var(--brand-600)" />
+                  <span>Kriteria Rubrik Evaluasi</span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5 }}>
+                  {detailItem.skalaKeterangan || 'Skala 4: Sangat Baik (Semua indikator terpenuhi) • Skala 3: Baik (Termasuk Critical Point terpenuhi) • Skala 2: Cukup • Skala 1: Kurang.'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+              <button
+                type="button"
+                className="brand-btn brand-btn--dark"
+                onClick={() => setDetailItem(null)}
+                style={{ padding: '7px 18px', fontSize: '12.5px' }}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}

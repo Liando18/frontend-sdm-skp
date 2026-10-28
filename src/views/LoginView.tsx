@@ -1,18 +1,70 @@
 import React, { useState, useRef } from 'react'
-import { Eye, EyeOff, Lock, Mail, ArrowRight, Info } from 'lucide-react'
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  ArrowRight,
+  Info,
+  ShieldCheck,
+  Zap,
+} from 'lucide-react'
 import { Role } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { OwlMascot } from '../components/OwlMascot'
 
 interface LoginViewProps {
-  onLogin: (role: Role, email?: string, password?: string) => void
+  onLogin: (role: Role, identifier: string, password: string, rememberMe?: boolean) => void
 }
 
+interface TestActor {
+  role: Role
+  label: string
+  name: string
+  email: string
+  nip: string
+}
+
+const TEST_ACTORS: TestActor[] = [
+  {
+    role: 'sdm',
+    label: 'SDM',
+    name: 'Asep Rohimat, S.Kom., M.T.',
+    email: 'sdm@bku.ac.id',
+    nip: '198104152011011002',
+  },
+  {
+    role: 'dosen',
+    label: 'Dosen',
+    name: 'Agus Miraj D., M.Kep',
+    email: 'agus.miraj@bku.ac.id',
+    nip: '873841838401375170',
+  },
+  {
+    role: 'kaprodi',
+    label: 'Kaprodi',
+    name: 'Ade Iwan M., M.Kep',
+    email: 'ade.iwan@bku.ac.id',
+    nip: '7737027039520350',
+  },
+  {
+    role: 'dekan',
+    label: 'Dekan',
+    name: 'Dr. Hj. Ratna Dian S.',
+    email: 'dekan.fkeperawatan@bku.ac.id',
+    nip: '197506122005012001',
+  },
+]
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-  const [identifier, setIdentifier] = useState('sdm@bku.ac.id')
-  const [password, setPassword] = useState('••••••••')
+  const [identifier, setIdentifier] = useState(() => {
+    return localStorage.getItem('ubk_saved_identifier') || ''
+  })
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(true)
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('ubk_remember_me') !== 'false'
+  })
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
 
   // Mascot focus states
@@ -39,8 +91,27 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (rememberMe) {
+      localStorage.setItem('ubk_saved_identifier', identifier)
+      localStorage.setItem('ubk_remember_me', 'true')
+    } else {
+      localStorage.removeItem('ubk_saved_identifier')
+      localStorage.setItem('ubk_remember_me', 'false')
+    }
     const detectedRole = resolveRole(identifier)
-    onLogin(detectedRole, identifier, password)
+    onLogin(detectedRole, identifier, password, rememberMe)
+  }
+
+  const handleQuickTestLogin = (actor: TestActor, autoSubmit = false) => {
+    setIdentifier(actor.email)
+    setPassword(actor.nip)
+    if (autoSubmit) {
+      if (rememberMe) {
+        localStorage.setItem('ubk_saved_identifier', actor.email)
+        localStorage.setItem('ubk_remember_me', 'true')
+      }
+      onLogin(actor.role, actor.email, actor.nip, rememberMe)
+    }
   }
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -59,21 +130,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
+        overflowY: 'auto',
         width: '100%',
-        background: 'radial-gradient(ellipse at 50% 25%, #fff7ed 0%, #f8fafc 60%, #f1f5f9 100%)',
+        boxSizing: 'border-box',
+        background: 'radial-gradient(ellipse at 50% 20%, #fff7ed 0%, #f8fafc 60%, #f1f5f9 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px 16px 24px',
+        padding: '24px 16px',
       }}
     >
       <div
         ref={containerRef}
-        className="w-full max-w-[410px] sm:max-w-[430px] flex flex-col items-center"
+        className="w-full max-w-[420px] sm:max-w-[440px] flex flex-col items-center"
+        style={{ margin: 'auto 0' }}
       >
-        {/* Kepala Maskot Burung Hantu 3D: Duduk Rapat & Menyatu di Atas Rim Form */}
+        {/* Kepala Maskot Burung Hantu 3D */}
         <div className="w-full flex justify-center -mb-5 sm:-mb-6 relative z-10 pointer-events-none select-none">
           <div className="pointer-events-auto">
             <OwlMascot
@@ -85,14 +158,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           </div>
         </div>
 
-        {/* Card Form Login Terpadu */}
+        {/* Card Form Login */}
         <div
           className="w-full bg-white rounded-2xl shadow-xl border border-slate-200/80 p-5 sm:p-7 pt-5 sm:pt-6 relative z-0"
           style={{
             boxShadow: '0 16px 36px -12px rgba(15, 23, 42, 0.08), 0 0 1px 1px rgba(15, 23, 42, 0.04)',
           }}
         >
-          {/* Identitas Institusi Kompak */}
+          {/* Identitas Institusi */}
           <div className="text-center mb-4 sm:mb-5">
             <img
               src="/logo.png"
@@ -109,10 +182,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
           {/* Form Login */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-            {/* Input Email Akun / NUPTK */}
+            {/* Input NIP atau Email Akun */}
             <div className="form-field">
               <label className="form-label" htmlFor="input-identifier">
-                Email Akun / NUPTK
+                Email Institusi / NIP Pegawai
               </label>
               <div className="relative">
                 <input
@@ -125,7 +198,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   onBlur={() => setIsEmailFocused(false)}
                   className="custom-input"
                   style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px' }}
-                  placeholder="nama@bku.ac.id / NUPTK"
+                  placeholder="Contoh: sdm@bku.ac.id atau 19810415..."
                   autoComplete="username"
                 />
                 <Mail
@@ -160,8 +233,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 />
                 <button
                   type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 transition-colors"
                   aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                 >
@@ -179,7 +251,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 accent-orange-600 cursor-pointer"
                 />
-                <span>Ingat saya</span>
+                <span>Ingat saya di perangkat ini</span>
               </label>
               <button
                 type="button"
@@ -193,7 +265,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             {/* Tombol Masuk Portal */}
             <button
               type="submit"
-              className="brand-btn brand-btn--dark w-full justify-center text-sm font-semibold mt-1 py-2.5 sm:py-3"
+              className="brand-btn brand-btn--dark w-full justify-center text-sm font-semibold mt-1 py-2.5 sm:py-3 cursor-pointer"
               style={{ minHeight: '44px' }}
             >
               <span>Masuk ke Sistem Portal</span>
@@ -201,57 +273,37 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             </button>
           </form>
 
-          {/* Quick Demo Fill (Kompak & Bersih) */}
-          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-slate-500">
-            <span>Uji Akun:</span>
-            <button
-              type="button"
-              onClick={() => setIdentifier('sdm@bku.ac.id')}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                identifier === 'sdm@bku.ac.id'
-                  ? 'bg-orange-50 text-orange-700 font-semibold border border-orange-200'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-            >
-              SDM
-            </button>
-            <button
-              type="button"
-              onClick={() => setIdentifier('agus.miraj@bku.ac.id')}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                identifier === 'agus.miraj@bku.ac.id'
-                  ? 'bg-orange-50 text-orange-700 font-semibold border border-orange-200'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-            >
-              Dosen
-            </button>
-            <button
-              type="button"
-              onClick={() => setIdentifier('ade.iwan@bku.ac.id')}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                identifier === 'ade.iwan@bku.ac.id'
-                  ? 'bg-orange-50 text-orange-700 font-semibold border border-orange-200'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-            >
-              Kaprodi
-            </button>
-            <button
-              type="button"
-              onClick={() => setIdentifier('dekan.fkeperawatan@bku.ac.id')}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                identifier === 'dekan.fkeperawatan@bku.ac.id'
-                  ? 'bg-orange-50 text-orange-700 font-semibold border border-orange-200'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-            >
-              Dekan
-            </button>
+          {/* ========================================================= */}
+          {/* UJI LOGIN CEPAT (PENGEMBANGAN) - MINIMALIS & AMAN        */}
+          {/* ========================================================= */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-slate-400 shrink-0">
+              Uji Cepat:
+            </span>
+            <div className="flex items-center gap-1.5 flex-1 justify-end">
+              {TEST_ACTORS.map((actor) => (
+                <button
+                  key={actor.role}
+                  type="button"
+                  onClick={() => handleQuickTestLogin(actor, true)}
+                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-[11px] font-semibold text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1 cursor-pointer"
+                  title={`Login cepat sebagai ${actor.name}`}
+                >
+                  <Zap size={10} className="text-amber-500" />
+                  <span>{actor.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Info Autentikasi Resmi PDDIKTI & BKU */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11.5px] text-slate-500 text-center">
+            <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
+            <span>Autentikasi terenkripsi terhubung ke Basis Data SDM UBK</span>
           </div>
 
           {/* Copyright */}
-          <div className="mt-2.5 text-center text-[11px] text-slate-400">
+          <div className="mt-2 text-center text-[11px] text-slate-400">
             Universitas Bhakti Kencana &copy; 2026
           </div>
         </div>
@@ -272,7 +324,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Pemulihan kata sandi portal dosen dan staf terintegrasi dengan email resmi institusi <code>@bku.ac.id</code> atau NUPTK yang terdaftar di PDDIKTI. Silakan hubungi Helpdesk Direktorat SDM atau Unit TI Gedung Rektorat UBK.
+              Untuk pemulihan atau pengaturan ulang kata sandi akun, silakan hubungi Direktorat Sumber Daya Manusia (SDM) atau Unit TI Universitas Bhakti Kencana.
             </p>
             <div className="flex justify-end mt-5">
               <button

@@ -1,24 +1,22 @@
 import React, { useState, useRef, useMemo } from 'react'
 import {
-  FileCheck2,
   CheckCircle,
+  Check,
   XCircle,
   ExternalLink,
   ArrowLeft,
   Printer,
   Upload,
-  Check,
   FileSignature,
-  Building2,
-  AlertCircle,
   Filter,
   Search,
-  Calendar,
+  Sparkles,
 } from 'lucide-react'
 import { PengajuanSKP, Dosen, UserSession } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { useStaggerEntrance } from '../utils/animations'
+import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 
 interface ReviewSKPDekanProps {
   user: UserSession
@@ -98,20 +96,30 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   const handleOpenReview = (skp: PengajuanSKP) => {
     setActiveReviewSKP(skp)
     setDekanNotes(skp.catatanDekan || '')
-    setTtdPreview(skp.ttdDekanUrl || defaultDekanTTD)
+    setTtdPreview(user.signatureUrl || skp.ttdDekanUrl || defaultDekanTTD)
     setViewMode('review')
   }
 
   const handleTTDUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        setTtdPreview(reader.result as string)
-        onShowToast('Tanda tangan digital Dekan berhasil diunggah.')
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      onShowToast('Ukuran berkas tanda tangan terlalu besar (maksimal 2MB).')
+      return
     }
+
+    if (!file.type.startsWith('image/')) {
+      onShowToast('Format berkas tanda tangan harus berupa gambar (.png, .jpg, .svg).')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      setTtdPreview(reader.result as string)
+      onShowToast('Tanda tangan digital Dekan berhasil diunggah.')
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleExecuteApprove = () => {
@@ -212,11 +220,11 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
 
         {/* Table of Activities Filled by Kaprodi */}
         <div className="table-container" style={{ marginTop: 16 }}>
-          <table className="custom-table">
+          <table className="custom-table custom-table--sticky-skp">
             <thead>
               <tr>
-                <th style={{ width: 40, textAlign: 'center' }}>No</th>
-                <th>Kegiatan Tugas Jabatan Ka Prodi</th>
+                <th style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center' }}>No</th>
+                <th style={{ minWidth: 260 }}>Kegiatan Tugas Jabatan Ka Prodi</th>
                 <th style={{ textAlign: 'center' }}>Satuan</th>
                 <th style={{ textAlign: 'center' }}>Rencana Awal</th>
                 <th style={{ textAlign: 'center' }}>Perubahan Tengah</th>
@@ -229,10 +237,10 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
             <tbody>
               {activeReviewSKP.items.map((it, idx) => (
                 <tr key={it.id}>
-                  <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
+                  <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
                     {idx + 1}
                   </td>
-                  <td style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '13px', maxWidth: 300 }}>
+                  <td style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '13px', minWidth: 260, maxWidth: 300 }}>
                     {it.kegiatan}
                     {it.kategori && (
                       <div style={{ marginTop: 2 }}>
@@ -257,9 +265,9 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                   <td>
                     {it.linkDokumen ? (
                       <a
-                        href={it.linkDokumen}
+                        href={sanitizeUrl(it.linkDokumen)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -269,7 +277,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                           fontSize: '12px',
                         }}
                       >
-                        <span>Lihat Bukti</span>
+                        <span>Tautan di sini</span>
                         <ExternalLink size={12} />
                       </a>
                     ) : (
@@ -300,8 +308,20 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               border: '1px solid var(--hair)',
             }}
           >
-            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--navy-900)', marginBottom: 6 }}>
-              Catatan Evaluasi Dekan Fakultas Keperawatan
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--navy-900)' }}>
+                Catatan Evaluasi Dekan Fakultas Keperawatan
+              </div>
+              <button
+                type="button"
+                onClick={() => setDekanNotes('Kinerja kepemimpinan program studi dan capaian Tridharma sangat baik, sesuai rencana strategis fakultas. Disahkan.')}
+                className="brand-btn"
+                style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontSize: '11px', padding: '3px 8px', cursor: 'pointer' }}
+                title="Isi otomatis catatan dekan dummy"
+              >
+                <Sparkles size={11} className="text-amber-600 animate-pulse" />
+                <span>⚡ Isi Catatan Otomatis</span>
+              </button>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: 12 }}>
               Berikan catatan pembinaan, apresiasi kepemimpinan, atau arahan strategis fakultas untuk Ketua Program Studi.
@@ -331,10 +351,10 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '14px', fontWeight: 700, color: 'var(--navy-900)' }}>
                 <FileSignature size={16} color="var(--brand-600)" />
-                <span>Tanda Tangan Digital Dekan</span>
+                <span>Tanda Tangan Digital Dekan Otomatis</span>
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2, marginBottom: 12 }}>
-                Pengesahan resmi berkas SKP tingkat fakultas.
+                Tanda tangan Anda dan Ka. Prodi otomatis disematkan dari profil institusi saat disetujui.
               </div>
 
               {/* TTD Box Preview */}
@@ -352,8 +372,13 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               >
                 {ttdPreview ? (
                   <img
-                    src={ttdPreview}
+                    src={resolveStorageUrl(ttdPreview)}
                     alt="TTD Dekan"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      target.onerror = null
+                      target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                    }}
                     style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
                   />
                 ) : (
@@ -362,21 +387,12 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               </div>
 
               <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label
-                  className="brand-btn brand-btn--outline"
-                  style={{ padding: '6px 12px', fontSize: '11.5px', cursor: 'pointer', gap: 4 }}
-                >
-                  <Upload size={13} />
-                  <span>Ganti TTD</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={handleTTDUpload}
-                  />
-                </label>
-                <span style={{ fontSize: '11px', color: 'var(--status-success-ink)', fontWeight: 600 }}>
-                  Terverifikasi UBK
+                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                  Pemilik: <strong>{user.name}</strong>
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--status-success-ink)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Check size={12} />
+                  <span>TTD Profil Aktif</span>
                 </span>
               </div>
             </div>
@@ -567,7 +583,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
       </div>
 
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
               <th>Ketua Program Studi</th>

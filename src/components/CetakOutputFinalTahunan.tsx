@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react'
-import { Printer, X, FileText, CheckCircle2, ExternalLink } from 'lucide-react'
-import { Dosen, PengajuanSKP, PenilaianKuesioner } from '../types'
+import React, { useState, useRef, useMemo } from 'react'
+import { Printer, X, ExternalLink } from 'lucide-react'
+import { Dosen, PengajuanSKP, PenilaianKuesioner, SKPItem } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
+import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
+import { printDocument } from '../utils/printDocument'
 
 export interface OutputFinalData {
   dosen: Dosen
@@ -12,10 +14,12 @@ export interface OutputFinalData {
   nilaiSKPGanjil: number
   nilaiSKPGenap: number
   rataRataSKP: number
-  bobotSKP60: number
+  bobotSKP70: number
+  bobotSKP60?: number
   nilaiKuisSkala4: number
   nilaiKuisSkala100: number
-  bobotKuis40: number
+  bobotKuis30: number
+  bobotKuis40?: number
   nilaiAkhirTahunan: number
   predikat: string
 }
@@ -26,50 +30,598 @@ interface CetakOutputFinalTahunanProps {
   onClose: () => void
 }
 
+/**
+ * Reusable dynamic digital signature box for print documents
+ */
+const SignatureBox: React.FC<{
+  title: string
+  name: string
+  nip: string
+  jabatan?: string
+  date: string
+  signatureUrl?: string
+}> = ({ title, name, nip, jabatan, date, signatureUrl }) => {
+  return (
+    <div style={{ width: 230, textAlign: 'center' }}>
+      <div style={{ marginBottom: 6 }}>
+        <div>Bandung, {date}</div>
+        <div style={{ fontWeight: 700 }}>{title},</div>
+        {jabatan && <div style={{ fontSize: '10.5px', color: '#475569' }}>{jabatan}</div>}
+      </div>
+
+      <div
+        style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '4px 0',
+        }}
+      >
+        {signatureUrl ? (
+          <img
+            src={resolveStorageUrl(signatureUrl)}
+            alt={`Tanda Tangan ${name}`}
+            onError={(e) => {
+              const target = e.currentTarget
+              target.onerror = null
+              target.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>`
+            }}
+            style={{
+              maxHeight: 56,
+              maxWidth: 180,
+              objectFit: 'contain',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              padding: '4px 10px',
+              border: '1px dashed #94a3b8',
+              borderRadius: 4,
+              fontSize: '10px',
+              color: '#64748b',
+              lineHeight: 1.3,
+            }}
+          >
+            (Tanda Tangan Digital Terverifikasi)
+          </div>
+        )}
+      </div>
+
+      <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{name}</div>
+      <div style={{ fontSize: '11px', color: '#334155' }}>NIP. {nip || '-'}</div>
+    </div>
+  )
+}
+
+/**
+ * Pola Distribusi Predikat Kinerja Pegawai (PermenPAN-RB No. 6/2022 & Ouput Final.pdf Hal. 4)
+ * Menampilkan kurva distribusi predikat kinerja dosen dengan sumbu vertikal (Y: Nilai/Frekuensi %)
+ * dan sumbu horizontal (X: Predikat Kinerja Pegawai) serta dominasi puncak sesuai capaian riil.
+ */
+const PolaDistribusiLineChart: React.FC<{ predikat: string }> = ({ predikat }) => {
+  const isSangatBaik = predikat === 'Sangat Baik'
+  const isBaik = predikat === 'Baik'
+  const isCukup = predikat === 'Cukup' || predikat === 'Butuh Perbaikan'
+  const isKurang = predikat === 'Kurang'
+  const isSangatKurang = predikat === 'Sangat Kurang'
+
+  // Kategori Sumbu Horizontal (X-axis) sesuai regulasi PermenPAN-RB No. 6/2022
+  const categories = [
+    { label: 'Sangat Kurang', x: 105, active: isSangatKurang },
+    { label: 'Kurang / Misconduct', x: 200, active: isKurang },
+    { label: 'Butuh Perbaikan', x: 295, active: isCukup },
+    { label: 'Baik', x: 390, active: isBaik },
+    { label: 'Sangat Baik', x: 485, active: isSangatBaik },
+  ]
+
+  // Nilai Sumbu Vertikal (Y-axis): Dari 100% (y = 35) hingga 0% (y = 150)
+  // Baseline kurva berada tepat di y = 150.
+  // Dominasi puncak kurva melonjak tajam sesuai predikat yang diperoleh dosen.
+  const points = isSangatBaik
+    ? [
+        { x: 105, y: 144 },
+        { x: 200, y: 138 },
+        { x: 295, y: 118 },
+        { x: 390, y: 76 },
+        { x: 485, y: 35 }, // DOMINAN PUNCAK DI SANGAT BAIK (~98%)
+      ]
+    : isBaik
+    ? [
+        { x: 105, y: 142 },
+        { x: 200, y: 135 },
+        { x: 295, y: 106 },
+        { x: 390, y: 46 }, // DOMINAN PUNCAK DI BAIK (~90%)
+        { x: 485, y: 108 },
+      ]
+    : isCukup
+    ? [
+        { x: 105, y: 140 },
+        { x: 200, y: 106 },
+        { x: 295, y: 46 }, // DOMINAN DI BUTUH PERBAIKAN (~90%)
+        { x: 390, y: 110 },
+        { x: 485, y: 142 },
+      ]
+    : isKurang
+    ? [
+        { x: 105, y: 112 },
+        { x: 200, y: 46 }, // DOMINAN DI KURANG (~90%)
+        { x: 295, y: 110 },
+        { x: 390, y: 138 },
+        { x: 485, y: 144 },
+      ]
+    : [
+        { x: 105, y: 42 }, // DOMINAN DI SANGAT KURANG (~94%)
+        { x: 200, y: 104 },
+        { x: 295, y: 130 },
+        { x: 390, y: 140 },
+        { x: 485, y: 144 },
+      ]
+
+  const p0 = points[0]
+  const p1 = points[1]
+  const p2 = points[2]
+  const p3 = points[3]
+  const p4 = points[4]
+
+  const pathD =
+    `M ${p0.x} ${p0.y} ` +
+    `C ${(p0.x + p1.x) / 2} ${p0.y}, ${(p0.x + p1.x) / 2} ${p1.y}, ${p1.x} ${p1.y} ` +
+    `C ${(p1.x + p2.x) / 2} ${p1.y}, ${(p1.x + p2.x) / 2} ${p2.y}, ${p2.x} ${p2.y} ` +
+    `C ${(p2.x + p3.x) / 2} ${p2.y}, ${(p2.x + p3.x) / 2} ${p3.y}, ${p3.x} ${p3.y} ` +
+    `C ${(p3.x + p4.x) / 2} ${p3.y}, ${(p3.x + p4.x) / 2} ${p4.y}, ${p4.x} ${p4.y}`
+
+  const areaD = `${pathD} L ${p4.x} 150 L ${p0.x} 150 Z`
+
+  // Level nilai pada sumbu Y
+  const yLevels = [
+    { label: '100%', y: 35 },
+    { label: '75%', y: 63.75 },
+    { label: '50%', y: 92.5 },
+    { label: '25%', y: 121.25 },
+    { label: '0%', y: 150 },
+  ]
+
+  return (
+    <div style={{ width: '100%', maxWidth: 540, margin: '4px auto 0 auto', textAlign: 'center' }}>
+      <svg
+        viewBox="0 0 540 196"
+        style={{ width: '100%', height: 'auto', maxHeight: 196, overflow: 'visible' }}
+      >
+        <defs>
+          <linearGradient id="polaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0f223d" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#0f223d" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        {/* Sumbu Y Vertikal: Garis Aksis */}
+        <line x1="60" y1="28" x2="60" y2="150" stroke="#000000" strokeWidth="1.2" />
+
+        {/* Label & Grid Sumbu Y Vertikal (Nilai / Frekuensi %) */}
+        {yLevels.map((lvl, idx) => (
+          <g key={idx}>
+            {/* Grid horizontal tipis */}
+            <line
+              x1="60"
+              y1={lvl.y}
+              x2="515"
+              y2={lvl.y}
+              stroke={idx === 4 ? '#000000' : '#e2e8f0'}
+              strokeWidth={idx === 4 ? 1.2 : 1}
+              strokeDasharray={idx === 4 ? undefined : '3 3'}
+            />
+            {/* Tick mark sumbu Y */}
+            <line x1="55" y1={lvl.y} x2="60" y2={lvl.y} stroke="#000000" strokeWidth="1" />
+            {/* Teks angka persentase vertikal */}
+            <text
+              x="51"
+              y={lvl.y + 3.5}
+              textAnchor="end"
+              fontSize="8.5"
+              fontWeight="600"
+              fill="#334155"
+              fontFamily="sans-serif"
+            >
+              {lvl.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Judul Sumbu Y Vertikal (Rotated Text) */}
+        <text
+          x="14"
+          y="92.5"
+          transform="rotate(-90 14 92.5)"
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="#1e293b"
+          fontFamily="sans-serif"
+        >
+          Capaian / Frekuensi (%)
+        </text>
+
+        {/* Sumbu X Horizontal: Garis Kategori Vertikal */}
+        {categories.map((c, i) => (
+          <line
+            key={i}
+            x1={c.x}
+            y1="28"
+            x2={c.x}
+            y2="150"
+            stroke={c.active ? '#94a3b8' : '#f1f5f9'}
+            strokeDasharray="2 2"
+          />
+        ))}
+
+        {/* Area di bawah kurva (Shaded Gradient) */}
+        <path d={areaD} fill="url(#polaGradient)" />
+
+        {/* Garis Kurva Distribusi (Smooth Bezier Curve) */}
+        <path d={pathD} fill="none" stroke="#0f223d" strokeWidth="2.5" strokeLinecap="round" />
+
+        {/* Node Points pada setiap Kategori */}
+        {points.map((p, idx) => {
+          const isActive = categories[idx].active
+          return (
+            <g key={idx}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={isActive ? 6 : 3.5}
+                fill={isActive ? '#c2410c' : '#475569'}
+                stroke={isActive ? '#ffffff' : 'none'}
+                strokeWidth={isActive ? 2 : 0}
+              />
+              {isActive && (
+                <g>
+                  {/* Floating callout badge penanda predikat dosen */}
+                  <rect
+                    x={p.x - 52}
+                    y={Math.max(4, p.y - 25)}
+                    width="104"
+                    height="18"
+                    rx="3"
+                    fill="#0f223d"
+                  />
+                  <text
+                    x={p.x}
+                    y={Math.max(4, p.y - 25) + 12}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="9.5"
+                    fontWeight="800"
+                    fontFamily="sans-serif"
+                  >
+                    ★ Capaian: {predikat}
+                  </text>
+                  <polygon
+                    points={`${p.x - 4},${Math.max(4, p.y - 25) + 18} ${p.x + 4},${Math.max(4, p.y - 25) + 18} ${p.x},${Math.max(4, p.y - 25) + 22}`}
+                    fill="#0f223d"
+                  />
+                </g>
+              )}
+            </g>
+          )
+        })}
+
+        {/* Tick Mark & Label Kategori Sumbu X (Horizontal) */}
+        {categories.map((c, i) => (
+          <g key={i}>
+            <line x1={c.x} y1="150" x2={c.x} y2="155" stroke="#000000" strokeWidth="1" />
+            <text
+              x={c.x}
+              y="167"
+              textAnchor="middle"
+              fontSize="8.5"
+              fontWeight={c.active ? '800' : '500'}
+              fill={c.active ? '#c2410c' : '#334155'}
+              fontFamily="sans-serif"
+            >
+              {c.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Judul Sumbu X di bawah grafik */}
+        <text
+          x="290"
+          y="187"
+          textAnchor="middle"
+          fontSize="9.5"
+          fontWeight="700"
+          fill="#1e293b"
+          fontFamily="sans-serif"
+        >
+          Predikat Kinerja Pegawai (PermenPAN-RB No. 6 Tahun 2022)
+        </text>
+      </svg>
+    </div>
+  )
+}
+
 export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = ({
   data,
   isOpen,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'skp' | 'lampiran' | 'evaluasi' | 'dokumen'>('all')
-
-  if (!isOpen || !data) return null
-
-  const { dosen, tahunAkademik } = data
-
-  const penilaiNama = data.skpGenap?.penilaiNama || 'Atasan Penilai'
-  const penilaiNip = data.skpGenap?.penilaiNip || '-'
-  const penilaiPangkat = data.skpGenap?.penilaiPangkat || '-'
-  const penilaiJabatan = data.skpGenap?.penilaiJabatan || 'Pejabat Penilai Kinerja'
-  const penilaiUnit = data.skpGenap?.penilaiUnit || dosen.prodi
-  const tanggalCetak = data.skpGenap?.tanggalPenilaianDekan
-    || data.skpGenap?.tanggalPenilaianKaprodi
-    || data.skpGenap?.tanggalPengajuan
-    || data.kuesioner?.tanggal 
-    || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-
-  const handlePrint = () => {
-    const originalTitle = document.title
-    document.title = `Output Final - ${dosen.nama}`
-    window.print()
-    setTimeout(() => {
-      document.title = originalTitle
-    }, 1000)
-  }
-
   const modalRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
 
   useGSAP(
     () => {
-      if (!modalRef.current) return
+      if (!isOpen || !data || !modalRef.current) return
       gsap.fromTo(
         modalRef.current,
         { scale: 0.96, opacity: 0, y: 12 },
         { scale: 1, opacity: 1, y: 0, duration: 0.26, ease: GSAP_EASE.smooth }
       )
     },
-    { scope: modalRef }
+    { scope: modalRef, dependencies: [isOpen, data] }
   )
+
+  // Aggregate items across Ganjil and Genap semesters with distinct activities
+  const allItems: SKPItem[] = useMemo(() => {
+    if (!data) return []
+    const ganjil = data.skpGanjil?.items || []
+    const genap = data.skpGenap?.items || []
+    const map = new Map<string, SKPItem>()
+
+    for (const it of [...ganjil, ...genap]) {
+      const key = it.kegiatan.trim().toLowerCase()
+      if (!map.has(key)) {
+        map.set(key, { ...it })
+      } else {
+        const existing = map.get(key)!
+        const t1 = typeof existing.rencanaAwal === 'number' ? existing.rencanaAwal : parseFloat(String(existing.rencanaAwal || 0))
+        const t2 = typeof it.rencanaAwal === 'number' ? it.rencanaAwal : parseFloat(String(it.rencanaAwal || 0))
+        const r1 = typeof existing.realisasi === 'number' ? existing.realisasi : parseFloat(String(existing.realisasi || 0))
+        const r2 = typeof it.realisasi === 'number' ? it.realisasi : parseFloat(String(it.realisasi || 0))
+        if (!isNaN(t1) && !isNaN(t2) && t1 > 0 && t2 > 0) {
+          existing.rencanaAwal = t1 + t2
+        }
+        if (!isNaN(r1) && !isNaN(r2) && r1 > 0 && r2 > 0) {
+          existing.realisasi = r1 + r2
+        }
+        if (it.linkDokumen && !existing.linkDokumen) {
+          existing.linkDokumen = it.linkDokumen
+        }
+      }
+    }
+    return Array.from(map.values())
+  }, [data])
+
+  // Group dynamic items by Tridharma categories
+  const pendidikanItems = useMemo(() => {
+    return allItems.filter(
+      (it) =>
+        it.kategori === 'Pendidikan' ||
+        (!it.kategori &&
+          /pengajaran|perkuliahan|mengajar|bimbingan|skripsi|modul|bahan ajar|menguji/i.test(it.kegiatan))
+    )
+  }, [allItems])
+
+  const penelitianItems = useMemo(() => {
+    return allItems.filter(
+      (it) =>
+        it.kategori === 'Penelitian' ||
+        (!it.kategori &&
+          /penelitian|jurnal|publikasi|karya ilmiah|prosiding/i.test(it.kegiatan))
+    )
+  }, [allItems])
+
+  const pengabdianItems = useMemo(() => {
+    return allItems.filter(
+      (it) =>
+        it.kategori === 'Pengabdian' ||
+        (!it.kategori &&
+          /pengabdian|pkm|desa|masyarakat|penyuluhan/i.test(it.kegiatan))
+    )
+  }, [allItems])
+
+  const penunjangItems = useMemo(() => {
+    return allItems.filter(
+      (it) =>
+        it.kategori === 'Penunjang' ||
+        it.kategori === 'Tugas Tambahan' ||
+        it.kategori === 'Layanan Akademik' ||
+        it.kategori === 'Administrasi & Tata Usaha' ||
+        it.kategori === 'Tata Kelola & Keuangan' ||
+        (!it.kategori &&
+          /panitia|seminar|workshop|senat|pengelola|institusi/i.test(it.kegiatan))
+    )
+  }, [allItems])
+
+  const otherItems = useMemo(() => {
+    return allItems.filter(
+      (it) =>
+        !pendidikanItems.includes(it) &&
+        !penelitianItems.includes(it) &&
+        !pengabdianItems.includes(it) &&
+        !penunjangItems.includes(it)
+    )
+  }, [allItems, pendidikanItems, penelitianItems, pengabdianItems, penunjangItems])
+
+  const tambahanItems = useMemo(() => [...penunjangItems, ...otherItems], [penunjangItems, otherItems])
+
+  // =========================================================================
+  // PAGINATION CHUNKS (Strictly bounded per A4 sheet to guarantee NO cut-off borders)
+  // =========================================================================
+  // Bagian 1: Sasaran Kinerja Pegawai
+  const isHal1Split = useMemo(() => {
+    const totalCount = pendidikanItems.length + penelitianItems.length + pengabdianItems.length + tambahanItems.length
+    return totalCount > 8
+  }, [pendidikanItems, penelitianItems, pengabdianItems, tambahanItems])
+
+  const skpPendidikanHal1 = useMemo(() => (isHal1Split ? pendidikanItems.slice(0, 4) : pendidikanItems), [isHal1Split, pendidikanItems])
+  const skpPenelitianHal1 = useMemo(() => (isHal1Split ? penelitianItems.slice(0, 3) : penelitianItems), [isHal1Split, penelitianItems])
+  const skpPendidikanLanjutan = useMemo(() => (isHal1Split ? pendidikanItems.slice(4) : []), [isHal1Split, pendidikanItems])
+  const skpPenelitianLanjutan = useMemo(() => (isHal1Split ? penelitianItems.slice(3) : []), [isHal1Split, penelitianItems])
+
+  // Bagian 3: Evaluasi Kinerja Pegawai
+  const evalPendidikanHal4 = useMemo(() => pendidikanItems.slice(0, 2), [pendidikanItems])
+  const evalPendidikanHal5 = useMemo(() => pendidikanItems.slice(2, 6), [pendidikanItems])
+  const evalPenelitianHal5 = useMemo(() => penelitianItems.slice(0, 3), [penelitianItems])
+  const evalPenelitianHal6 = useMemo(() => penelitianItems.slice(3), [penelitianItems])
+  const evalPengabdianHal6 = useMemo(() => pengabdianItems, [pengabdianItems])
+  const evalTambahanHal6 = useMemo(() => tambahanItems.slice(0, 4), [tambahanItems])
+  const evalTambahanHal6b = useMemo(() => tambahanItems.slice(4), [tambahanItems])
+  const hasEvalHal6b = useMemo(() => evalTambahanHal6b.length > 0, [evalTambahanHal6b])
+  const hasPage5 = useMemo(() => {
+    return evalPendidikanHal5.length > 0 || evalPenelitianHal5.length > 0
+  }, [evalPendidikanHal5, evalPenelitianHal5])
+
+  if (!isOpen || !data) return null
+
+  const { dosen, tahunAkademik } = data
+
+  const penilaiNama =
+    data.skpGenap?.penilaiNama ||
+    data.skpGanjil?.penilaiNama ||
+    (dosen.isKaprodi ? 'Dr. Apt Entris Sutrisno, MH.Kes' : 'Ketua Program Studi')
+  const penilaiNip =
+    data.skpGenap?.penilaiNip ||
+    data.skpGanjil?.penilaiNip ||
+    (dosen.isKaprodi ? '8750757658130140' : '-')
+  const penilaiPangkat =
+    data.skpGenap?.penilaiPangkat ||
+    data.skpGanjil?.penilaiPangkat ||
+    'Penata Tk I / IIId'
+  const penilaiJabatan =
+    data.skpGenap?.penilaiJabatan ||
+    data.skpGanjil?.penilaiJabatan ||
+    (dosen.isKaprodi ? 'Rektor' : 'Ketua Program Studi')
+  const penilaiUnit =
+    data.skpGenap?.penilaiUnit ||
+    data.skpGanjil?.penilaiUnit ||
+    (dosen.isKaprodi ? 'Universitas Bhakti Kencana' : dosen.prodi)
+
+  const tanggalCetak =
+    data.skpGenap?.tanggalPenilaianDekan ||
+    data.skpGenap?.tanggalPenilaianKaprodi ||
+    data.skpGanjil?.tanggalPenilaianDekan ||
+    data.skpGanjil?.tanggalPenilaianKaprodi ||
+    data.kuesioner?.tanggal ||
+    '30 Desember 2026'
+
+  // Signatures resolution (automatically attaches verified digital signatures)
+  const dosenTtdUrl =
+    data.skpGenap?.ttdDosenUrl ||
+    data.skpGanjil?.ttdDosenUrl ||
+    dosen.signatureUrl
+
+  const penilaiTtdUrl =
+    data.skpGenap?.ttdDekanUrl ||
+    data.skpGenap?.ttdKaprodiUrl ||
+    data.skpGanjil?.ttdDekanUrl ||
+    data.skpGanjil?.ttdKaprodiUrl
+
+  // Questionnaire / Perilaku 7 BerAKHLAK dynamic evaluation
+  const kuesionerData = data.kuesioner
+  const coreValues = [
+    {
+      no: '1.',
+      title: 'Berorientasi Pelayanan',
+      score: kuesionerData?.nilaiPelayanan,
+      bullets: [
+        'Memahami dan memenuhi kebutuhan masyarakat',
+        'Ramah, cekatan, solutif, dan dapat diandalkan',
+        'Melakukan perbaikan tiada henti',
+      ],
+      ekspektasi: 'Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat mengikuti ketentuan perguruan tinggi.',
+    },
+    {
+      no: '2.',
+      title: 'Akuntabel',
+      score: kuesionerData?.nilaiAkuntabel,
+      bullets: [
+        'Melaksanakan tugas dengan jujur, bertanggung jawab, cermat, disiplin, dan berintegritas tinggi',
+        'Menggunakan kekayaan dan barang milik negara secara bertanggung jawab, efektif, dan efisien',
+        'Tidak menyalahgunakan kewenangan jabatan',
+      ],
+      ekspektasi: 'Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat diandalkan dalam berbagai kegiatan.',
+    },
+    {
+      no: '3.',
+      title: 'Kompeten',
+      score: kuesionerData?.nilaiKompeten,
+      bullets: [
+        'Meningkatkan kompetensi diri untuk menjawab tantangan yang selalu berubah',
+        'Membantu orang lain belajar',
+        'Melaksanakan tugas dengan kualitas terbaik',
+      ],
+      ekspektasi: 'Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan selalu siap dengan ide gagasannya.',
+    },
+    {
+      no: '4.',
+      title: 'Harmonis',
+      score: kuesionerData?.nilaiHarmonis,
+      bullets: [
+        'Menghargai setiap orang apapun latar belakangnya',
+        'Suka menolong orang lain',
+        'Membangun lingkungan kerja yang kondusif',
+      ],
+      ekspektasi: 'Pegawai dapat menerapkan aspek perilaku kerja tersebut dan selalu siap diskusi dengan rekan kerja.',
+    },
+    {
+      no: '5.',
+      title: 'Loyal',
+      score: kuesionerData?.nilaiLoyal,
+      bullets: [
+        'Memegang teguh ideologi Pancasila, UUD 1945, setia pada NKRI serta pemerintahan yang sah',
+        'Menjaga nama baik sesama ASN/pegawai, Pimpinan, Instansi, dan Negara',
+        'Menjaga rahasia jabatan dan negara',
+      ],
+      ekspektasi: 'Pegawai dapat menerapkan aspek perilaku tersebut dan berintegritas yang baik.',
+    },
+    {
+      no: '6.',
+      title: 'Adaptif',
+      score: kuesionerData?.nilaiAdaptif,
+      bullets: [
+        'Cepat menyesuaikan diri menghadapi perubahan',
+        'Terus berinovasi dan mengembangkan kreativitas',
+        'Bertindak proaktif',
+      ],
+      ekspektasi: 'Pegawai dapat menerapkan aspek perilaku kerja tersebut dan selalu membangun kreativitas dengan rekan kerja.',
+    },
+    {
+      no: '7.',
+      title: 'Kolaboratif',
+      score: kuesionerData?.nilaiKolaboratif,
+      bullets: [
+        'Memberi kesempatan kepada berbagai pihak untuk berkontribusi',
+        'Terbuka dalam bekerja sama untuk menghasilkan nilai tambah',
+        'Menggerakkan pemanfaatan berbagai sumberdaya untuk tujuan bersama',
+      ],
+      ekspektasi: 'Pegawai dapat menerapkan aspek perilaku kerja tersebut dengan melaksanakan proses kolaborasi dalam tridharma PT.',
+    },
+  ]
+
+  const coreValuesHal6 = useMemo(() => coreValues.slice(0, 4), [coreValues])
+  const coreValuesHal7 = useMemo(() => coreValues.slice(4), [coreValues])
+
+  const getEkspektasiText = (customText: string, score?: number) => {
+    if (score === undefined || score === null) return customText
+    if (score >= 3.8) {
+      return `Di Atas Ekspektasi — ${customText}`
+    }
+    if (score >= 3.0) {
+      return `Sesuai Ekspektasi — ${customText}`
+    }
+    return `Perlu Peningkatan — Diharapkan lebih meningkatkan kedisiplinan dan kontribusi aktif.`
+  }
+
+  const handlePrint = () => {
+    if (viewportRef.current) {
+      printDocument(viewportRef.current, `Output Final - ${dosen.nama} - TA ${tahunAkademik}`)
+    } else {
+      window.print()
+    }
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
@@ -78,7 +630,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
         className="modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: 1020,
+          maxWidth: 1040,
           width: '96vw',
           maxHeight: '94vh',
           display: 'flex',
@@ -104,21 +656,21 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
         >
           <div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--navy-900)' }}>
-              Pratinjau Cetak: Output Final.pdf (Laporan Prestasi Kerja Tahunan)
+              Pratinjau Cetak: Output Final Laporan Prestasi Kerja Tahunan
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Dokumen Lengkap Format Resmi UBK &bull; Dosen: <strong>{dosen.nama}</strong> (NIP: {dosen.nip})
+              Sesuai Format Resmi Ouput Final.pdf &bull; Dosen: <strong>{dosen.nama}</strong> (NIP: {dosen.nip})
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               onClick={handlePrint}
-              className="brand-btn"
+              className="brand-btn btn-action-print"
               style={{ padding: '8px 18px', fontSize: '13px' }}
             >
               <Printer size={15} />
-              <span>Cetak / Unduh Output Final.pdf</span>
+              <span>Cetak Output Final</span>
             </button>
             <button
               onClick={onClose}
@@ -152,15 +704,15 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
           }}
         >
           {[
-            { id: 'all', label: 'Semua Bagian (Format Lengkap Output Final.pdf)' },
-            { id: 'skp', label: '1. Sasaran Kinerja (SKP)' },
-            { id: 'lampiran', label: '2. Lampiran SKP' },
-            { id: 'evaluasi', label: '3. Evaluasi Kinerja & Bukti' },
-            { id: 'dokumen', label: '4. Dokumen Evaluasi Akhir' },
+            { id: 'all' as const, label: 'Semua Bagian (Format Lengkap Ouput Final.pdf)' },
+            { id: 'skp' as const, label: '1. Sasaran Kinerja (Hal. 1-2)' },
+            { id: 'lampiran' as const, label: '2. Lampiran SKP (Hal. 3)' },
+            { id: 'evaluasi' as const, label: '3. Evaluasi Kualitatif & Pola Distribusi (Hal. 4-7)' },
+            { id: 'dokumen' as const, label: '4. Dokumen Evaluasi Akhir (Hal. 8)' },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id)}
               style={{
                 padding: '6px 14px',
                 borderRadius: 'var(--r-sm)',
@@ -179,55 +731,51 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
           ))}
         </div>
 
-        {/* Scrollable Printable Document Area */}
+        {/* Printable Document Body with Slate A4 Viewport */}
         <div
+          ref={viewportRef}
+          className="a4-print-viewport"
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '36px 44px',
-            background: '#ffffff',
-            color: '#000000',
-            fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            fontSize: '11.5px',
-            lineHeight: 1.5,
           }}
         >
           {/* ====================================================================
-              BAGIAN 1: SASARAN KINERJA PEGAWAI (HALAMAN 1 - 2)
+              BAGIAN 1: SASARAN KINERJA PEGAWAI (HALAMAN 1)
              ==================================================================== */}
           {(activeTab === 'all' || activeTab === 'skp') && (
-            <div style={{ marginBottom: 40 }}>
-              {/* Header Hal. 1 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#475569', marginBottom: 6 }}>
-                <span>Hal. 1</span>
-                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-              </div>
-
-              <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                <div style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  SASARAN KINERJA PEGAWAI
+            <>
+              <div className="a4-sheet avoid-break">
+                {/* Header Hal. 1 */}
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    SASARAN KINERJA PEGAWAI
+                  </div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    PENDEKATAN HASIL KERJA KUALITATIF
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                    <span>Universitas Bhakti Kencana</span>
+                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
-                  PENDEKATAN HASIL KERJA KUALITATIF BAGI PEJABAT ADMINISTRASI / FUNGSIONAL
-                </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
-                </div>
-              </div>
 
               {/* Tabel Identitas Pegawai & Penilai */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1.5px solid #000000', marginBottom: 16 }}>
-                {/* Kiri */}
+                {/* Kiri: Pegawai yang Dinilai */}
                 <div style={{ borderRight: '1.5px solid #000000' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr', background: '#f1f5f9', borderBottom: '1px solid #000000', fontWeight: 800, padding: '4px 6px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr', background: '#f8fafc', borderBottom: '1px solid #000000', fontWeight: 800, padding: '4px 6px' }}>
                     <span>No</span>
                     <span>Pegawai yang Dinilai</span>
                   </div>
                   {[
                     { no: '1.', label: 'Nama', val: dosen.nama },
                     { no: '2.', label: 'NIP', val: dosen.nip },
-                    { no: '3.', label: 'Pangkat / Gol.', val: dosen.golongan },
-                    { no: '4.', label: 'Jabatan', val: dosen.jafung },
+                    { no: '3.', label: 'Pangkat / Gol.', val: dosen.golongan || '-' },
+                    { no: '4.', label: 'Jabatan', val: dosen.jafung || 'Dosen' },
                     { no: '5.', label: 'Unit Kerja', val: dosen.prodi },
                   ].map((row, idx) => (
                     <div key={idx} style={{ display: 'grid', gridTemplateColumns: '28px 110px 8px 1fr', padding: '3px 6px', borderBottom: idx < 4 ? '1px solid #e2e8f0' : 'none' }}>
@@ -239,9 +787,9 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   ))}
                 </div>
 
-                {/* Kanan */}
+                {/* Kanan: Pejabat Penilai Kinerja */}
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr', background: '#f1f5f9', borderBottom: '1px solid #000000', fontWeight: 800, padding: '4px 6px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr', background: '#f8fafc', borderBottom: '1px solid #000000', fontWeight: 800, padding: '4px 6px' }}>
                     <span>No</span>
                     <span>Pejabat Penilai Kinerja</span>
                   </div>
@@ -262,169 +810,328 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 </div>
               </div>
 
-              {/* Rencana Hasil Kerja */}
+              {/* Rencana Hasil Kerja (100% DINAMIS - Lembar 1) */}
               <div style={{ border: '1.5px solid #000000', padding: '10px 14px', marginBottom: 14 }}>
                 <div style={{ fontWeight: 800, fontSize: '12px', borderBottom: '1px solid #000000', paddingBottom: 4, marginBottom: 8 }}>
                   HASIL KERJA
                 </div>
 
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>A. Utama</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>A. Utama</div>
                 <div style={{ paddingLeft: 10, marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dan mutu pembelajaran yang sesuai dengan rencana strategis perguruan tinggi (Penugasan dari Rektor)</div>
-                  <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                    Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
-                    <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                      <li>Melaksanakan perkuliahan di dalam / di luar lingkungan perguruan tinggi minimal 3 SKS per semester</li>
-                      <li>Terlibat proses membimbing dan menguji Karya ilmiah</li>
-                      <li>Membuat dan mengembangkan bahan ajar</li>
-                    </ul>
-                  </div>
+                  {allItems.length === 0 ? (
+                    <div style={{ color: '#64748b', fontStyle: 'italic', padding: '6px 0' }}>
+                      Belum ada rincian kegiatan SKP yang diajukan untuk tahun akademik ini.
+                    </div>
+                  ) : (
+                    <>
+                      {/* 1. Pendidikan */}
+                      {skpPendidikanHal1.length > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontWeight: 600 }}>
+                            1. Meningkatnya kualitas dan mutu pembelajaran yang sesuai dengan rencana strategis perguruan tinggi (Penugasan dari Rektor)
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                            Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
+                            <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
+                              {skpPendidikanHal1.map((it) => (
+                                <li key={it.id}>
+                                  <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan} (Capaian: {it.kualitasMutu || 100}%)
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
 
-                  <div style={{ fontWeight: 600, marginTop: 6 }}>2. Meningkatnya jumlah dan kualitas penelitian dosen (Penugasan dari Rektor)</div>
-                  <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                    Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
-                    <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                      <li>100% publikasi karya ilmiah yang diterbitkan dalam jurnal nasional / Nasional terakreditasi minimal 1 buah per tahun</li>
-                    </ul>
-                  </div>
+                      {/* 2. Penelitian */}
+                      {skpPenelitianHal1.length > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontWeight: 600 }}>
+                            {skpPendidikanHal1.length > 0 ? '2.' : '1.'} Meningkatnya jumlah dan kualitas penelitian dosen (Penugasan dari Rektor)
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                            Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
+                            <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
+                              {skpPenelitianHal1.map((it) => (
+                                <li key={it.id}>
+                                  <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan} (Capaian: {it.kualitasMutu || 100}%)
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
 
-                  <div style={{ fontWeight: 600, marginTop: 6 }}>3. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)</div>
-                  <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                    Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
-                    <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                      <li>Terlaksananya kegiatan pengabdian yang berdampak langsung terhadap masyarakat sejumlah 1 kegiatan / tahun</li>
-                    </ul>
+                      {/* Jika tidak split, tampilkan Pengabdian di sini */}
+                      {!isHal1Split && pengabdianItems.length > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontWeight: 600 }}>
+                            {(skpPendidikanHal1.length > 0 ? 1 : 0) + (skpPenelitianHal1.length > 0 ? 1 : 0) + 1}. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                            Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
+                            <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
+                              {pengabdianItems.map((it) => (
+                                <li key={it.id}>
+                                  <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* B. Tambahan (Jika tidak split) */}
+                {!isHal1Split && (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 4, marginTop: 10 }}>B. Tambahan</div>
+                    <div style={{ paddingLeft: 10 }}>
+                      {tambahanItems.length > 0 ? (
+                        <div>
+                          <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
+                          <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                            Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
+                            <ul style={{ margin: '2px 0 4px 16px', padding: 0 }}>
+                              {tambahanItems.map((it) => (
+                                <li key={it.id}>
+                                  <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '11px' }}>
+                          Tidak ada target hasil kerja tambahan terdaftar untuk periode ini.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer Hal. 1 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span style={{ fontStyle: 'italic' }}>Hal. 1</span>
+              </div>
+            </div>
+
+            {/* HALAMAN 1 LANJUTAN (JIKA ITEM MELEBIHI KAPASITAS 1 KERTAS A4) */}
+            {isHal1Split && (
+              <div className="a4-sheet avoid-break">
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    SASARAN KINERJA PEGAWAI
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                    <span>Universitas Bhakti Kencana</span>
+                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
                   </div>
                 </div>
 
-                <div style={{ fontWeight: 700, marginBottom: 4, marginTop: 10 }}>B. Tambahan</div>
-                <div style={{ paddingLeft: 10 }}>
-                  <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
-                  <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                    Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
-                    <ul style={{ margin: '2px 0 4px 16px', padding: 0 }}>
-                      <li>Terlibat kegiatan pada perguruan tinggi</li>
-                      <li>Terlaksananya peran aktiv dalam pertemuan ilmiah minimal sebanyak 1 buah</li>
-                    </ul>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
+                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
+                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                </div>
+
+                {/* Box Hasil Kerja Lanjutan */}
+                <div style={{ border: '1.5px solid #000000', padding: '10px 14px', marginBottom: 14 }}>
+                  <div style={{ fontWeight: 800, fontSize: '12px', borderBottom: '1px solid #000000', paddingBottom: 4, marginBottom: 8 }}>
+                    HASIL KERJA (LANJUTAN)
                   </div>
+
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>A. Utama (Lanjutan)</div>
+                  <div style={{ paddingLeft: 10, marginBottom: 8 }}>
+                    {/* Sisa Pendidikan */}
+                    {skpPendidikanLanjutan.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dan mutu pembelajaran (Lanjutan)</div>
+                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                          <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
+                            {skpPendidikanLanjutan.map((it) => (
+                              <li key={it.id}>
+                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sisa Penelitian */}
+                    {skpPenelitianLanjutan.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600 }}>2. Meningkatnya jumlah dan kualitas penelitian dosen (Lanjutan)</div>
+                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                          <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
+                            {skpPenelitianLanjutan.map((it) => (
+                              <li key={it.id}>
+                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Pengabdian */}
+                    {pengabdianItems.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontWeight: 600 }}>3. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)</div>
+                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                          <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
+                            {pengabdianItems.map((it) => (
+                              <li key={it.id}>
+                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* B. Tambahan */}
+                  <div style={{ fontWeight: 700, marginBottom: 4, marginTop: 10 }}>B. Tambahan</div>
+                  <div style={{ paddingLeft: 10 }}>
+                    {tambahanItems.length > 0 ? (
+                      <div>
+                        <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
+                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                          <ul style={{ margin: '2px 0 4px 16px', padding: 0 }}>
+                            {tambahanItems.map((it) => (
+                              <li key={it.id}>
+                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '11px' }}>
+                        Tidak ada target hasil kerja tambahan terdaftar untuk periode ini.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Hal. 1 Lanjutan */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. 1 (Lanjutan)</span>
+                </div>
+              </div>
+            )}
+
+            {/* ====================================================================
+                HALAMAN 2: PERILAKU KERJA (TABEL 2 KOLOM SESUAI Ouput Final.pdf)
+               ==================================================================== */}
+            <div className="a4-sheet avoid-break">
+              <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
+                  PERILAKU KERJA PEGAWAI &amp; EKSPEKTASI KHUSUS PIMPINAN
+                </div>
+                <div style={{ fontSize: '11px', color: '#475569' }}>
+                  Universitas Bhakti Kencana &bull; Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}
                 </div>
               </div>
 
-              {/* Perilaku Kerja 7 BerAKHLAK */}
-              <div style={{ border: '1.5px solid #000000', padding: '10px 14px', marginBottom: 14 }}>
-                <div style={{ fontWeight: 800, fontSize: '12px', borderBottom: '1px solid #000000', paddingBottom: 4, marginBottom: 8 }}>
+              <div style={{ borderTop: '1.5px solid #000000', marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: '12px', background: '#f8fafc', padding: '6px 8px', borderBottom: '1.5px solid #000000' }}>
                   PERILAKU KERJA
                 </div>
 
-                {[
-                  {
-                    no: '1.',
-                    title: 'Berorientasi Pelayanan',
-                    bullets: ['Memahami dan memenuhi kebutuhan masyarakat', 'Ramah, cekatan, solutif, dan dapat diandalkan', 'Melakukan perbaikan tiada henti'],
-                    ekspektasi: 'Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat mengikuti ketentuan perguruan tinggi',
-                  },
-                  {
-                    no: '2.',
-                    title: 'Akuntabel',
-                    bullets: ['Melaksanakan tugas dengan jujur, bertanggung jawab, cermat, disiplin, dan berintegritas tinggi', 'Menggunakan kekayaan dan barang milik negara secara bertanggung jawab, efektif, dan efisien', 'Tidak menyalahgunakan kewenangan jabatan'],
-                    ekspektasi: 'Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat diandalkan dalam berbagai kegiatan',
-                  },
-                  {
-                    no: '3.',
-                    title: 'Kompeten',
-                    bullets: ['Meningkatkan kompetensi diri untuk menjawab tantangan yang selalu berubah', 'Membantu orang lain belajar', 'Melaksanakan tugas dengan kualitas terbaik'],
-                    ekspektasi: 'Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan selalu siap dengan ide gagasannya',
-                  },
-                  {
-                    no: '4.',
-                    title: 'Harmonis',
-                    bullets: ['Menghargai setiap orang apapun latar belakangnya', 'Suka menolong orang lain', 'Membangun lingkungan kerja yang kondusif'],
-                    ekspektasi: 'Pegawai dapat menerapkan aspek perilaku kerja tersebut dan selalu siap diskusi dengan rekan kerja',
-                  },
-                  {
-                    no: '5.',
-                    title: 'Loyal',
-                    bullets: ['Memegang teguh ideologi Pancasila, UUD 1945, setia pada NKRI serta pemerintahan yang sah', 'Menjaga nama baik sesama ASN/pegawai, Pimpinan, Instansi, dan Negara', 'Menjaga rahasia jabatan dan negara'],
-                    ekspektasi: 'Pegawai dapat menerapkan aspek perilaku tersebut dan berintegritas yang baik',
-                  },
-                  {
-                    no: '6.',
-                    title: 'Adaptif',
-                    bullets: ['Cepat menyesuaikan diri menghadapi perubahan', 'Terus berinovasi dan mengembangkan kreativitas', 'Bertindak proaktif'],
-                    ekspektasi: 'Pegawai dapat menerapkan aspek perilaku kerja tersebut dan selalu membangun kreativitas dengan rekan kerja',
-                  },
-                  {
-                    no: '7.',
-                    title: 'Kolaboratif',
-                    bullets: ['Memberi kesempatan kepada berbagai pihak untuk berkontribusi', 'Terbuka dalam bekerja sama untuk menghasilkan nilai tambah', 'Menggerakkan pemanfaatan berbagai sumberdaya untuk tujuan bersama'],
-                    ekspektasi: 'Pegawai dapat menerapkan aspek perilaku kerja tersebut dengan melaksanakan proses kolaborasi dalam tridharma PT',
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} style={{ marginBottom: 8, paddingBottom: 6, borderBottom: idx < 6 ? '1px dashed #cbd5e1' : 'none' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <div style={{ fontWeight: 700 }}>{item.no} {item.title}</div>
-                      <div style={{ fontSize: '11px', color: '#1e293b' }}>
-                        <strong>Ekspektasi Khusus Pimpinan:</strong> <em>{item.ekspektasi}</em>
-                      </div>
-                    </div>
-                    <ul style={{ margin: '2px 0 0 18px', padding: 0, fontSize: '11px', color: '#334155' }}>
-                      {item.bullets.map((b, bIdx) => (
-                        <li key={bIdx}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: 'none', fontSize: '11px' }}>
+                  <tbody>
+                    {coreValues.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
+                        <td style={{ width: '64%', verticalAlign: 'top', padding: '8px 10px', borderRight: '1.5px solid #000000' }}>
+                          <div style={{ fontWeight: 700 }}>
+                            {item.no} {item.title}
+                            {item.score !== undefined && (
+                              <span style={{ marginLeft: 6, fontSize: '10.5px', color: '#1d4ed8' }}>
+                                (Skor: {item.score.toFixed(1)}/4.0)
+                              </span>
+                            )}
+                          </div>
+                          <ul style={{ margin: '3px 0 0 16px', padding: 0, fontSize: '10.5px', color: '#334155' }}>
+                            {item.bullets.map((b, bIdx) => (
+                              <li key={bIdx}>{b}</li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td style={{ width: '36%', verticalAlign: 'top', padding: '8px 10px', background: '#fafbfc' }}>
+                          <div style={{ fontWeight: 700, fontSize: '10.5px', marginBottom: 3 }}>
+                            Ekspektasi Khusus Pimpinan:
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: '#1e293b', fontStyle: 'italic' }}>
+                            {getEkspektasiText(item.ekspektasi, item.score)}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               {/* Tanda Tangan Hal. 2 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20, textAlign: 'center' }}>
-                <div style={{ width: 220 }}>
-                  <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pegawai yang Dinilai,</div>
-                  </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosen.nama}</div>
-                  <div>NIP. {dosen.nip}</div>
-                </div>
-
-                <div style={{ width: 220 }}>
-                  <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
-                  </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
-                  <div>NIP. {penilaiNip}</div>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 10px' }}>
+                <SignatureBox
+                  title="Pegawai yang Dinilai"
+                  name={dosen.nama}
+                  nip={dosen.nip}
+                  jabatan={dosen.jafung}
+                  date={tanggalCetak}
+                  signatureUrl={dosenTtdUrl}
+                />
+                <SignatureBox
+                  title="Pejabat Penilai Kinerja"
+                  name={penilaiNama}
+                  nip={penilaiNip}
+                  jabatan={penilaiJabatan}
+                  date={tanggalCetak}
+                  signatureUrl={penilaiTtdUrl}
+                />
               </div>
 
-              <div className="page-break" style={{ height: 24 }} />
-            </div>
-          )}
-
-          {/* ====================================================================
-              BAGIAN 2: LAMPIRAN SASARAN KINERJA PEGAWAI (HALAMAN 3)
-             ==================================================================== */}
-          {(activeTab === 'all' || activeTab === 'lampiran') && (
-            <div style={{ marginBottom: 40, borderTop: activeTab === 'all' ? '2px dashed #94a3b8' : 'none', paddingTop: activeTab === 'all' ? 24 : 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#475569', marginBottom: 6 }}>
-                <span>Hal. 3</span>
+              {/* Footer Hal. 2 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                 <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span style={{ fontStyle: 'italic' }}>Hal. 2</span>
               </div>
+            </div>
+          </>
+        )}
 
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  LAMPIRAN SASARAN KINERJA PEGAWAI
-                </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
-                </div>
+        {/* ====================================================================
+            BAGIAN 2: LAMPIRAN SASARAN KINERJA PEGAWAI (HALAMAN 3)
+           ==================================================================== */}
+        {(activeTab === 'all' || activeTab === 'lampiran') && (
+          <div className="a4-sheet avoid-break">
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                LAMPIRAN SASARAN KINERJA PEGAWAI
               </div>
+            </div>
 
               <div style={{ border: '1.5px solid #000000', padding: '16px 20px', marginBottom: 16 }}>
                 <div style={{ fontWeight: 800, fontSize: '12px', marginBottom: 4 }}>Dukungan Sumber Daya</div>
                 <ol style={{ margin: '0 0 14px 18px', padding: 0 }}>
                   <li>Dukungan SDM di lingkungan perguruan tinggi</li>
                   <li>Dukungan sarana prasarana pengajaran yang memadai</li>
+                  {penelitianItems.length > 0 && (
+                    <li>Fasilitasi akses repository penelitian, jurnal bereputasi, dan dana stimulus publikasi ilmiah.</li>
+                  )}
+                  {pengabdianItems.length > 0 && (
+                    <li>Dukungan koordinasi kemitraan desa binaan dan fasilitasi dari LPPM UBK.</li>
+                  )}
                   <li>Dukungan pimpinan dalam pengambilan kebijakan terkait pengembangan kompetensi</li>
                   <li>Dukungan anggaran keuangan untuk mendukung tercapainya sasaran kinerja</li>
                 </ol>
@@ -444,226 +1151,719 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               </div>
 
               {/* Tanda Tangan Hal. 3 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, textAlign: 'center' }}>
-                <div style={{ width: 220 }}>
-                  <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pegawai yang Dinilai,</div>
-                  </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosen.nama}</div>
-                  <div>NIP. {dosen.nip}</div>
-                </div>
-
-                <div style={{ width: 220 }}>
-                  <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
-                  </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
-                  <div>NIP. {penilaiNip}</div>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 10px' }}>
+                <SignatureBox
+                  title="Pegawai yang Dinilai"
+                  name={dosen.nama}
+                  nip={dosen.nip}
+                  jabatan={dosen.jafung}
+                  date={tanggalCetak}
+                  signatureUrl={dosenTtdUrl}
+                />
+                <SignatureBox
+                  title="Pejabat Penilai Kinerja"
+                  name={penilaiNama}
+                  nip={penilaiNip}
+                  jabatan={penilaiJabatan}
+                  date={tanggalCetak}
+                  signatureUrl={penilaiTtdUrl}
+                />
               </div>
 
-              <div className="page-break" style={{ height: 24 }} />
+              {/* Footer Hal. 3 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span style={{ fontStyle: 'italic' }}>Hal. 3</span>
+              </div>
             </div>
           )}
 
           {/* ====================================================================
-              BAGIAN 3: EVALUASI KINERJA PEGAWAI PERIODE AKHIR TAHUNAN (HALAMAN 4 - 7)
+              BAGIAN 3: EVALUASI KINERJA PEGAWAI PERIODE AKHIR TAHUNAN & POLA DISTRIBUSI (HALAMAN 4 - 7)
              ==================================================================== */}
           {(activeTab === 'all' || activeTab === 'evaluasi') && (
-            <div style={{ marginBottom: 40, borderTop: activeTab === 'all' ? '2px dashed #94a3b8' : 'none', paddingTop: activeTab === 'all' ? 24 : 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#475569', marginBottom: 6 }}>
-                <span>Hal. 4</span>
-                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-              </div>
-
-              <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                <div style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
-                  BAGI PEJABAT ADMINISTRASI / FUNGSIONAL &bull; PERIODE: AKHIR* (TAHUNAN)
-                </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
-                </div>
-              </div>
-
-              {/* Identitas Evaluasi */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1.5px solid #000000', marginBottom: 14 }}>
-                <div style={{ borderRight: '1.5px solid #000000', padding: '4px 6px' }}>
-                  <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 2 }}>Pegawai yang Dinilai:</div>
-                  <div>Nama: <strong>{dosen.nama}</strong> &bull; NIP: {dosen.nip}</div>
-                  <div>Jabatan: {dosen.jafung} &bull; Unit: {dosen.prodi}</div>
-                </div>
-                <div style={{ padding: '4px 6px' }}>
-                  <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 2 }}>Pejabat Penilai Kinerja:</div>
-                  <div>Nama: <strong>{penilaiNama}</strong> &bull; NIP: {penilaiNip}</div>
-                  <div>Jabatan: {penilaiJabatan} &bull; Unit: {penilaiUnit}</div>
-                </div>
-              </div>
-
-              {/* Tabel Evaluasi Hasil Kerja & Umpan Balik */}
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px' }}>
-                <thead>
-                  <tr style={{ background: '#f1f5f9', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                    <th style={{ width: '42%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
-                    <th style={{ width: '30%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
-                    <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Pimpinan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                    <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>A. Utama</td>
-                  </tr>
-
-                  {/* 1. Pembelajaran */}
-                  <tr>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dan mutu pembelajaran yang sesuai dengan renstra perguruan tinggi</div>
-                      <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                        Target: Perkuliahan min. 3 SKS, bimbingan seminar, skripsi, menguji sidang, dan modul bahan ajar.
-                      </div>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                      <div>Pengajaran mata kuliah TA {tahunAkademik}</div>
-                      <a href="https://siakad.bku.ac.id/dokumen/pengajaran" target="_blank" rel="noreferrer" style={{ color: '#1d4ed8' }}>
-                        https://siakad.bku.ac.id/dokumen/pengajaran
-                      </a>
-                      <div style={{ marginTop: 4 }}>Membimbing karya ilmiah &amp; menguji sidang</div>
-                      <a href="https://siakad.bku.ac.id/dokumen/skripsi" target="_blank" rel="noreferrer" style={{ color: '#1d4ed8' }}>
-                        https://siakad.bku.ac.id/dokumen/skripsi
-                      </a>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                      Hasil kerja secara umum sudah baik dan mencukupi seluruh komponen standar SPMI yang dibutuhkan.
-                    </td>
-                  </tr>
-
-                  {/* 2. Penelitian */}
-                  <tr>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: 700 }}>2. Meningkatnya jumlah dan kualitas penelitian dosen</div>
-                      <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                        Target: 100% publikasi karya ilmiah jurnal nasional terakreditasi SINTA / Internasional per tahun.
-                      </div>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                      <div>Melakukan publikasi jurnal terakreditasi SINTA</div>
-                      <a href="https://ejournal.bku.ac.id/article/view/129" target="_blank" rel="noreferrer" style={{ color: '#1d4ed8' }}>
-                        https://ejournal.bku.ac.id/article/view/129
-                      </a>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                      Hasil publikasi pada periode tersebut sangat lebih dari cukup untuk dijadikan sebagai kewajiban khusus dosen.
-                    </td>
-                  </tr>
-
-                  {/* 3. PKM */}
-                  <tr>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: 700 }}>3. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (PKM)</div>
-                      <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                        Target: Terlaksananya pengabdian yang berdampak langsung terhadap masyarakat sejumlah 1 kegiatan/tahun.
-                      </div>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                      <div>Melaksanakan Pengabdian Masyarakat binaan desa sehat</div>
-                      <a href="https://drive.google.com/drive/folders/pkm-bku" target="_blank" rel="noreferrer" style={{ color: '#1d4ed8' }}>
-                        https://drive.google.com/drive/folders/pkm-bku
-                      </a>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                      Hasil kerja secara umum sudah baik dan dapat mengikuti setiap agenda kegiatan pengabdian institusi.
-                    </td>
-                  </tr>
-
-                  <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                    <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>B. Tambahan</td>
-                  </tr>
-
-                  {/* 4. Penunjang */}
-                  <tr>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
-                      <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                        Target: Terlibat kegiatan kepanitiaan perguruan tinggi dan peran aktif seminar ilmiah minimal 1 buah.
-                      </div>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                      <div>Melakukan seminar pertemuan ilmiah &amp; kepanitiaan di UBK</div>
-                      <a href="https://siakad.bku.ac.id/dokumen/seminar-panitia.pdf" target="_blank" rel="noreferrer" style={{ color: '#1d4ed8' }}>
-                        https://siakad.bku.ac.id/dokumen/seminar-panitia.pdf
-                      </a>
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                      Hasil kerja secara umum sudah baik dan dapat mengikuti setiap kegiatan.
-                    </td>
-                  </tr>
-
-                  {/* Rating & Predikat Box */}
-                  <tr style={{ background: '#f1f5f9', fontWeight: 800 }}>
-                    <td colSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
-                      RATING HASIL KERJA :
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#15803d' }}>
-                      Sesuai Ekspektasi
-                    </td>
-                  </tr>
-                  <tr style={{ background: '#f1f5f9', fontWeight: 800 }}>
-                    <td colSpan={2} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
-                      RATING PERILAKU :
-                    </td>
-                    <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#15803d' }}>
-                      Sesuai Ekspektasi
-                    </td>
-                  </tr>
-                  <tr style={{ background: '#ffedd5', fontWeight: 800 }}>
-                    <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '8px 8px', textAlign: 'right', fontSize: '12px' }}>
-                      PREDIKAT KINERJA PEGAWAI :
-                    </td>
-                    <td style={{ border: '1.5px solid #000000', padding: '8px 8px', textAlign: 'center', fontSize: '13px', color: '#c2410c' }}>
-                      {data.predikat.toUpperCase()}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* Tanda Tangan Hal. 7 */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24, textAlign: 'center' }}>
-                <div style={{ width: 220 }}>
-                  <div style={{ marginBottom: 50 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
+            <>
+              {/* HALAMAN 4: EVALUASI HASIL KERJA & POLA DISTRIBUSI */}
+              <div className="a4-sheet avoid-break">
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
                   </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
-                  <div>NIP. {penilaiNip}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    PERIODE: TRIWULAN I/II/III/IV-AKHIR*
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                    <span>Universitas Bhakti Kencana</span>
+                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
+                  </div>
+                </div>
+
+                {/* Identitas Evaluasi */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1.5px solid #000000', marginBottom: 14 }}>
+                  <div style={{ borderRight: '1.5px solid #000000', padding: '4px 6px' }}>
+                    <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 2 }}>Pegawai yang Dinilai:</div>
+                    <div>Nama: <strong>{dosen.nama}</strong> &bull; NIP: {dosen.nip}</div>
+                    <div>Jabatan: {dosen.jafung} &bull; Unit: {dosen.prodi}</div>
+                  </div>
+                  <div style={{ padding: '4px 6px' }}>
+                    <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 2 }}>Pejabat Penilai Kinerja:</div>
+                    <div>Nama: <strong>{penilaiNama}</strong> &bull; NIP: {penilaiNip}</div>
+                    <div>Jabatan: {penilaiJabatan} &bull; Unit: {penilaiUnit}</div>
+                  </div>
+                </div>
+
+                {/* CAPAIAN KINERJA ORGANISASI & POLA DISTRIBUSI (PERSIS SEPERTI Ouput Final.pdf Hal. 4) */}
+                <div style={{ border: '1.5px solid #000000', padding: '10px 14px', marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: '11.5px', marginBottom: 4 }}>
+                    CAPAIAN KINERJA ORGANISASI: <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{data.rataRataSKP >= 81 ? 'Baik' : 'Cukup'}</span>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '11.5px', marginBottom: 4 }}>
+                    POLA DISTRIBUSI:
+                  </div>
+
+                  {/* Line Chart Kurva Pola Distribusi Predikat Kinerja Pegawai */}
+                  <PolaDistribusiLineChart predikat={data.predikat} />
+                </div>
+
+                {/* Tabel Evaluasi Hasil Kerja Halaman 4 */}
+                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
+                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
+                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                      <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>A. Utama</td>
+                    </tr>
+
+                    {/* 1. Pendidikan (Batch 1 - Hal. 4: Maksimal 2 Butir agar Muat Sempurna 1 Halaman A4) */}
+                    {evalPendidikanHal4.length > 0 ? (
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dan mutu pembelajaran yang sesuai dengan rencana strategis perguruan tinggi (Penugasan dari Rektor)</div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalPendidikanHal4.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalPendidikanHal4.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan} (Target: {it.rencanaAwal})</div>
+                              {it.linkDokumen ? (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>(Bukti arsip akademik prodi terverifikasi)</span>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          {data.skpGenap?.catatanKaprodi || data.skpGanjil?.catatanKaprodi || 'Hasil kerja secara umum sudah baik dan mencukupi komponen yang dibutuhkan.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <td colSpan={3} style={{ border: '1px solid #000000', padding: '8px', color: '#64748b', fontStyle: 'italic' }}>
+                          Belum ada rincian kegiatan SKP yang diajukan untuk periode ini.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Footer Hal. 4 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. 4</span>
                 </div>
               </div>
 
-              <div className="page-break" style={{ height: 24 }} />
-            </div>
+              {/* HALAMAN 5: LEMBAR LANJUTAN 1 (EVALUASI HASIL KERJA - PENDIDIKAN LANJUTAN & PENELITIAN) */}
+              <div className="a4-sheet avoid-break">
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN 1)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                    <span>Universitas Bhakti Kencana</span>
+                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
+                  </div>
+                </div>
+
+                {/* Identitas Ringkas Lanjutan */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
+                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
+                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                </div>
+
+                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
+                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
+                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Sisa Pendidikan jika ada */}
+                    {evalPendidikanHal5.length > 0 && (
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dan mutu pembelajaran (Lanjutan)</div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalPendidikanHal5.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalPendidikanHal5.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
+                              {it.linkDokumen ? (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>(Bukti terverifikasi)</span>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Hasil pembelajaran lanjutan telah sesuai dengan silabus institusi.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* 2. Penelitian (Batch 1 - Hal. 5) */}
+                    {evalPenelitianHal5.length > 0 && (
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>
+                            {pendidikanItems.length > 0 ? '2.' : '1.'} Meningkatnya jumlah dan kualitas penelitian dosen (Penugasan dari Rektor)
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalPenelitianHal5.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalPenelitianHal5.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
+                              {it.linkDokumen ? (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>(Naskah publikasi terbit dan tercatat di repository)</span>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Hasil publikasi pada periode tersebut sangat lebih dari cukup untuk dijadikan sebagai kewajiban khusus dosen tersebut.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Footer Hal. 5 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. 5</span>
+                </div>
+              </div>
+
+              {/* HALAMAN 6: LEMBAR LANJUTAN 2 (PENELITIAN LANJUTAN, PENGABDIAN & TAMBAHAN) */}
+              <div className="a4-sheet avoid-break">
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN 2)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                    <span>Universitas Bhakti Kencana</span>
+                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
+                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
+                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                </div>
+
+                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
+                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
+                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Sisa Penelitian jika ada */}
+                    {evalPenelitianHal6.length > 0 && (
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>2. Meningkatnya jumlah dan kualitas penelitian dosen (Lanjutan)</div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalPenelitianHal6.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalPenelitianHal6.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
+                              {it.linkDokumen && (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Hasil publikasi lanjutan telah tercatat pada pangkalan data institusi.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* 3. Pengabdian Masyarakat */}
+                    {evalPengabdianHal6.length > 0 && (
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>
+                            {(pendidikanItems.length > 0 ? 1 : 0) + (penelitianItems.length > 0 ? 1 : 0) + 1}. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalPengabdianHal6.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalPengabdianHal6.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
+                              {it.linkDokumen ? (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>(Laporan kegiatan PKM dan dokumentasi disahkan LPPM)</span>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Hasil kerja secara umum sudah baik dan dapat mengikuti setiap agenda kegiatan pengabdian institusi.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* B. Tambahan */}
+                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                      <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>B. Tambahan</td>
+                    </tr>
+
+                    {evalTambahanHal6.length > 0 ? (
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalTambahanHal6.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalTambahanHal6.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
+                              {it.linkDokumen && (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Hasil kerja secara umum sudah baik dan dapat mengikuti setiap kegiatan.
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <td colSpan={3} style={{ border: '1px solid #000000', padding: '6px 8px', color: '#64748b', fontStyle: 'italic' }}>
+                          Tidak ada catatan hasil kerja tambahan yang diajukan.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* RATING HASIL KERJA (Jika tidak ada lembar tambahan 3) */}
+                    {!hasEvalHal6b && (
+                      <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                        <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
+                          RATING HASIL KERJA :
+                        </td>
+                        <td style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#047857' }}>
+                          {data.rataRataSKP > 90 ? 'Di Atas Ekspektasi' : data.rataRataSKP >= 71 ? 'Sesuai Ekspektasi' : 'Di Bawah Ekspektasi'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Footer Hal. 6 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. 6</span>
+                </div>
+              </div>
+
+              {/* HALAMAN 6b: LEMBAR LANJUTAN 3 (KHUSUS JIKA TUGAS TAMBAHAN SANGAT BANYAK) */}
+              {hasEvalHal6b && (
+                <div className="a4-sheet avoid-break">
+                  <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                      BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN 3)
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                      <span>Universitas Bhakti Kencana</span>
+                      <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
+                    <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
+                    <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                  </div>
+
+                  <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                        <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
+                        <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
+                        <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                        <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>B. Tambahan (Lanjutan)</td>
+                      </tr>
+                      <tr>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang (Lanjutan)</div>
+                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
+                            {evalTambahanHal6b.map((it) => it.kegiatan).join(', ')}
+                          </div>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
+                          {evalTambahanHal6b.map((it, idx) => (
+                            <div key={idx} style={{ marginBottom: 4 }}>
+                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
+                              {it.linkDokumen && (
+                                <a
+                                  href={sanitizeUrl(it.linkDokumen)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    color: '#1d4ed8',
+                                    textDecoration: 'underline',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    fontSize: '10px',
+                                  }}
+                                >
+                                  <span>Tautan di sini</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Hasil kerja secara umum sudah baik dan memenuhi komponen pelengkap.
+                        </td>
+                      </tr>
+
+                      {/* RATING HASIL KERJA */}
+                      <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                        <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
+                          RATING HASIL KERJA :
+                        </td>
+                        <td style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#047857' }}>
+                          {data.rataRataSKP > 90 ? 'Di Atas Ekspektasi' : data.rataRataSKP >= 71 ? 'Sesuai Ekspektasi' : 'Di Bawah Ekspektasi'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Footer Hal. 6b */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                    <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                    <span style={{ fontStyle: 'italic' }}>Hal. 6 (Lanjutan)</span>
+                  </div>
+                </div>
+              )}
+
+              {/* HALAMAN 6: EVALUASI PERILAKU KERJA (BERAKHLAK) - BAGIAN 1 (CORE VALUES 1 - 4) */}
+              <div className="a4-sheet avoid-break">
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    EVALUASI PERILAKU KERJA PEGAWAI (BERAKHLAK)
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569' }}>
+                    Universitas Bhakti Kencana &bull; Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
+                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
+                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                </div>
+
+                {/* TABEL PERILAKU KERJA EVALUASI (3 KOLOM SESUAI Ouput Final.pdf Hal. 6) */}
+                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>PERILAKU KERJA</th>
+                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Ekspektasi Khusus Pimpinan</th>
+                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coreValuesHal6.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>{item.no} {item.title}</div>
+                          <ul style={{ margin: '2px 0 0 16px', padding: 0, fontSize: '10.5px', color: '#334155' }}>
+                            {item.bullets.map((b, bIdx) => (
+                              <li key={bIdx}>{b}</li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafbfc' }}>
+                          {item.ekspektasi}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat diandalkan dalam kegiatan akademik prodi.
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Footer Hal. 6 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. {hasEvalHal6b ? '7' : '6'}</span>
+                </div>
+              </div>
+
+              {/* HALAMAN 7: EVALUASI PERILAKU KERJA (BERAKHLAK) - BAGIAN 2 (CORE VALUES 5 - 7 & TTD) */}
+              <div className="a4-sheet avoid-break">
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    EVALUASI PERILAKU KERJA PEGAWAI (BERAKHLAK - LANJUTAN)
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569' }}>
+                    Universitas Bhakti Kencana &bull; Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
+                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
+                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                </div>
+
+                {/* TABEL PERILAKU KERJA EVALUASI (3 KOLOM SESUAI Ouput Final.pdf Hal. 7) */}
+                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>PERILAKU KERJA</th>
+                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Ekspektasi Khusus Pimpinan</th>
+                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coreValuesHal7.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 700 }}>{item.no} {item.title}</div>
+                          <ul style={{ margin: '2px 0 0 16px', padding: 0, fontSize: '10.5px', color: '#334155' }}>
+                            {item.bullets.map((b, bIdx) => (
+                              <li key={bIdx}>{b}</li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafbfc' }}>
+                          {item.ekspektasi}
+                        </td>
+                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
+                          Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat diandalkan dalam kegiatan akademik prodi.
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Rating Perilaku & Predikat Pegawai */}
+                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                      <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
+                        RATING PERILAKU :
+                      </td>
+                      <td style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#047857' }}>
+                        {data.nilaiKuisSkala4 >= 3.8 ? 'Di Atas Ekspektasi' : data.nilaiKuisSkala4 >= 3.0 ? 'Sesuai Ekspektasi' : 'Di Bawah Ekspektasi'}
+                      </td>
+                    </tr>
+                    <tr style={{ background: '#ffedd5', fontWeight: 800 }}>
+                      <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '8px 8px', textAlign: 'right', fontSize: '12px' }}>
+                        PREDIKAT KINERJA PEGAWAI :
+                      </td>
+                      <td style={{ border: '1.5px solid #000000', padding: '8px 8px', textAlign: 'center', fontSize: '13px', color: '#c2410c' }}>
+                        {data.predikat.toUpperCase()}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Tanda Tangan Hal. 7 */}
+                <div className="avoid-break" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20, paddingRight: 10 }}>
+                  <SignatureBox
+                    title="Pejabat Penilai Kinerja"
+                    name={penilaiNama}
+                    nip={penilaiNip}
+                    jabatan={penilaiJabatan}
+                    date={tanggalCetak}
+                    signatureUrl={penilaiTtdUrl}
+                  />
+                </div>
+
+                {/* Footer Hal. 7 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. {hasEvalHal6b ? '8' : '7'}</span>
+                </div>
+              </div>
+            </>
           )}
 
           {/* ====================================================================
               BAGIAN 4: DOKUMEN EVALUASI KINERJA PEGAWAI (HALAMAN 8)
              ==================================================================== */}
           {(activeTab === 'all' || activeTab === 'dokumen') && (
-            <div style={{ borderTop: activeTab === 'all' ? '2px dashed #94a3b8' : 'none', paddingTop: activeTab === 'all' ? 24 : 0 }}>
+            <div className="a4-sheet avoid-break">
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <div style={{ fontSize: '15px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   DOKUMEN EVALUASI KINERJA PEGAWAI
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase' }}>
-                  PERIODE: AKHIR* (TAHUNAN)
+                <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                  PERIODE: TRIWULAN I/II/III/IV-AKHIR*
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: 600, marginTop: 2 }}>
-                  Universitas Bhakti Kencana &bull; Periode: TA {tahunAkademik}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
+                  <span>Universitas Bhakti Kencana</span>
+                  <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
                 </div>
               </div>
 
-              {/* Formulir 4 Butir Standar PermenPAN-RB */}
+              {/* Formulir 4 Butir Standar PermenPAN-RB & Ouput Final.pdf Hal. 8 */}
               <div style={{ border: '1.5px solid #000000', marginBottom: 20 }}>
                 {/* 1. PEGAWAI YANG DINILAI */}
                 <div style={{ borderBottom: '1px solid #000000', padding: '8px 12px' }}>
@@ -671,8 +1871,8 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   <div style={{ display: 'grid', gridTemplateColumns: '170px 8px 1fr', gap: 2, paddingLeft: 12 }}>
                     <span>NAMA</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{dosen.nama}</strong>
                     <span>NIP</span><span>:</span><span>{dosen.nip}</span>
-                    <span>PANGKAT/GOL. RUANG</span><span>:</span><span>{dosen.golongan}</span>
-                    <span>JABATAN</span><span>:</span><span>{dosen.jafung}</span>
+                    <span>PANGKAT/GOL. RUANG</span><span>:</span><span>{dosen.golongan || '-'}</span>
+                    <span>JABATAN</span><span>:</span><span>{dosen.jafung || 'Dosen'}</span>
                     <span>UNIT KERJA</span><span>:</span><span>{dosen.prodi}</span>
                   </div>
                 </div>
@@ -692,40 +1892,81 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 {/* 3. EVALUASI KINERJA */}
                 <div style={{ borderBottom: '1px solid #000000', padding: '8px 12px' }}>
                   <div style={{ fontWeight: 800, marginBottom: 4 }}>3. EVALUASI KINERJA</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '240px 8px 1fr', gap: 2, paddingLeft: 12 }}>
-                    <span>CAPAIAN KINERJA ORGANISASI</span><span>:</span><strong>Baik</strong>
-                    <span>PREDIKAT KINERJA PEGAWAI</span><span>:</span><strong style={{ color: '#c2410c' }}>{data.predikat.toUpperCase()}</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: '240px 8px 1fr', gap: 4, paddingLeft: 12 }}>
+                    <span>CAPAIAN KINERJA ORGANISASI</span><span>:</span><strong>{data.rataRataSKP >= 81 ? 'Baik' : 'Cukup'}</strong>
+                    <span>PREDIKAT KINERJA PEGAWAI</span><span>:</span><strong style={{ color: '#c2410c', fontSize: '13px' }}>{data.predikat.toUpperCase()}</strong>
+                    <span>RATA-RATA SKP (BOBOT 70%)</span><span>:</span>
+                    <span>
+                      {data.rataRataSKP.toFixed(1)} &bull; Kontribusi: <strong>{(data.bobotSKP70 ?? data.bobotSKP60 ?? 0).toFixed(1)}</strong> poin (Ganjil: {data.nilaiSKPGanjil.toFixed(1)}, Genap: {data.nilaiSKPGenap.toFixed(1)})
+                    </span>
+                    <span>PERILAKU KERJA (BOBOT 30%)</span><span>:</span>
+                    <span>
+                      {data.nilaiKuisSkala100.toFixed(1)} (Skor: {data.nilaiKuisSkala4.toFixed(2)}/4.00) &bull; Kontribusi: <strong>{(data.bobotKuis30 ?? data.bobotKuis40 ?? 0).toFixed(1)}</strong> poin
+                    </span>
+                    <span>FORMULA NILAI AKHIR (SPMI UBK)</span><span>:</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#1e293b' }}>
+                      N = (70% × {data.rataRataSKP.toFixed(1)}) + (30% × {data.nilaiKuisSkala100.toFixed(1)}) = <strong>{data.nilaiAkhirTahunan.toFixed(1)}</strong>
+                    </span>
                   </div>
                 </div>
 
                 {/* 4. CATATAN / REKOMENDASI */}
                 <div style={{ padding: '8px 12px' }}>
                   <div style={{ fontWeight: 800, marginBottom: 4 }}>4. CATATAN / REKOMENDASI</div>
-                  <div style={{ paddingLeft: 12, color: '#334155' }}>
-                    Dosen yang bersangkutan menunjukkan kinerja Tridharma yang konsisten memenuhi standar SPMI UBK, telah menyelesaikan seluruh pelaporan BKD Semester Ganjil &amp; Genap secara lengkap, dan direkomendasikan untuk pemenuhan syarat Kenaikan Jabatan Akademik Dosen (JAD) tahunan.
+                  <div style={{ paddingLeft: 12, color: '#334155', lineHeight: 1.6 }}>
+                    {data.predikat === 'Sangat Baik' && (
+                      <>
+                        Dosen yang bersangkutan menunjukkan kinerja Tridharma yang istimewa dengan nilai akhir <strong>{data.nilaiAkhirTahunan.toFixed(1)} ({data.predikat})</strong> (rentang 91 - 100%), melampaui seluruh target SPMI Universitas Bhakti Kencana. Telah menyelesaikan pelaporan BKD Semester Ganjil &amp; Genap secara lengkap dan direkomendasikan untuk penghargaan prestasi akademik serta percepatan Kenaikan Jabatan Akademik Dosen (JAD).
+                      </>
+                    )}
+                    {data.predikat === 'Baik' && (
+                      <>
+                        Dosen yang bersangkutan secara konsisten memenuhi standar kinerja Tridharma UBK dengan nilai akhir <strong>{data.nilaiAkhirTahunan.toFixed(1)} ({data.predikat})</strong> (rentang 81 - 90%). Seluruh berkas rencana dan realisasi pembelajaran telah lengkap divalidasi, dan direkomendasikan untuk pemenuhan syarat Beban Kerja Dosen (BKD) tahunan serta pengusulan kenaikan pangkat berkala.
+                      </>
+                    )}
+                    {data.predikat === 'Cukup' && (
+                      <>
+                        Dosen yang bersangkutan memperoleh capaian nilai akhir <strong>{data.nilaiAkhirTahunan.toFixed(1)} ({data.predikat})</strong> (rentang 71 - 80%). Disarankan untuk lebih mengoptimalkan luaran Tridharma pada semester berikutnya dan mendapatkan pendampingan dari Ketua Program Studi guna peningkatan mutu kinerja akademik.
+                      </>
+                    )}
+                    {data.predikat === 'Kurang' && (
+                      <>
+                        Dosen yang bersangkutan memperoleh capaian nilai akhir <strong>{data.nilaiAkhirTahunan.toFixed(1)} ({data.predikat})</strong> (rentang 61 - 70%). Diperlukan evaluasi capaian target dan pendampingan berkala oleh program studi.
+                      </>
+                    )}
+                    {data.predikat === 'Sangat Kurang' && (
+                      <>
+                        Dosen yang bersangkutan memperoleh capaian nilai akhir <strong>{data.nilaiAkhirTahunan.toFixed(1)} ({data.predikat})</strong> (rentang &le; 60%). Diperlukan pembinaan dan pendampingan intensif dari pimpinan fakultas dan program studi guna evaluasi kinerja profesional.
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Tanda Tangan Pengesahan Akhir */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, textAlign: 'center' }}>
-                <div style={{ width: 240 }}>
-                  <div style={{ marginBottom: 60 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pegawai yang Dinilai,</div>
-                  </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosen.nama}</div>
-                  <div>NIP. {dosen.nip}</div>
-                </div>
+              {/* Tanda Tangan Pengesahan Akhir (100% DINAMIS) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, padding: '0 10px' }}>
+                <SignatureBox
+                  title="Pegawai yang Dinilai"
+                  name={dosen.nama}
+                  nip={dosen.nip}
+                  jabatan={dosen.jafung}
+                  date={tanggalCetak}
+                  signatureUrl={dosenTtdUrl}
+                />
+                <SignatureBox
+                  title="Pejabat Penilai Kinerja"
+                  name={penilaiNama}
+                  nip={penilaiNip}
+                  jabatan={penilaiJabatan}
+                  date={tanggalCetak}
+                  signatureUrl={penilaiTtdUrl}
+                />
+              </div>
 
-                <div style={{ width: 240 }}>
-                  <div style={{ marginBottom: 60 }}>
-                    <div>Bandung, {tanggalCetak}</div>
-                    <div style={{ fontWeight: 700 }}>Pejabat Penilai Kinerja,</div>
-                  </div>
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaiNama}</div>
-                  <div>NIP. {penilaiNip}</div>
-                </div>
+              {/* Footer Hal. 8 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span style={{ fontStyle: 'italic' }}>Hal. 8</span>
               </div>
             </div>
           )}

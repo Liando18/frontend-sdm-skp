@@ -1,20 +1,19 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useMemo } from 'react'
 import {
   Users,
   FileCheck2,
   Award,
-  TrendingUp,
   ArrowRight,
   ShieldCheck,
   Building2,
-  Calendar,
   CheckCircle2,
   Clock,
-  Printer,
   FileText,
+  Search,
 } from 'lucide-react'
 import { UserSession, PengajuanSKP, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
+import { TablePagination } from '../components/TablePagination'
 
 interface DashboardDekanProps {
   user: UserSession
@@ -24,7 +23,7 @@ interface DashboardDekanProps {
   onNavigateToReview: () => void
   onNavigateToEvaluasiKaprodi?: () => void
   onNavigateToHasilKinerjaSelf?: () => void
-  onShowToast: (msg: string) => void
+  onShowToast?: (msg: string) => void
 }
 
 export const DashboardDekan: React.FC<DashboardDekanProps> = ({
@@ -35,19 +34,36 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
   onNavigateToReview,
   onNavigateToEvaluasiKaprodi,
   onNavigateToHasilKinerjaSelf,
-  onShowToast,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 12, stagger: 0.05 })
   useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.03, delay: 0.1 })
 
+  const [searchKaprodi, setSearchKaprodi] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+
   // Find all Kaprodi
   const kaprodiList = dosenList.filter((d) => d.isKaprodi)
   // Kaprodi SKP list
-  const kaprodiSKPs = skpList.filter((s) => {
-    const isKap = kaprodiList.some((k) => k.id === s.dosenId || k.nama === s.dosenNama)
-    return isKap
-  })
+  const kaprodiSKPs = useMemo(() => {
+    return skpList.filter((s) => {
+      const isKap = kaprodiList.some((k) => k.id === s.dosenId || k.nama === s.dosenNama)
+      return isKap
+    })
+  }, [skpList, kaprodiList])
+
+  const filteredKaprodiSKPs = useMemo(() => {
+    return kaprodiSKPs.filter((s) => {
+      const q = searchKaprodi.toLowerCase().trim()
+      return q === '' || s.dosenNama.toLowerCase().includes(q) || s.dosenNip.includes(q) || s.dosenProdi.toLowerCase().includes(q)
+    })
+  }, [kaprodiSKPs, searchKaprodi])
+
+  const paginatedKaprodiSKPs = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredKaprodiSKPs.slice(start, start + pageSize)
+  }, [filteredKaprodiSKPs, page, pageSize])
 
   const pendingReviewCount = kaprodiSKPs.filter(
     (s) => s.status === 'Diajukan' || !s.ttdDekanUrl
@@ -297,21 +313,55 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={onNavigateToReview}
-            className="brand-btn brand-btn--outline"
-            style={{ padding: '8px 16px', fontSize: '12.5px', gap: 6 }}
-          >
-            <span>Buka Panel Review Lengkap</span>
-            <ArrowRight size={14} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--panel-bg)',
+                border: '1px solid var(--hair)',
+                borderRadius: 'var(--r-md)',
+                padding: '6px 12px',
+                minWidth: 200,
+              }}
+            >
+              <Search size={14} style={{ color: 'var(--muted)' }} />
+              <input
+                type="text"
+                value={searchKaprodi}
+                onChange={(e) => {
+                  setSearchKaprodi(e.target.value)
+                  setPage(1)
+                }}
+                placeholder="Cari Kaprodi / prodi..."
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: '12.5px',
+                  color: 'var(--ink)',
+                  width: '100%',
+                }}
+              />
+            </div>
+
+            <button
+              onClick={onNavigateToReview}
+              className="brand-btn brand-btn--outline"
+              style={{ padding: '8px 16px', fontSize: '12.5px', gap: 6 }}
+            >
+              <span>Panel Verifikasi</span>
+              <ArrowRight size={14} />
+            </button>
+          </div>
         </div>
 
         <div className="table-container">
-          <table className="custom-table">
+          <table className="custom-table custom-table--sticky-1">
             <thead>
               <tr>
-                <th>Nama Ketua Program Studi</th>
+                <th style={{ minWidth: 200 }}>Nama Ketua Program Studi</th>
                 <th>Program Studi</th>
                 <th style={{ textAlign: 'center' }}>Semester</th>
                 <th style={{ textAlign: 'center' }}>Total SKS</th>
@@ -322,14 +372,14 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
               </tr>
             </thead>
             <tbody>
-              {kaprodiSKPs.length === 0 ? (
+              {paginatedKaprodiSKPs.length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
-                    Tidak ada berkas SKP Kaprodi yang diajukan saat ini.
+                    Tidak ada berkas SKP Kaprodi yang sesuai pencarian.
                   </td>
                 </tr>
               ) : (
-                kaprodiSKPs.map((skp) => (
+                paginatedKaprodiSKPs.map((skp) => (
                   <tr key={skp.id}>
                     <td>
                       <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{skp.dosenNama}</div>
@@ -384,6 +434,15 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          totalItems={filteredKaprodiSKPs.length}
+          currentPage={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[5, 10, 20]}
+        />
       </div>
     </div>
   )

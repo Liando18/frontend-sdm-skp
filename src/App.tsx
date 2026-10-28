@@ -24,19 +24,42 @@ import { DashboardDekan } from './views/DashboardDekan'
 import { ReviewSKPDekan } from './views/ReviewSKPDekan'
 import { CekHasilKuesionerDekan } from './views/CekHasilKuesionerDekan'
 import { HasilKinerjaTahunanSelf } from './views/HasilKinerjaTahunanSelf'
+import { ProfilView } from './views/ProfilView'
 import { HelpModal } from './components/HelpModal'
+import { DashboardSkeleton } from './components/Skeleton'
+import { getNavIdFromPath, getPathFromNavId } from './utils/routes'
 
 export default function App() {
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-  const paramRole = searchParams?.get('role') as Role | null
-  const paramNav = searchParams?.get('nav')
-  const paramLoggedIn = searchParams?.get('logged_in')
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    const token = localStorage.getItem('ubk_auth_token')
+    const savedSession = localStorage.getItem('ubk_user_session')
+    return Boolean(token || savedSession)
+  })
 
-  const [isLoggedIn, setIsLoggedIn] = useState(paramLoggedIn === 'true')
-  const [currentRole, setCurrentRole] = useState<Role>(
-    paramRole && ['sdm', 'dosen', 'kaprodi', 'dekan'].includes(paramRole) ? paramRole : 'sdm'
-  )
-  const [activeNav, setActiveNav] = useState<string>(paramNav || 'dashboard')
+  const [currentRole, setCurrentRole] = useState<Role>(() => {
+    if (typeof window === 'undefined') return 'sdm'
+    const savedSession = localStorage.getItem('ubk_user_session')
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession)
+        if (parsed?.role && ['sdm', 'dosen', 'kaprodi', 'dekan'].includes(parsed.role)) {
+          return parsed.role
+        }
+      } catch {}
+    }
+    const saved = localStorage.getItem('ubk_current_role') as Role | null
+    if (saved && ['sdm', 'dosen', 'kaprodi', 'dekan'].includes(saved)) {
+      return saved
+    }
+    return 'sdm'
+  })
+
+  const [activeNav, setActiveNav] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'dashboard'
+    return getNavIdFromPath(window.location.pathname, 'sdm')
+  })
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
@@ -44,7 +67,7 @@ export default function App() {
   useViewTransition(mainRef, [activeNav, currentRole])
 
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success')
+  const [toastType, setToastType] = useState<'success' | 'error' | 'warning' | 'info'>('success')
 
   const [demoUsers, setDemoUsers] = useState<Record<string, UserSession>>(DEMO_USERS)
   const [dosenList, setDosenList] = useState<Dosen[]>([])
@@ -56,6 +79,44 @@ export default function App() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'offline'>('checking')
   const [selectedSKPForReview, setSelectedSKPForReview] = useState<PengajuanSKP | null>(null)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+
+  // URL state synchronization with clean paths (/dashboard, /profil, /data-dosen, etc.)
+  const updateUrl = (nav: string) => {
+    if (typeof window === 'undefined') return
+    const targetPath = getPathFromNavId(nav)
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ nav }, '', targetPath)
+    }
+  }
+
+  // Handle browser back and forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const n = getNavIdFromPath(window.location.pathname, currentRole)
+      setActiveNav(n)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [currentRole])
+
+  // Sync initial URL with authentication status
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!isLoggedIn) {
+      if (window.location.pathname !== '/login') {
+        window.history.replaceState({ nav: 'login' }, '', '/login')
+      }
+    } else {
+      if (window.location.pathname === '/login' || window.location.pathname === '/') {
+        window.history.replaceState({ nav: 'dashboard' }, '', '/dashboard')
+        setActiveNav('dashboard')
+      } else {
+        const detected = getNavIdFromPath(window.location.pathname, currentRole)
+        setActiveNav(detected)
+      }
+    }
+  }, [isLoggedIn, currentRole])
 
   // Load data from Laravel 12 Backend API on mount
   useEffect(() => {
@@ -91,8 +152,12 @@ export default function App() {
         if (demoUsersData && typeof demoUsersData === 'object' && Object.keys(demoUsersData).length > 0) {
           setDemoUsers(demoUsersData as Record<string, UserSession>)
         }
-      } catch (err) {
+      } catch {
         if (isMounted) setBackendStatus('offline')
+      } finally {
+        if (isMounted) {
+          setTimeout(() => setIsInitialLoading(false), 200)
+        }
       }
     }
 
@@ -104,7 +169,7 @@ export default function App() {
 
   const currentUser: UserSession = demoUsers[currentRole] || DEMO_USERS[currentRole] || DEMO_USERS['sdm']
 
-  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+  const showToast = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
     setToastMessage(msg)
     setToastType(type)
     setTimeout(() => {
@@ -112,28 +177,82 @@ export default function App() {
     }, 3500)
   }
 
-  const handleSwitchRole = (role: Role) => {
-    setCurrentRole(role)
-    setActiveNav('dashboard')
-    const userObj = demoUsers[role] || DEMO_USERS[role]
-    showToast(`Beralih ke mode ${role.toUpperCase()} (${userObj?.name || role})`)
+  const handleNavigate = (navId: string) => {
+    setActiveNav(navId)
+    updateUrl(navId)
   }
 
-  const handleLogin = async (role: Role, email?: string, password?: string) => {
-    setCurrentRole(role)
-    setActiveNav('dashboard')
-    setIsLoggedIn(true)
-    showToast(`Berhasil masuk sebagai ${role.toUpperCase()}`)
+  const handleLogin = async (role: Role, identifier: string, password?: string, rememberMe = true) => {
+    const cleanId = (identifier || '').trim()
+    const cleanPass = (password || '').trim()
+
+    if (!cleanId || !cleanPass) {
+      showToast('Silakan masukkan NIP atau Email dan kata sandi Anda.', 'error')
+      return
+    }
+
     try {
-      await api.auth.login({ role, email, password })
-    } catch (e) {
-      console.warn('Backend login fallback:', e)
+      const isEmail = cleanId.includes('@')
+      const payload = isEmail
+        ? { email: cleanId, password: cleanPass }
+        : { nip: cleanId, password: cleanPass }
+
+      let res: { token: string; user: UserSession } | null = null
+      try {
+        res = await api.auth.login(payload)
+      } catch (backendErr: any) {
+        // Jika backend merespons 401 atau kesalahan kredensial, tolak langsung!
+        const errMsg = backendErr?.message || ''
+        if (errMsg.includes('401') || errMsg.includes('tidak sesuai') || errMsg.includes('salah') || errMsg.includes('Unauthenticated')) {
+          showToast('NIP/Email atau kata sandi salah. Silakan coba kembali.', 'error')
+          return
+        }
+
+        // Mode fallback jika server Laravel benar-benar offline (koneksi jaringan putus)
+        const targetDemoUser = Object.values(demoUsers).find(
+          (u) => u.email.toLowerCase() === cleanId.toLowerCase() || u.nip === cleanId || u.role === role
+        ) || DEMO_USERS[role]
+
+        const storedMap = JSON.parse(localStorage.getItem('ubk_user_passwords') || '{}')
+        const expectedPassword = storedMap[cleanId] || targetDemoUser?.nip
+
+        if (cleanPass !== expectedPassword) {
+          showToast('NIP/Email atau kata sandi salah. Silakan periksa kembali kredensial Anda.', 'error')
+          return
+        }
+
+        res = {
+          token: 'offline-token',
+          user: targetDemoUser,
+        }
+      }
+
+      if (res?.user) {
+        const loggedUser = res.user
+        setCurrentRole(loggedUser.role)
+        setActiveNav('dashboard')
+        setIsLoggedIn(true)
+        if (rememberMe) {
+          localStorage.setItem('ubk_user_session', JSON.stringify(loggedUser))
+          localStorage.setItem('ubk_current_role', loggedUser.role)
+        }
+        updateUrl('dashboard')
+        showToast(`Selamat datang di portal UBK, ${loggedUser.name}!`, 'success')
+      } else {
+        showToast('Gagal masuk ke sistem. Periksa kembali NIP/Email dan kata sandi.', 'error')
+      }
+    } catch {
+      showToast('Terjadi kesalahan saat memproses login. Silakan coba sesaat lagi.', 'error')
     }
   }
 
   const handleLogout = () => {
     setIsLoggedIn(false)
+    localStorage.removeItem('ubk_user_session')
+    localStorage.removeItem('ubk_auth_token')
+    window.history.pushState({ nav: 'login' }, '', '/login')
     api.auth.logout().catch(() => {})
+    showToast('Anda telah keluar dari sistem portal.', 'info')
   }
 
   const handleAddDosen = (dosen: Dosen) => {
@@ -167,8 +286,9 @@ export default function App() {
         ])
       }
       showToast(`Program Studi "${nama}" berhasil disimpan ke basis data!`, 'success')
-    } catch (err: any) {
-      showToast(`Gagal menambahkan program studi: ${err?.message || 'Error'}`, 'error')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal menambahkan program studi: ${msg}`, 'error')
     }
   }
 
@@ -183,8 +303,9 @@ export default function App() {
         setProdiList((prev) => prev.map((p) => (p.nama === oldName ? { ...p, nama: newName } : p)))
       }
       showToast(`Program Studi berhasil diubah menjadi "${newName}"!`, 'success')
-    } catch (err: any) {
-      showToast(`Gagal memperbarui program studi: ${err?.message || 'Error'}`, 'error')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal memperbarui program studi: ${msg}`, 'error')
     }
   }
 
@@ -199,8 +320,9 @@ export default function App() {
         setProdiList((prev) => prev.filter((p) => p.nama !== nama))
       }
       showToast(`Program Studi "${nama}" berhasil dihapus dari basis data!`, 'success')
-    } catch (err: any) {
-      showToast(`Gagal menghapus program studi: ${err?.message || 'Error'}`, 'error')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal menghapus program studi: ${msg}`, 'error')
     }
   }
 
@@ -210,9 +332,10 @@ export default function App() {
       const created = res?.data || item
       setKomponenList((prev) => [created, ...prev.filter((k) => k.id !== item.id && k.id !== created.id)])
       showToast(`Komponen SKP ${item.kode} berhasil disimpan ke basis data!`, 'success')
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
       setKomponenList((prev) => [item, ...prev])
-      showToast(`Komponen disimpan secara lokal: ${err?.message || ''}`, 'info')
+      showToast(`Komponen disimpan secara lokal: ${msg}`, 'info')
     }
   }
 
@@ -222,9 +345,10 @@ export default function App() {
       const saved = res?.data || updated
       setKomponenList((prev) => prev.map((k) => (k.id === updated.id ? saved : k)))
       showToast(`Komponen SKP ${updated.kode} berhasil diperbarui di basis data!`, 'success')
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
       setKomponenList((prev) => prev.map((k) => (k.id === updated.id ? updated : k)))
-      showToast(`Komponen diperbarui secara lokal: ${err?.message || ''}`, 'info')
+      showToast(`Komponen diperbarui secara lokal: ${msg}`, 'info')
     }
   }
 
@@ -233,9 +357,10 @@ export default function App() {
       await api.komponen.delete(id)
       setKomponenList((prev) => prev.filter((k) => k.id !== id))
       showToast('Komponen SKP berhasil dihapus dari basis data!', 'success')
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
       setKomponenList((prev) => prev.filter((k) => k.id !== id))
-      showToast(`Komponen dihapus secara lokal: ${err?.message || ''}`, 'info')
+      showToast(`Komponen dihapus secara lokal: ${msg}`, 'info')
     }
   }
 
@@ -282,15 +407,22 @@ export default function App() {
       showToast('Data pengajuan SKP tidak ditemukan di database.', 'error')
       return
     }
+
+    // Resolusi TTD Penilai (Kaprodi) dan Dosen yang dinilai otomatis dari profil
+    const reviewerTtd = ttdUrl || currentUser.signatureUrl || existing.ttdKaprodiUrl || demoUsers.kaprodi?.signatureUrl
+    const dosenObj = dosenList.find((d) => d.id === existing.dosenId || d.nip === existing.dosenNip)
+    const dosenTtd = existing.ttdDosenUrl || dosenObj?.signatureUrl || demoUsers.dosen?.signatureUrl
+
     const updated: PengajuanSKP = {
       ...existing,
       status: 'Dinilai Kaprodi',
       catatanKaprodi: notes,
-      ttdKaprodiUrl: ttdUrl || existing.ttdKaprodiUrl,
+      ttdKaprodiUrl: reviewerTtd,
+      ttdDosenUrl: dosenTtd,
       tanggalPenilaianKaprodi: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     }
     setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
-    api.skp.reviewKaprodi(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync review Kaprodi gagal:', err))
+    api.skp.reviewKaprodi(skpId, 'approve', notes, reviewerTtd).catch((err) => console.warn('Sync review Kaprodi gagal:', err))
   }
 
   const handleRejectSKPByKaprodi = (skpId: string, notes: string) => {
@@ -308,15 +440,22 @@ export default function App() {
       showToast('Data pengajuan SKP tidak ditemukan di database.', 'error')
       return
     }
+
+    // Resolusi TTD Penilai (Dekan) dan Dosen/Ka.Prodi yang dinilai otomatis dari profil
+    const reviewerTtd = ttdUrl || currentUser.signatureUrl || existing.ttdDekanUrl || demoUsers.dekan?.signatureUrl
+    const dosenObj = dosenList.find((d) => d.id === existing.dosenId || d.nip === existing.dosenNip)
+    const dosenTtd = existing.ttdDosenUrl || dosenObj?.signatureUrl || demoUsers.kaprodi?.signatureUrl || demoUsers.dosen?.signatureUrl
+
     const updated: PengajuanSKP = {
       ...existing,
       status: 'Dinilai Dekan',
       catatanDekan: notes,
-      ttdDekanUrl: ttdUrl || existing.ttdDekanUrl,
+      ttdDekanUrl: reviewerTtd,
+      ttdDosenUrl: dosenTtd,
       tanggalPenilaianDekan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     }
     setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
-    api.skp.reviewDekan(skpId, 'approve', notes, ttdUrl).catch((err) => console.warn('Sync review Dekan gagal:', err))
+    api.skp.reviewDekan(skpId, 'approve', notes, reviewerTtd).catch((err) => console.warn('Sync review Dekan gagal:', err))
   }
 
   const handleRejectSKPByDekan = (skpId: string, notes: string) => {
@@ -335,9 +474,10 @@ export default function App() {
       if (res && res.data) {
         setIndikatorList((prev) => prev.map((i) => (i.id === item.id ? res.data : i)))
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Koneksi terputus'
       console.error('Gagal menambahkan indikator ke database:', err)
-      showToast('Gagal menyimpan indikator ke database: ' + (err.message || 'Koneksi terputus'))
+      showToast('Gagal menyimpan indikator ke database: ' + msg)
       setIndikatorList((prev) => prev.filter((i) => i.id !== item.id))
       throw err
     }
@@ -351,9 +491,10 @@ export default function App() {
       if (res && res.data) {
         setIndikatorList((prev) => prev.map((i) => (i.id === updated.id ? res.data : i)))
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Koneksi terputus'
       console.error('Gagal memperbarui indikator di database:', err)
-      showToast('Gagal memperbarui indikator di database: ' + (err.message || 'Koneksi terputus'))
+      showToast('Gagal memperbarui indikator di database: ' + msg)
       setIndikatorList(prevList)
       throw err
     }
@@ -364,9 +505,10 @@ export default function App() {
     setIndikatorList((prev) => prev.filter((i) => i.id !== id))
     try {
       await api.indikator.delete(id)
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Koneksi terputus'
       console.error('Gagal menghapus indikator dari database:', err)
-      showToast('Gagal menghapus indikator dari database: ' + (err.message || 'Koneksi terputus'))
+      showToast('Gagal menghapus indikator dari database: ' + msg)
       setIndikatorList(prevList)
       throw err
     }
@@ -436,7 +578,7 @@ export default function App() {
         activeNav={activeNav}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
-        onSelectNav={(id) => setActiveNav(id)}
+        onSelectNav={(id) => handleNavigate(id)}
         onLogout={handleLogout}
         onOpenHelp={() => setIsHelpModalOpen(true)}
       />
@@ -448,24 +590,44 @@ export default function App() {
           backendStatus={backendStatus}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onSwitchRole={handleSwitchRole}
+          onSelectNav={(id) => handleNavigate(id)}
           onLogout={handleLogout}
           onMarkNotificationAsRead={handleMarkNotificationAsRead}
           onShowToast={showToast}
         />
 
         <main ref={mainRef} className="app-main">
-          {currentRole === 'sdm' && (
+          {isInitialLoading ? (
+            <DashboardSkeleton />
+          ) : (
+            <>
+              {activeNav === 'profil' && (
+                <ProfilView
+              user={currentUser}
+              onShowToast={showToast}
+              onUpdateUser={(updated) => {
+                setDemoUsers((prev) => ({
+                  ...prev,
+                  [updated.role]: updated,
+                }))
+                try {
+                  localStorage.setItem('ubk_user_session', JSON.stringify(updated))
+                } catch {}
+              }}
+            />
+          )}
+
+          {activeNav !== 'profil' && currentRole === 'sdm' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardSDM
                   dosenList={dosenList}
                   skpList={skpList}
-                  onNavigate={(v) => setActiveNav(v)}
-                  onAddDosenModal={() => setActiveNav('data-dosen')}
+                  onNavigate={(v) => handleNavigate(v)}
+                  onAddDosenModal={() => handleNavigate('data-dosen')}
                   onSelectSKPToReview={(skp) => {
                     setSelectedSKPForReview(skp)
-                    setActiveNav('skp-dosen')
+                    handleNavigate('skp-dosen')
                   }}
                   onShowToast={showToast}
                 />
@@ -559,15 +721,16 @@ export default function App() {
             </>
           )}
 
-          {currentRole === 'dosen' && (
+          {activeNav !== 'profil' && currentRole === 'dosen' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardDosen
                   user={currentUser}
                   mySKP={dosenMySKP}
                   penilaianList={penilaianList}
-                  onNavigateToSKP={() => setActiveNav('skp-dosen-self')}
-                  onNavigateToHasilKinerja={() => setActiveNav('hasil-kinerja-dosen')}
+                  onNavigateToSKP={() => handleNavigate('skp-dosen-self')}
+                  onNavigateToHasilKinerja={() => handleNavigate('hasil-kinerja-dosen')}
+                  onNavigateToProfil={() => handleNavigate('profil')}
                 />
               )}
               {activeNav === 'skp-dosen-self' && (
@@ -592,7 +755,7 @@ export default function App() {
             </>
           )}
 
-          {currentRole === 'kaprodi' && (
+          {activeNav !== 'profil' && currentRole === 'kaprodi' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardKaprodi
@@ -600,13 +763,13 @@ export default function App() {
                   skpList={skpList}
                   dosenList={dosenList}
                   penilaianList={penilaianList}
-                  onNavigateToSKP={() => setActiveNav('skp-kaprodi-self')}
-                  onNavigateToReview={() => setActiveNav('review-skp-kaprodi')}
-                  onNavigateToKuesioner={() => setActiveNav('kuesioner-kaprodi')}
-                  onNavigateToHasilKinerjaSelf={() => setActiveNav('hasil-kinerja-kaprodi')}
+                  onNavigateToSKP={() => handleNavigate('skp-kaprodi-self')}
+                  onNavigateToReview={() => handleNavigate('review-skp-kaprodi')}
+                  onNavigateToKuesioner={() => handleNavigate('kuesioner-kaprodi')}
+                  onNavigateToHasilKinerjaSelf={() => handleNavigate('hasil-kinerja-kaprodi')}
                   onSelectSKP={(skp) => {
                     setSelectedSKPForReview(skp)
-                    setActiveNav('review-skp-kaprodi')
+                    handleNavigate('review-skp-kaprodi')
                   }}
                 />
               )}
@@ -660,17 +823,17 @@ export default function App() {
             </>
           )}
 
-          {currentRole === 'dekan' && (
+          {activeNav !== 'profil' && currentRole === 'dekan' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardDekan
                   user={currentUser}
                   skpList={skpList}
                   dosenList={dosenList}
-                  onNavigateToSKP={() => setActiveNav('skp-dekan-self')}
-                  onNavigateToReview={() => setActiveNav('review-skp-dekan')}
-                  onNavigateToEvaluasiKaprodi={() => setActiveNav('kuesioner-dekan')}
-                  onNavigateToHasilKinerjaSelf={() => setActiveNav('hasil-kinerja-dekan')}
+                  onNavigateToSKP={() => handleNavigate('skp-dekan-self')}
+                  onNavigateToReview={() => handleNavigate('review-skp-dekan')}
+                  onNavigateToEvaluasiKaprodi={() => handleNavigate('kuesioner-dekan')}
+                  onNavigateToHasilKinerjaSelf={() => handleNavigate('hasil-kinerja-dekan')}
                   onShowToast={showToast}
                 />
               )}
@@ -724,6 +887,8 @@ export default function App() {
               )}
             </>
           )}
+            </>
+          )}
         </main>
       </div>
 
@@ -731,8 +896,7 @@ export default function App() {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         currentRole={currentRole}
-        onSelectNav={(id) => setActiveNav(id)}
-        onSwitchRole={handleSwitchRole}
+        onSelectNav={(id) => handleNavigate(id)}
       />
 
       <HelpModal

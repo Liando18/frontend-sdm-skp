@@ -1,17 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   ExternalLink,
-  Calendar,
   Filter,
   Search,
   CheckCircle2,
   Printer,
   Send,
+  Sparkles,
 } from 'lucide-react'
 import { PengajuanSKP, SKPItem, KomponenSKP, UserSession, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { sanitizeUrl } from '../utils/security'
 
 interface KelolaSKPDosenSelfProps {
   user?: UserSession
@@ -29,7 +30,7 @@ const TAHUN_AJARAN_OPTIONS = ['2024/2025', '2025/2026', '2026/2027']
 // Formula Kual / Mutu (%):
 // Jika Perubahan Tengah == 0: (Realisasi Akhir / Rencana Awal) * 100
 // Jika Perubahan Tengah != 0: (Realisasi Akhir / Perubahan Tengah) * 100
-export const calculateMutu = (
+const calculateMutu = (
   rencanaAwal: number,
   perubahanTengah: number,
   realisasiAkhir: number
@@ -68,9 +69,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const saveTimeoutRef = useRef<any>(null)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const candidateName = user?.name || mySKP?.dosenNama || ''
   const isSDM = Boolean(user?.role === 'sdm')
   const isDekan = Boolean(
     user?.role === 'dekan' ||
@@ -186,9 +186,13 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
   const [items, setItems] = useState<SKPItem[]>(initializeItems)
 
-  useEffect(() => {
+  // Adjust state during render when semester, year, activeSKP, or komponenList changes
+  const currentKey = `${selectedTahun}-${selectedSemester}-${activeSKP.id}-${komponenList.length}`
+  const [prevKey, setPrevKey] = useState(currentKey)
+  if (prevKey !== currentKey) {
+    setPrevKey(currentKey)
     setItems(initializeItems())
-  }, [selectedSemester, selectedTahun, activeSKP.id, komponenList.length])
+  }
 
   // Handle direct inline inputs in the table for Rencana Awal, Perubahan Tengah, Realisasi Akhir, and Link Dokumen
   const handleInlineChange = (
@@ -198,14 +202,22 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   ) => {
     const updated = items.map((it) => {
       if (it.id === itemId) {
-        const ra = field === 'rencanaAwal' ? Math.max(0, Number(rawValue) || 0) : it.rencanaAwal
-        const pt = field === 'perubahanTengah' ? Math.max(0, Number(rawValue) || 0) : it.perubahanTengah
-        const rel = field === 'realisasi' ? Math.max(0, Number(rawValue) || 0) : it.realisasi
+        let numVal = 0
+        if (field !== 'linkDokumen') {
+          if (typeof rawValue === 'string' && rawValue.trim() === '') {
+            numVal = 0
+          } else {
+            numVal = Math.max(0, Number(rawValue) || 0)
+          }
+        }
+        const ra = field === 'rencanaAwal' ? numVal : it.rencanaAwal
+        const pt = field === 'perubahanTengah' ? numVal : it.perubahanTengah
+        const rel = field === 'realisasi' ? numVal : it.realisasi
         const mutu = calculateMutu(ra, pt, rel)
 
         return {
           ...it,
-          [field]: field === 'linkDokumen' ? rawValue : Math.max(0, Number(rawValue) || 0),
+          [field]: field === 'linkDokumen' ? rawValue : numVal,
           kualitasMutu: mutu,
           nilaiCapaian: mutu,
         }
@@ -284,6 +296,41 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
     onUpdateSKP(updatedSKP)
     setIsSaving(false)
     onShowToast('Perubahan target dan realisasi SKP berhasil disimpan!')
+  }
+
+  const handleAutoFillDummySKP = () => {
+    const updated = items.map((it) => {
+      let target = 1
+      if (it.kategori === 'Pendidikan') target = 12
+      else if (it.kategori === 'Penelitian') target = 1
+      else if (it.kategori === 'Pengabdian') target = 1
+      else target = 2
+
+      return {
+        ...it,
+        rencanaAwal: target,
+        perubahanTengah: target,
+        realisasi: target,
+        kualitasMutu: 100,
+        nilaiCapaian: 100,
+        linkDokumen: 'https://drive.google.com/bku-skp-luaran-valid',
+      }
+    })
+    setItems(updated)
+    const newTotalRencana = updated.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
+    const newTotalRealisasi = updated.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+    const updatedSKP: PengajuanSKP = {
+      ...activeSKP,
+      semester: selectedSemester,
+      tahunAkademik: selectedTahun,
+      items: updated,
+      totalSksRencana: newTotalRencana,
+      totalSksRealisasi: newTotalRealisasi,
+      persentaseCapaian: 100,
+      nilaiKinerjaSKP: 100,
+    }
+    onUpdateSKP(updatedSKP)
+    onShowToast('Data target & realisasi SKP berhasil diisi otomatis dengan data dummy!')
   }
 
   // Summary Metrics Calculation
@@ -526,6 +573,29 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             <span>Status: {activeSKP.status}</span>
           </span>
 
+          {/* Action: Isi Dummy SKP */}
+          <button
+            type="button"
+            onClick={handleAutoFillDummySKP}
+            className="brand-btn"
+            style={{
+              padding: '6px 12px',
+              fontSize: '11.5px',
+              borderRadius: 'var(--r-md)',
+              background: '#fef3c7',
+              color: '#b45309',
+              border: '1px solid #fde68a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              cursor: 'pointer',
+            }}
+            title="Isi target dan realisasi dummy otomatis"
+          >
+            <Sparkles size={13} className="text-amber-600 animate-pulse" />
+            <span>⚡ Isi Target &amp; Capaian Dummy</span>
+          </button>
+
           {/* Action: Simpan Draft */}
           <button
             type="button"
@@ -616,10 +686,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
       {/* Table: Direct Inline Inputs */}
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-skp">
           <thead>
             <tr>
-              <th style={{ width: 36, textAlign: 'center' }}>No</th>
+              <th style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center' }}>No</th>
               <th style={{ minWidth: 260 }}>Kegiatan Tugas Jabatan</th>
               <th style={{ textAlign: 'center', width: 80 }}>Satuan</th>
               <th style={{ textAlign: 'center', width: 110 }}>Rencana Awal</th>
@@ -633,10 +703,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
           <tbody>
             {filteredItems.map((it, idx) => (
               <tr key={it.id}>
-                <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
+                <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
                   {idx + 1}
                 </td>
-                <td>
+                <td style={{ minWidth: 260 }}>
                   <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '13px', lineHeight: 1.35 }}>
                     {it.kegiatan}
                   </div>
@@ -684,8 +754,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                     type="number"
                     min={0}
                     step="any"
+                    placeholder="0"
                     className="table-inline-input"
-                    value={it.rencanaAwal}
+                    value={it.rencanaAwal === 0 ? '' : it.rencanaAwal}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => handleInlineChange(it.id, 'rencanaAwal', e.target.value)}
                   />
                 </td>
@@ -696,8 +768,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                     type="number"
                     min={0}
                     step="any"
+                    placeholder="0"
                     className="table-inline-input"
-                    value={it.perubahanTengah}
+                    value={it.perubahanTengah === 0 ? '' : it.perubahanTengah}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => handleInlineChange(it.id, 'perubahanTengah', e.target.value)}
                   />
                 </td>
@@ -708,8 +782,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                     type="number"
                     min={0}
                     step="any"
+                    placeholder="0"
                     className="table-inline-input table-inline-input--highlight"
-                    value={it.realisasi}
+                    value={it.realisasi === 0 ? '' : it.realisasi}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => handleInlineChange(it.id, 'realisasi', e.target.value)}
                   />
                 </td>
@@ -756,9 +832,9 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                     />
                     {it.linkDokumen && (
                       <a
-                        href={it.linkDokumen}
+                        href={sanitizeUrl(it.linkDokumen)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="table-action-btn"
                         style={{ flexShrink: 0, width: 30, height: 30, display: 'grid', placeItems: 'center' }}
                         title="Buka Tautan Dokumen Bukti"

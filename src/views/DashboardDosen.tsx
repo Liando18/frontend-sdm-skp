@@ -6,6 +6,11 @@ import {
   CheckCircle,
   FileText,
   ChevronRight,
+  FileSignature,
+  Layers,
+  BookOpen,
+  Calendar,
+  Check,
 } from 'lucide-react'
 import { UserSession, PengajuanSKP, PenilaianKuesioner } from '../types'
 import { useStaggerEntrance, useGSAP, gsap, GSAP_EASE, useCountUp, useInteractiveCards } from '../utils/animations'
@@ -16,6 +21,7 @@ interface DashboardDosenProps {
   penilaianList?: PenilaianKuesioner[]
   onNavigateToSKP: () => void
   onNavigateToHasilKinerja?: () => void
+  onNavigateToProfil?: () => void
 }
 
 export const DashboardDosen: React.FC<DashboardDosenProps> = ({
@@ -24,6 +30,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
   penilaianList = [],
   onNavigateToSKP,
   onNavigateToHasilKinerja,
+  onNavigateToProfil,
 }) => {
   const skpStatus = mySKP?.status || 'Draft'
   const realisasiSks = mySKP?.totalSksRealisasi || 0
@@ -135,6 +142,210 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
           <FileCheck2 size={16} />
           <span>Kelola SKP Semester Ini</span>
         </button>
+      </div>
+
+      {/* Menu Cepat Dosen (Quick Actions) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <button
+          onClick={onNavigateToSKP}
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--hair)',
+            borderRadius: 'var(--r-lg)',
+            padding: '16px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            cursor: 'pointer',
+            textAlign: 'left',
+            boxShadow: 'var(--shadow-xs)',
+            transition: 'all 0.15s ease',
+          }}
+          className="kpi-card-hover"
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 'var(--r-md)',
+              background: 'var(--brand-100)',
+              color: 'var(--brand-700)',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <FileCheck2 size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>Isi Formulir SKP</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>Target &amp; bukti kegiatan</div>
+          </div>
+        </button>
+
+        {onNavigateToHasilKinerja && (
+          <button
+            onClick={onNavigateToHasilKinerja}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--r-lg)',
+              padding: '16px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              cursor: 'pointer',
+              textAlign: 'left',
+              boxShadow: 'var(--shadow-xs)',
+              transition: 'all 0.15s ease',
+            }}
+            className="kpi-card-hover"
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 'var(--r-md)',
+                background: 'rgba(2, 132, 199, 0.1)',
+                color: '#0284c7',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Award size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>Hasil Kinerja Tahunan</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>Kuesioner &amp; SKP akhir</div>
+            </div>
+          </button>
+        )}
+
+        {onNavigateToProfil && (
+          <button
+            onClick={onNavigateToProfil}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--r-lg)',
+              padding: '16px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              cursor: 'pointer',
+              textAlign: 'left',
+              boxShadow: 'var(--shadow-xs)',
+              transition: 'all 0.15s ease',
+            }}
+            className="kpi-card-hover"
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 'var(--r-md)',
+                background: 'rgba(16, 185, 129, 0.1)',
+                color: '#059669',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <FileSignature size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>Tanda Tangan Digital</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>Unggah / verifikasi profil</div>
+            </div>
+          </button>
+        )}
+
+        <div
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--hair)',
+            borderRadius: 'var(--r-lg)',
+            padding: '16px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            boxShadow: 'var(--shadow-xs)',
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 'var(--r-md)',
+              background: 'rgba(249, 115, 22, 0.1)',
+              color: '#ea580c',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Calendar size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>Batas Waktu Validasi</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>Periode Genap 2026/2027</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Alur Tahapan Pengajuan SKP (Interactive Status Tracker) */}
+      <div
+        style={{
+          background: 'var(--card)',
+          borderRadius: 'var(--r-xl)',
+          padding: '20px 24px',
+          border: '1px solid var(--hair)',
+          boxShadow: 'var(--shadow-xs)',
+        }}
+      >
+        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>
+          Tahapan Alur Pengajuan SKP Anda
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+          {[
+            { step: '1', title: 'Penyusunan Rencana', desc: 'Input target beban SKS', active: true, completed: skpStatus !== 'Draft' },
+            { step: '2', title: 'Pengajuan Berkas', desc: 'Kirim SKP & dokumen bukti', active: skpStatus !== 'Draft', completed: ['Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus) },
+            { step: '3', title: 'Review Ka.Prodi', desc: 'Verifikasi & TTD Ka.Prodi', active: ['Diajukan', 'Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus), completed: ['Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus) },
+            { step: '4', title: 'Pengesahan Dekan', desc: 'Validasi & TTD Dekan', active: ['Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus), completed: ['Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus) },
+            { step: '5', title: 'Persetujuan SDM', desc: 'Pengesahan akhir universitas', active: skpStatus === 'Disetujui SDM', completed: skpStatus === 'Disetujui SDM' },
+          ].map((s, idx) => (
+            <div
+              key={idx}
+              style={{
+                padding: '12px',
+                borderRadius: 'var(--r-md)',
+                background: s.completed ? 'rgba(16, 185, 129, 0.08)' : s.active ? 'rgba(240, 117, 46, 0.08)' : 'var(--panel-hover)',
+                border: s.completed ? '1px solid rgba(16, 185, 129, 0.3)' : s.active ? '1px solid rgba(240, 117, 46, 0.3)' : '1px solid var(--hair)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: s.completed ? '#10b981' : s.active ? '#f0752e' : 'var(--border)',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  {s.completed ? <Check size={12} /> : s.step}
+                </span>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{s.title}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: 26 }}>{s.desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* KPI Bento Grid */}

@@ -10,6 +10,7 @@ export interface UserSession {
   avatar: string
   rank: string
   fakultas?: string
+  signatureUrl?: string
 }
 
 export interface Dosen {
@@ -32,6 +33,7 @@ export interface Dosen {
   phone: string
   isKaprodi?: boolean
   isDekan?: boolean
+  signatureUrl?: string
 }
 
 export type TargetJabatanSKP =

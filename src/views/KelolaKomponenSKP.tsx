@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Plus, Edit2, Trash2, ArrowLeft, Search, Filter, ShieldCheck, Users, Settings, X, Check } from 'lucide-react'
+import React, { useState, useRef, useMemo } from 'react'
+import { Plus, Edit2, Trash2, ArrowLeft, Search, Filter, Settings, X, Check, Sparkles } from 'lucide-react'
 import { KomponenSKP, TargetJabatanSKP, KategoriKomponenSKP } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
+import { generateEntityId } from '../utils/security'
+import { TablePagination } from '../components/TablePagination'
 
 interface KelolaKomponenSKPProps {
   komponenList: KomponenSKP[]
@@ -66,20 +68,12 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
   const [filterKategori, setFilterKategori] = useState<string>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Derive categories dynamically from database components
-  const [kategoriList, setKategoriList] = useState<string[]>(() => {
+  // Derive categories dynamically from database components and custom categories
+  const [customKategori, setCustomKategori] = useState<string[]>([])
+  const kategoriList = useMemo(() => {
     const fromDb = Array.from(new Set(komponenList.map((k) => k.kategori).filter(Boolean)))
-    return fromDb.length > 0 ? fromDb : KATEGORI_OPTIONS
-  })
-
-  useEffect(() => {
-    if (komponenList && komponenList.length > 0) {
-      setKategoriList((prev) => {
-        const fromDb = Array.from(new Set(komponenList.map((k) => k.kategori).filter(Boolean)))
-        return Array.from(new Set([...fromDb, ...prev]))
-      })
-    }
-  }, [komponenList])
+    return Array.from(new Set([...fromDb, ...customKategori, ...KATEGORI_OPTIONS]))
+  }, [komponenList, customKategori])
 
   const availableTargetJabatan = Array.from(
     new Set([
@@ -108,8 +102,8 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       onShowToast('Kategori Tridharma / Layanan tersebut sudah ada!')
       return
     }
-    setKategoriList([...kategoriList, val])
-    setFormData((prev) => ({ ...prev, kategori: val as any }))
+    setCustomKategori((prev) => [...prev, val])
+    setFormData((prev) => ({ ...prev, kategori: val as KategoriKomponenSKP }))
     setNewKategoriInput('')
     onShowToast(`Kategori "${val}" berhasil ditambahkan!`)
   }
@@ -118,11 +112,9 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     const val = editingKategoriValue.trim()
     if (!val) return
     const oldVal = kategoriList[index]
-    const updated = [...kategoriList]
-    updated[index] = val
-    setKategoriList(updated)
+    setCustomKategori((prev) => prev.map((k) => (k === oldVal ? val : k)))
     if (formData.kategori === oldVal) {
-      setFormData((prev) => ({ ...prev, kategori: val as any }))
+      setFormData((prev) => ({ ...prev, kategori: val as KategoriKomponenSKP }))
     }
     setEditingKategoriIdx(null)
     setEditingKategoriValue('')
@@ -135,10 +127,10 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       return
     }
     const removed = kategoriList[index]
-    const updated = kategoriList.filter((_, i) => i !== index)
-    setKategoriList(updated)
+    setCustomKategori((prev) => prev.filter((k) => k !== removed))
     if (formData.kategori === removed) {
-      setFormData((prev) => ({ ...prev, kategori: updated[0] as any }))
+      const remaining = kategoriList.filter((k) => k !== removed)
+      setFormData((prev) => ({ ...prev, kategori: (remaining[0] || 'Pendidikan') as KategoriKomponenSKP }))
     }
     onShowToast(`Kategori "${removed}" telah dihapus.`)
   }
@@ -171,6 +163,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       k.targetJabatan === 'Semua Jabatan'
     const matchKategori = filterKategori === 'Semua' || k.kategori === filterKategori
     const matchSearch =
+      searchQuery === '' ||
       k.kode.toLowerCase().includes(searchQuery.toLowerCase()) ||
       k.namaKegiatan.toLowerCase().includes(searchQuery.toLowerCase()) ||
       k.targetOutput.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -178,8 +171,16 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     return matchJabatan && matchKategori && matchSearch
   })
 
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const paginatedKomponen = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredKomponen.slice(start, start + pageSize)
+  }, [filteredKomponen, page, pageSize])
+
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [filteredKomponen, viewMode], { y: 8, stagger: 0.03 })
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode], { y: 8, stagger: 0.03 })
 
   const handleOpenCreate = () => {
     setEditingItem(null)
@@ -194,6 +195,21 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       waktuSatuan: 'bulan',
     })
     setViewMode('create')
+  }
+
+  const handleAutoFillDummyKomponen = () => {
+    const randomSuffix = Math.floor(10 + Math.random() * 90)
+    setFormData({
+      kode: `PEN-${randomSuffix}`,
+      targetJabatan: 'Dosen Tetap',
+      kategori: 'Penelitian',
+      namaKegiatan: 'Publikasi Hasil Penelitian Ilmiah pada Jurnal Nasional Terakreditasi Sinta 2',
+      targetOutput: '1 Naskah Artikel Publikasi Online (DOI) Terbit',
+      satuan: 'Artikel',
+      waktuNilai: 6,
+      waktuSatuan: 'bulan',
+    })
+    onShowToast('Data dummy komponen SKP berhasil diisi otomatis! Silakan klik Simpan.')
   }
 
   const handleOpenEdit = (item: KomponenSKP) => {
@@ -229,7 +245,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       onShowToast(`Komponen SKP ${formData.kode} untuk jabatan ${formData.targetJabatan} berhasil diperbarui!`)
     } else {
       const newItem: KomponenSKP = {
-        id: `komp-${Date.now()}`,
+        id: generateEntityId('komp'),
         kode: formData.kode,
         targetJabatan: formData.targetJabatan,
         kategori: formData.kategori,
@@ -453,7 +469,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
   if (viewMode === 'create' || viewMode === 'edit') {
     return (
       <div className="page-container" ref={containerRef}>
-        <div className="page-header">
+        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <button className="btn-back" onClick={() => setViewMode('list')}>
               <ArrowLeft size={16} />
@@ -466,6 +482,29 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
               Konfigurasi pedoman operasional beban kerja sesuai target jenjang jabatan (Rektor hingga Staf), kategori Tridharma/Layanan, satuan output, dan bukti fisik luaran.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleAutoFillDummyKomponen}
+            className="brand-btn"
+            style={{
+              background: '#fef3c7',
+              color: '#b45309',
+              border: '1px solid #fde68a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginTop: 10,
+            }}
+            title="Isi form otomatis dengan data dummy komponen SKP"
+          >
+            <Sparkles size={14} className="text-amber-600 animate-pulse" />
+            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+          </button>
         </div>
 
         <form onSubmit={handleSave} className="form-page-card">
@@ -595,8 +634,9 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                   required
                   min={1}
                   className="custom-input"
-                  value={formData.waktuNilai}
-                  onChange={(e) => setFormData({ ...formData, waktuNilai: Number(e.target.value) })}
+                  value={formData.waktuNilai === 0 ? '' : formData.waktuNilai}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setFormData({ ...formData, waktuNilai: Number(e.target.value) || 0 })}
                   placeholder="Misal: 6 atau 12"
                 />
               </div>
@@ -717,7 +757,10 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
               className="custom-input"
               style={{ paddingLeft: 30, height: 38, fontSize: '12.5px' }}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setPage(1)
+              }}
             />
           </div>
         </div>
@@ -780,10 +823,10 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
 
       {/* Table of Components */}
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th style={{ width: 85 }}>Kode</th>
+              <th style={{ width: 90, minWidth: 90 }}>Kode</th>
               <th>Target Jabatan</th>
               <th>Kategori</th>
               <th>Kegiatan Tugas Jabatan</th>
@@ -794,14 +837,14 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
             </tr>
           </thead>
           <tbody>
-            {filteredKomponen.length === 0 ? (
+            {paginatedKomponen.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
                   Tidak ada komponen SKP yang cocok dengan filter jabatan atau kata kunci pencarian.
                 </td>
               </tr>
             ) : (
-              filteredKomponen.map((komp) => (
+              paginatedKomponen.map((komp) => (
                 <tr key={komp.id}>
                   <td>
                     <span
@@ -899,6 +942,15 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        totalItems={filteredKomponen.length}
+        currentPage={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[10, 25, 50]}
+      />
 
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}

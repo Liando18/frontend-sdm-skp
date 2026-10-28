@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   Plus,
   Search,
@@ -10,14 +10,16 @@ import {
   GraduationCap,
   Mail,
   Phone,
-  Building2,
   Settings,
   X,
   Check,
+  Sparkles,
 } from 'lucide-react'
 import { Dosen } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
+import { generateEntityId } from '../utils/security'
+import { TablePagination } from '../components/TablePagination'
 
 interface KelolaDataDosenProps {
   dosenList: Dosen[]
@@ -49,19 +51,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [deleteConfirmDosen, setDeleteConfirmDosen] = useState<Dosen | null>(null)
 
   // Derive prodi list dynamically from database / props
-  const [localProdiList, setLocalProdiList] = useState<string[]>(() => {
-    if (prodiListProp && prodiListProp.length > 0) return prodiListProp
-    const uniqueFromDosen = Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
-    return uniqueFromDosen.length > 0 ? uniqueFromDosen : ['S1 Keperawatan']
-  })
-
-  useEffect(() => {
-    if (prodiListProp && prodiListProp.length > 0) {
-      setLocalProdiList(prodiListProp)
-    }
-  }, [prodiListProp])
-
-  const prodiList = localProdiList
+  const [customAddedProdis, setCustomAddedProdis] = useState<string[]>([])
+  const fallbackProdi = Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
+  const baseProdis = (prodiListProp && prodiListProp.length > 0) ? prodiListProp : (fallbackProdi.length > 0 ? fallbackProdi : ['S1 Keperawatan'])
+  const prodiList = Array.from(new Set([...baseProdis, ...customAddedProdis]))
   const [isManageProdiOpen, setIsManageProdiOpen] = useState(false)
   const [newProdiInput, setNewProdiInput] = useState('')
   const [editingProdiIdx, setEditingProdiIdx] = useState<number | null>(null)
@@ -77,7 +70,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     if (onAddProdi) {
       await onAddProdi(val)
     } else {
-      setLocalProdiList((prev) => [...prev, val])
+      setCustomAddedProdis((prev) => [...prev, val])
       onShowToast(`Program Studi "${val}" berhasil ditambahkan!`)
     }
     setFormData((prev) => ({ ...prev, prodi: val }))
@@ -91,9 +84,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     if (onUpdateProdi) {
       await onUpdateProdi(oldVal, val)
     } else {
-      const updated = [...prodiList]
-      updated[index] = val
-      setLocalProdiList(updated)
+      setCustomAddedProdis((prev) => prev.map((p) => (p === oldVal ? val : p)))
       onShowToast('Nama Program Studi berhasil diperbarui!')
     }
     if (formData.prodi === oldVal) {
@@ -115,8 +106,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     if (onDeleteProdi) {
       await onDeleteProdi(removed)
     } else {
-      const updated = prodiList.filter((_, i) => i !== index)
-      setLocalProdiList(updated)
+      setCustomAddedProdis((prev) => prev.filter((p) => p !== removed))
       onShowToast(`Program Studi "${removed}" telah dihapus.`)
     }
     if (formData.prodi === removed) {
@@ -161,8 +151,17 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     return matchSearch && matchProdi && matchStatus
   })
 
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const paginatedDosen = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredDosen.slice(start, start + pageSize)
+  }, [filteredDosen, page, pageSize])
+
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [filteredDosen, viewMode], { y: 8, stagger: 0.035 })
+  // Run animation only when viewMode switches, not on every search keystroke
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode], { y: 8, stagger: 0.035 })
 
   const handleOpenCreate = () => {
     setFormData({
@@ -182,6 +181,27 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       phone: '',
     })
     setViewMode('create')
+  }
+
+  const handleAutoFillDummyDosen = () => {
+    const randomNipSuffix = Math.floor(1000 + Math.random() * 9000)
+    setFormData({
+      nama: 'Dr. apt. Farhan Prasetyo, M.Farm.',
+      nip: `19850720201201${randomNipSuffix}`,
+      nuptk: `987654321098${randomNipSuffix}`,
+      prodi: prodiList[0] || 'S1 Keperawatan',
+      jafung: 'Lektor',
+      golongan: 'Penata / III-c',
+      pendidikanS1: 'S1 Farmasi - ITB (2007)',
+      pendidikanProfesi: 'Profesi Apoteker - ITB (2008)',
+      pendidikanS2: 'S2 Farmasi Sains - UGM (2013)',
+      pendidikanS3: 'S3 Farmakologi - UNPAD (2020)',
+      pendidikan: 'S1 Farmasi, Profesi Apoteker, S2 Farmasi Sains, S3 Farmakologi',
+      status: 'Tetap Yayasan',
+      email: `farhan.prasetyo${randomNipSuffix}@bku.ac.id`,
+      phone: '081234567890',
+    })
+    onShowToast('Data dummy dosen berhasil diisi otomatis! Silakan klik Simpan.')
   }
 
   const handleOpenEdit = (dosen: Dosen) => {
@@ -243,7 +263,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       onShowToast(`Data dosen ${formData.nama} berhasil diperbarui!`)
     } else {
       const newDosen: Dosen = {
-        id: `dosen-${Date.now()}`,
+        id: generateEntityId('dosen'),
         nip: formData.nip || '0000000000000000',
         nuptk: formData.nuptk || '',
         nama: formData.nama,
@@ -515,7 +535,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   if (viewMode === 'create' || viewMode === 'edit') {
     return (
       <div className="page-container" ref={containerRef}>
-        <div className="page-header">
+        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <button className="btn-back" onClick={() => setViewMode('list')}>
               <ArrowLeft size={14} />
@@ -528,6 +548,29 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               Pangkalan data kepegawaian resmi Direktorat Sumber Daya Manusia Universitas Bhakti Kencana.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleAutoFillDummyDosen}
+            className="brand-btn"
+            style={{
+              background: '#fef3c7',
+              color: '#b45309',
+              border: '1px solid #fde68a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginTop: 10,
+            }}
+            title="Isi form otomatis dengan data dummy dosen untuk pengujian"
+          >
+            <Sparkles size={14} className="text-amber-600 animate-pulse" />
+            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+          </button>
         </div>
 
         <form onSubmit={handleSave} className="form-page-card">
@@ -611,7 +654,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 <select
                   className="custom-select"
                   value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as Dosen['status'] })}
                 >
                   <option value="Tetap Yayasan">Tetap Yayasan</option>
                   <option value="PNS DPK">PNS DPK</option>
@@ -979,7 +1022,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             style={{ paddingLeft: '38px', height: 38 }}
             placeholder="Cari nama dosen, NIP, atau NUPTK..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setPage(1)
+            }}
           />
         </div>
 
@@ -988,7 +1034,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             className="custom-select"
             style={{ height: 38, width: '100%', fontSize: '13px', fontWeight: 600 }}
             value={selectedProdi}
-            onChange={(e) => setSelectedProdi(e.target.value)}
+            onChange={(e) => {
+              setSelectedProdi(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="Semua Program Studi">Semua Program Studi</option>
             {prodiList.map((prodi, idx) => (
@@ -1004,7 +1053,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             className="custom-select"
             style={{ height: 38, width: '100%', fontSize: '13px', fontWeight: 600 }}
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="Semua Status">Semua Status</option>
             <option value="Tetap Yayasan">Tetap Yayasan</option>
@@ -1019,10 +1071,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       </div>
 
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Nama Dosen &amp; Identitas</th>
+              <th style={{ minWidth: 240 }}>Nama Dosen &amp; Identitas</th>
               <th>Homebase Prodi</th>
               <th>Jabatan Fungsional</th>
               <th>Pangkat / Golongan</th>
@@ -1032,19 +1084,24 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             </tr>
           </thead>
           <tbody>
-            {filteredDosen.length === 0 ? (
+            {paginatedDosen.length === 0 ? (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
                   Tidak ada dosen yang cocok dengan kriteria pencarian.
                 </td>
               </tr>
             ) : (
-              filteredDosen.map((dosen) => (
+              paginatedDosen.map((dosen) => (
                 <tr key={dosen.id}>
                   <td>
-                    <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{dosen.nama}</div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 1 }}>
-                      NIP: {dosen.nip} &bull; NUPTK: {dosen.nuptk || '-'}
+                    <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '13px' }}>{dosen.nama}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'monospace' }}>
+                        NIP: {dosen.nip ? dosen.nip : '-'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'monospace' }}>
+                        NUPTK: {dosen.nuptk ? dosen.nuptk : '-'}
+                      </span>
                     </div>
                   </td>
                   <td>
@@ -1119,6 +1176,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        totalItems={filteredDosen.length}
+        currentPage={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[10, 25, 50]}
+      />
 
       <ConfirmDialog
         isOpen={Boolean(deleteConfirmDosen)}

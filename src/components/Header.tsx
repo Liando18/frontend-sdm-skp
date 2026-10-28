@@ -1,8 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   Search,
   Bell,
-  Mail,
   Menu,
   ChevronDown,
   Check,
@@ -11,6 +10,7 @@ import {
   GraduationCap,
   Users,
   Building2,
+  User,
 } from 'lucide-react'
 import { UserSession, Role, NotificationItem } from '../types'
 
@@ -20,7 +20,8 @@ interface HeaderProps {
   backendStatus?: 'checking' | 'connected' | 'offline'
   onToggleSidebar: () => void
   onOpenCommandPalette: () => void
-  onSwitchRole: (role: Role) => void
+  onSwitchRole?: (role: Role) => void
+  onSelectNav?: (navId: string) => void
   onLogout: () => void
   onMarkNotificationAsRead: (id: string) => void
   onShowToast?: (msg: string) => void
@@ -29,23 +30,33 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   user,
   notifications,
-  backendStatus = 'checking',
   onToggleSidebar,
   onOpenCommandPalette,
-  onSwitchRole,
+  onSelectNav,
   onLogout,
   onMarkNotificationAsRead,
-  onShowToast,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const handleMessageClick = () => {
-    if (onShowToast) {
-      onShowToast('Pesan & komunikasi internal kepegawaian tersinkronisasi.')
+  // Tutup dropdown notifikasi & menu profil saat klik di luar (Click-outside listener)
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifications(false)
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
     }
-  }
+    document.addEventListener('mousedown', handleDocumentClick)
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick)
+    }
+  }, [])
 
   return (
     <header className="topbar">
@@ -61,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div
         className="search"
         onClick={onOpenCommandPalette}
-        style={{ cursor: 'pointer', flex: '1 1 240px', maxWidth: '420px', minWidth: '140px' }}
+        style={{ cursor: 'pointer', flex: '1 1 200px', maxWidth: '380px', minWidth: '120px' }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -73,195 +84,46 @@ export const Header: React.FC<HeaderProps> = ({
         <span style={{ color: 'var(--muted)', fontSize: '13px', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Cari dosen, berkas SKP, atau menu...
         </span>
-        <kbd className="search__kbd">
+        <kbd className="search__kbd hide-mobile">
           <span>⌘</span>K
         </kbd>
       </div>
 
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Backend Status Indicator */}
+        {/* Indikator Role Aktif Pegawai (Sesuai Akun Login) */}
         <div
+          className="hide-mobile"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: '4px 10px',
+            background: 'var(--panel-hover)',
+            border: '1px solid var(--hair)',
             borderRadius: 'var(--r-full)',
-            fontSize: '11px',
+            padding: '4px 12px',
+            fontSize: '11.5px',
             fontWeight: 600,
-            background:
-              backendStatus === 'connected'
-                ? 'rgba(16, 185, 129, 0.12)'
-                : backendStatus === 'checking'
-                ? 'rgba(234, 179, 8, 0.12)'
-                : 'rgba(100, 116, 139, 0.12)',
-            color:
-              backendStatus === 'connected'
-                ? '#059669'
-                : backendStatus === 'checking'
-                ? '#d97706'
-                : '#64748b',
-            border: `1px solid ${
-              backendStatus === 'connected'
-                ? 'rgba(16, 185, 129, 0.25)'
-                : backendStatus === 'checking'
-                ? 'rgba(234, 179, 8, 0.25)'
-                : 'rgba(100, 116, 139, 0.25)'
-            }`,
+            color: 'var(--ink)',
           }}
-          title={
-            backendStatus === 'connected'
-              ? 'Terhubung langsung ke Laravel 12 API (http://localhost:8000/api)'
-              : backendStatus === 'checking'
-              ? 'Memeriksa koneksi ke Laravel API...'
-              : 'Mode Standalone (Server Laravel belum aktif di port 8000)'
-          }
         >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              backgroundColor:
-                backendStatus === 'connected'
-                  ? '#10b981'
-                  : backendStatus === 'checking'
-                  ? '#eab308'
-                  : '#94a3b8',
-              display: 'inline-block',
-              boxShadow:
-                backendStatus === 'connected'
-                  ? '0 0 6px #10b981'
-                  : 'none',
-            }}
-          />
-          <span className="hide-mobile">
-            {backendStatus === 'connected'
-              ? 'Laravel Connected'
-              : backendStatus === 'checking'
-              ? 'Menghubungkan...'
-              : 'Mode Standalone'}
+          {user.role === 'sdm' && <Shield size={13} style={{ color: 'var(--brand-600)' }} />}
+          {user.role === 'dosen' && <GraduationCap size={13} style={{ color: 'var(--brand-600)' }} />}
+          {user.role === 'kaprodi' && <Users size={13} style={{ color: 'var(--brand-600)' }} />}
+          {user.role === 'dekan' && <Building2 size={13} style={{ color: 'var(--brand-600)' }} />}
+          <span>
+            {user.role === 'sdm' && 'Portal SDM (Admin)'}
+            {user.role === 'dosen' && 'Portal Dosen'}
+            {user.role === 'kaprodi' && 'Portal Kaprodi'}
+            {user.role === 'dekan' && 'Portal Dekan'}
           </span>
         </div>
 
-        {/* Role Quick Selector */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--panel-hover)',
-            border: '1px solid var(--hair)',
-            borderRadius: 'var(--r-md)',
-            padding: '2px',
-            gap: 2,
-          }}
-        >
-          <button
-            onClick={() => onSwitchRole('sdm')}
-            title="Beralih ke Portal Admin SDM"
-            style={{
-              padding: '5px 10px',
-              borderRadius: 'var(--r-sm)',
-              border: 'none',
-              fontSize: '11.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: user.role === 'sdm' ? '#ffffff' : 'transparent',
-              color: user.role === 'sdm' ? 'var(--navy-900)' : 'var(--muted)',
-              boxShadow: user.role === 'sdm' ? 'var(--shadow-xs)' : 'none',
-              transition: 'all 0.15s var(--ease)',
-            }}
-          >
-            <Shield size={12} />
-            <span>SDM</span>
-          </button>
-          <button
-            onClick={() => onSwitchRole('dosen')}
-            title="Beralih ke Portal Dosen"
-            style={{
-              padding: '5px 10px',
-              borderRadius: 'var(--r-sm)',
-              border: 'none',
-              fontSize: '11.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: user.role === 'dosen' ? '#ffffff' : 'transparent',
-              color: user.role === 'dosen' ? 'var(--navy-900)' : 'var(--muted)',
-              boxShadow: user.role === 'dosen' ? 'var(--shadow-xs)' : 'none',
-              transition: 'all 0.15s var(--ease)',
-            }}
-          >
-            <GraduationCap size={12} />
-            <span>Dosen</span>
-          </button>
-          <button
-            onClick={() => onSwitchRole('kaprodi')}
-            title="Beralih ke Portal Kaprodi"
-            style={{
-              padding: '5px 10px',
-              borderRadius: 'var(--r-sm)',
-              border: 'none',
-              fontSize: '11.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: user.role === 'kaprodi' ? '#ffffff' : 'transparent',
-              color: user.role === 'kaprodi' ? 'var(--navy-900)' : 'var(--muted)',
-              boxShadow: user.role === 'kaprodi' ? 'var(--shadow-xs)' : 'none',
-              transition: 'all 0.15s var(--ease)',
-            }}
-          >
-            <Users size={12} />
-            <span>Kaprodi</span>
-          </button>
-          <button
-            onClick={() => onSwitchRole('dekan')}
-            title="Beralih ke Portal Dekan"
-            style={{
-              padding: '5px 10px',
-              borderRadius: 'var(--r-sm)',
-              border: 'none',
-              fontSize: '11.5px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: user.role === 'dekan' ? '#ffffff' : 'transparent',
-              color: user.role === 'dekan' ? 'var(--navy-900)' : 'var(--muted)',
-              boxShadow: user.role === 'dekan' ? 'var(--shadow-xs)' : 'none',
-              transition: 'all 0.15s var(--ease)',
-            }}
-          >
-            <Building2 size={12} />
-            <span>Dekan</span>
-          </button>
-        </div>
-
-        {/* Communication Sync */}
-        <button
-          className="icon-btn"
-          title="Sinkronisasi Komunikasi Internal"
-          onClick={handleMessageClick}
-          aria-label="Pesan internal"
-        >
-          <Mail size={16} />
-        </button>
-
-        {/* Notifications */}
-        <div style={{ position: 'relative' }}>
+        {/* Notifikasi dengan click-outside dropdown */}
+        <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             className="icon-btn"
             title="Pemberitahuan Sistem"
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => setShowNotifications((prev) => !prev)}
             style={{ position: 'relative' }}
             aria-label="Notifikasi sistem"
           >
@@ -289,6 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
                 top: 'calc(100% + 8px)',
                 right: 0,
                 width: 320,
+                maxWidth: 'calc(100vw - 32px)',
                 background: 'var(--panel-bg)',
                 borderRadius: 'var(--r-lg)',
                 boxShadow: 'var(--shadow-lg)',
@@ -313,35 +176,41 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    onClick={() => onMarkNotificationAsRead(n.id)}
-                    style={{
-                      padding: '9px 10px',
-                      borderRadius: 'var(--r-sm)',
-                      background: n.read ? 'transparent' : 'var(--brand-50)',
-                      border: n.read ? '1px solid transparent' : '1px solid var(--brand-100)',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>{n.title}</span>
-                      <span style={{ fontSize: '10.5px', color: 'var(--faint)' }}>{n.time}</span>
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>{n.desc || n.message}</div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>
+                    Tidak ada notifikasi baru
                   </div>
-                ))}
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => onMarkNotificationAsRead(n.id)}
+                      style={{
+                        padding: '9px 10px',
+                        borderRadius: 'var(--r-sm)',
+                        background: n.read ? 'transparent' : 'var(--brand-50)',
+                        border: n.read ? '1px solid transparent' : '1px solid var(--brand-100)',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>{n.title}</span>
+                        <span style={{ fontSize: '10.5px', color: 'var(--faint)' }}>{n.time}</span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>{n.desc || n.message}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* User Profile Menu */}
-        <div style={{ position: 'relative' }}>
+        {/* User Profile Menu dengan click-outside dropdown */}
+        <div ref={userMenuRef} style={{ position: 'relative' }}>
           <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
+            onClick={() => setShowUserMenu((prev) => !prev)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -375,7 +244,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {user.name.split(',')[0]}
               </div>
               <div style={{ fontSize: '10.5px', color: 'var(--muted)' }}>
-                {user.role === 'sdm' ? 'Admin SDM' : user.role === 'dosen' ? 'Dosen' : 'Kaprodi'}
+                {user.role === 'sdm' ? 'Admin SDM' : user.role === 'dosen' ? 'Dosen' : user.role === 'kaprodi' ? 'Kaprodi' : 'Dekan'}
               </div>
             </div>
             <ChevronDown size={13} color="var(--muted)" />
@@ -388,7 +257,8 @@ export const Header: React.FC<HeaderProps> = ({
                 position: 'absolute',
                 top: 'calc(100% + 8px)',
                 right: 0,
-                width: 240,
+                width: 250,
+                maxWidth: 'calc(100vw - 32px)',
                 background: 'var(--panel-bg)',
                 borderRadius: 'var(--r-lg)',
                 boxShadow: 'var(--shadow-lg)',
@@ -403,94 +273,30 @@ export const Header: React.FC<HeaderProps> = ({
                 <div style={{ fontSize: '11px', color: 'var(--brand-700)', fontWeight: 600, marginTop: 2 }}>{user.rank}</div>
               </div>
 
-              <div style={{ padding: '4px 0' }}>
+              {/* Tautan Profil & Ganti Sandi */}
+              <div style={{ padding: '4px 0', borderBottom: '1px solid var(--hair-subtle)' }}>
                 <button
                   onClick={() => {
                     setShowUserMenu(false)
-                    onSwitchRole('sdm')
+                    if (onSelectNav) onSelectNav('profil')
                   }}
                   style={{
                     width: '100%',
-                    padding: '7px 10px',
+                    padding: '8px 10px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    gap: 8,
                     border: 'none',
                     background: 'transparent',
                     cursor: 'pointer',
                     fontSize: '12px',
                     borderRadius: 'var(--r-sm)',
-                    color: 'var(--ink)',
+                    color: 'var(--brand-700)',
+                    fontWeight: 600,
                   }}
                 >
-                  <span>Portal Admin SDM</span>
-                  {user.role === 'sdm' && <Check size={14} color="var(--brand-600)" />}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    onSwitchRole('dosen')
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    borderRadius: 'var(--r-sm)',
-                    color: 'var(--ink)',
-                  }}
-                >
-                  <span>Portal Dosen</span>
-                  {user.role === 'dosen' && <Check size={14} color="var(--brand-600)" />}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    onSwitchRole('kaprodi')
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    borderRadius: 'var(--r-sm)',
-                    color: 'var(--ink)',
-                  }}
-                >
-                  <span>Portal Kaprodi</span>
-                  {user.role === 'kaprodi' && <Check size={14} color="var(--brand-600)" />}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    onSwitchRole('dekan')
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    borderRadius: 'var(--r-sm)',
-                    color: 'var(--ink)',
-                  }}
-                >
-                  <span>Portal Dekan</span>
-                  {user.role === 'dekan' && <Check size={14} color="var(--brand-600)" />}
+                  <User size={14} />
+                  <span>Profil Saya & Ganti Sandi</span>
                 </button>
               </div>
 

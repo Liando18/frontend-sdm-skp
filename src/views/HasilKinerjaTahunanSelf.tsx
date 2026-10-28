@@ -2,16 +2,14 @@ import React, { useState, useRef, useMemo } from 'react'
 import {
   Award,
   Filter,
-  CheckCircle2,
   Clock,
   Printer,
   ShieldCheck,
   UserCheck,
-  Building2,
-  Calendar,
 } from 'lucide-react'
 import { PenilaianKuesioner, UserSession } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
+import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 
 interface HasilKinerjaTahunanSelfProps {
   user: UserSession
@@ -68,6 +66,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
   }, [penilaianList])
 
   const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2025/2026')
+  const [showCetakTranskrip, setShowCetakTranskrip] = useState(false)
 
   // Find user's annual evaluation for selected academic year
   const myEvaluation = penilaianList.find(
@@ -106,10 +105,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
 
         {myEvaluation && (
           <button
-            onClick={() => {
-              onShowToast('Mencetak transkrip evaluasi kinerja BerAKHLAK resmi...')
-              window.print()
-            }}
+            onClick={() => setShowCetakTranskrip(true)}
             className="brand-btn btn-action-print"
             style={{ padding: '9px 18px', gap: 6 }}
           >
@@ -392,6 +388,19 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
               : 'Evaluasi kinerja tahunan Dosen oleh Ketua Program Studi belum diterbitkan untuk periode ini.'}
           </p>
         </div>
+      )}
+
+      {/* Modal Cetak Transkrip BerAKHLAK Standar A4 Resmi */}
+      {showCetakTranskrip && myEvaluation && (
+        <CetakTranskripKuesioner
+          isOpen={showCetakTranskrip}
+          onClose={() => setShowCetakTranskrip(false)}
+          penilaian={myEvaluation}
+          dosenNama={user.name}
+          dosenNip={user.nip || '-'}
+          dosenProdi={user.prodi || 'Universitas Bhakti Kencana'}
+          tahunAkademik={selectedTahun}
+        />
       )}
     </div>
   )

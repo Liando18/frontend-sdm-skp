@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   FileCheck2,
   CheckCircle,
@@ -11,11 +11,13 @@ import {
   FileSignature,
   Filter,
   Search,
+  Sparkles,
 } from 'lucide-react'
 import { PengajuanSKP, Dosen, UserSession } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { useStaggerEntrance } from '../utils/animations'
+import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 
 interface ReviewSKPKaprodiProps {
   user: UserSession
@@ -38,20 +40,21 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   onRejectByKaprodi,
   onShowToast,
 }) => {
-  const [viewMode, setViewMode] = useState<'list' | 'review'>('list')
-  const [activeReviewSKP, setActiveReviewSKP] = useState<PengajuanSKP | null>(null)
-  const [kaprodiNotes, setKaprodiNotes] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'review'>(initialSelectedSKP ? 'review' : 'list')
+  const [activeReviewSKP, setActiveReviewSKP] = useState<PengajuanSKP | null>(initialSelectedSKP || null)
+  const [kaprodiNotes, setKaprodiNotes] = useState(initialSelectedSKP?.catatanKaprodi || '')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
 
-  useEffect(() => {
-    if (initialSelectedSKP) {
-      setActiveReviewSKP(initialSelectedSKP)
-      setKaprodiNotes(initialSelectedSKP.catatanKaprodi || '')
-      setViewMode('review')
-    }
-  }, [initialSelectedSKP])
+  // React pattern: adjust state during render when initialSelectedSKP changes
+  const [prevInitial, setPrevInitial] = useState(initialSelectedSKP)
+  if (initialSelectedSKP && prevInitial?.id !== initialSelectedSKP.id) {
+    setPrevInitial(initialSelectedSKP)
+    setActiveReviewSKP(initialSelectedSKP)
+    setKaprodiNotes(initialSelectedSKP.catatanKaprodi || '')
+    setViewMode('review')
+  }
 
   // Filters: Tahun Ajaran, Semester, Search
   const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')
@@ -105,20 +108,30 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   const handleOpenReview = (skp: PengajuanSKP) => {
     setActiveReviewSKP(skp)
     setKaprodiNotes(skp.catatanKaprodi || '')
-    setTtdPreview(skp.ttdKaprodiUrl || defaultTTD)
+    setTtdPreview(user.signatureUrl || skp.ttdKaprodiUrl || defaultTTD)
     setViewMode('review')
   }
 
   const handleTTDUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setTtdPreview(reader.result as string)
-        onShowToast('Tanda tangan digital berhasil diunggah.')
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      onShowToast('Ukuran berkas tanda tangan terlalu besar (maksimal 2MB).')
+      return
     }
+
+    if (!file.type.startsWith('image/')) {
+      onShowToast('Format berkas harus berupa gambar (.png, .jpg, .svg).')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setTtdPreview(reader.result as string)
+      onShowToast('Tanda tangan digital berhasil diunggah.')
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleExecuteApprove = () => {
@@ -232,11 +245,11 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               Daftar Bukti Fisik Luaran Tridharma ({activeReviewSKP.items.length} Kegiatan)
             </div>
             <div className="table-container">
-              <table className="custom-table">
+              <table className="custom-table custom-table--sticky-skp">
                 <thead>
                   <tr>
-                    <th style={{ width: 35, textAlign: 'center' }}>No</th>
-                    <th>Uraian Kegiatan Tridharma</th>
+                    <th style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center' }}>No</th>
+                    <th style={{ minWidth: 260 }}>Uraian Kegiatan Tridharma</th>
                     <th style={{ textAlign: 'center' }}>Rencana</th>
                     <th style={{ textAlign: 'center' }}>Perubahan</th>
                     <th style={{ textAlign: 'center' }}>Realisasi Akhir</th>
@@ -248,10 +261,10 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 <tbody>
                   {activeReviewSKP.items.map((it, idx) => (
                     <tr key={it.id}>
-                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
+                      <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
                         {idx + 1}
                       </td>
-                      <td style={{ fontWeight: 600, maxWidth: 280 }}>
+                      <td style={{ fontWeight: 600, minWidth: 260, maxWidth: 280 }}>
                         {it.kegiatan}
                       </td>
                       <td style={{ textAlign: 'center' }}>{it.rencanaAwal}</td>
@@ -263,9 +276,9 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                       <td style={{ textAlign: 'center' }}>{it.waktuNilai || 12} {it.waktuSatuan || 'bln'}</td>
                       <td>
                         <a
-                          href={it.linkDokumen}
+                          href={sanitizeUrl(it.linkDokumen)}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -275,7 +288,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                             fontSize: '12px',
                           }}
                         >
-                          <span>Buka Dokumen</span>
+                          <span>Tautan di sini</span>
                           <ExternalLink size={12} />
                         </a>
                       </td>
@@ -302,15 +315,15 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               <FileSignature size={20} color="var(--brand-600)" />
               <div>
                 <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--ink)' }}>
-                  Upload Tanda Tangan Digital Ka Prodi (Pengesahan SKP)
+                  Tanda Tangan Digital Ka Prodi Otomatis (Pengesahan SKP)
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                  Tanda tangan digital ini akan disematkan pada lembar formulir cetak resmi SKP dosen.
+                  Tanda tangan Anda dan dosen yang dinilai otomatis disematkan dari profil institusi saat disetujui.
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               {/* Preview Box */}
               <div
                 style={{
@@ -326,8 +339,13 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               >
                 {ttdPreview ? (
                   <img
-                    src={ttdPreview}
+                    src={resolveStorageUrl(ttdPreview)}
                     alt="Preview TTD Ka Prodi"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      target.onerror = null
+                      target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                    }}
                     style={{ maxHeight: 60, maxWidth: 160, objectFit: 'contain' }}
                   />
                 ) : (
@@ -335,41 +353,34 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 )}
               </div>
 
-              {/* Upload Action */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 16px',
-                    borderRadius: 'var(--r-sm)',
-                    background: 'var(--navy-900)',
-                    color: '#ffffff',
-                    fontSize: '12.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Upload size={14} />
-                  <span>Unggah Berkas TTD (.PNG / .JPG / .SVG)</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleTTDUpload}
-                    style={{ display: 'none' }}
-                  />
-                </label>
-                <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                  Format transparan disarankan untuk hasil cetak terbaik.
-                </span>
+              {/* Status Otomatisasi TTD */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12px', fontWeight: 700, color: '#047857' }}>
+                  <Check size={14} className="text-emerald-600" />
+                  <span>TTD Digital Resmi Terdaftar di Profil</span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', maxWidth: 440 }}>
+                  Pada saat tombol <strong>Setujui SKP</strong> ditekan, tanda tangan Anda sebagai Penilai dan tanda tangan <strong>{activeReviewSKP?.dosenNama}</strong> akan <strong>otomatis disematkan bersamaan</strong> pada lembar cetak SKP resmi.
+                </div>
               </div>
             </div>
           </div>
 
           {/* Evaluator Notes */}
           <div className="form-field">
-            <label className="form-label">Catatan Evaluasi / Rekomendasi Kaprodi</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label className="form-label" style={{ margin: 0 }}>Catatan Evaluasi / Rekomendasi Kaprodi</label>
+              <button
+                type="button"
+                onClick={() => setKaprodiNotes('Berkas SKP telah diverifikasi lengkap, dokumen luaran Tridharma valid dan sesuai standar institusi. Disetujui tanpa catatan.')}
+                className="brand-btn"
+                style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontSize: '11px', padding: '3px 8px', cursor: 'pointer' }}
+                title="Isi otomatis catatan evaluasi dummy"
+              >
+                <Sparkles size={11} className="text-amber-600 animate-pulse" />
+                <span>⚡ Isi Catatan Otomatis</span>
+              </button>
+            </div>
             <textarea
               rows={3}
               className="custom-input"
@@ -548,10 +559,10 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
       </div>
 
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Dosen Homebase Prodi</th>
+              <th style={{ minWidth: 220 }}>Dosen Homebase Prodi</th>
               <th>Semester &amp; Periode</th>
               <th>Jabatan Fungsional</th>
               <th>Status SKP</th>

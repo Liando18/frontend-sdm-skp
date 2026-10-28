@@ -1,13 +1,14 @@
-import React, { useState, useRef } from 'react'
-import { Search, Award, Eye, X, UserCheck, ShieldCheck, Calendar, Filter } from 'lucide-react'
+import React, { useState, useRef, useMemo } from 'react'
+import { Search, Eye, X } from 'lucide-react'
 import { PenilaianKuesioner, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
+import { TablePagination } from '../components/TablePagination'
 
 interface KelolaPenilaianKuesionerProps {
   penilaianList: PenilaianKuesioner[]
-  dosenList: Dosen[]
+  dosenList?: Dosen[]
   onAddPenilaian?: (item: PenilaianKuesioner) => void
-  onShowToast: (msg: string) => void
+  onShowToast?: (msg: string) => void
 }
 
 const BERAKHLAK_KEYS = [
@@ -22,8 +23,6 @@ const BERAKHLAK_KEYS = [
 
 export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> = ({
   penilaianList,
-  dosenList,
-  onShowToast,
 }) => {
   const [selectedTahun, setSelectedTahun] = useState<string>('Semua Tahun')
   const [selectedRole, setSelectedRole] = useState<string>('Semua')
@@ -46,8 +45,16 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
     return matchTahun && matchRole && matchSearch
   })
 
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const paginatedList = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredList.slice(start, start + pageSize)
+  }, [filteredList, page, pageSize])
+
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [filteredList], { y: 8, stagger: 0.035 })
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.035 })
 
   return (
     <div className="page-container" ref={containerRef}>
@@ -133,10 +140,10 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
 
       {/* Master Table */}
       <div className="table-container">
-        <table className="custom-table">
+        <table className="custom-table custom-table--sticky-1">
           <thead>
             <tr>
-              <th>Nama Pegawai / Dosen</th>
+              <th style={{ minWidth: 220 }}>Nama Pegawai / Dosen</th>
               <th>Posisi / Homebase</th>
               <th>Pejabat Penilai</th>
               <th>Tahun Ajaran</th>
@@ -147,7 +154,14 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
             </tr>
           </thead>
           <tbody>
-            {filteredList.map((item) => (
+            {paginatedList.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                  Tidak ada data penilaian yang sesuai kriteria pencarian.
+                </td>
+              </tr>
+            ) : (
+              paginatedList.map((item) => (
               <tr key={item.id}>
                 <td>
                   <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '14px' }}>{item.dosenNama}</div>
@@ -210,10 +224,20 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
                   </button>
                 </td>
               </tr>
-            ))}
+            )))
+          }
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        totalItems={filteredList.length}
+        currentPage={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[10, 25, 50]}
+      />
 
       {/* Modal Detail Rincian BerAKHLAK */}
       {selectedDetail && (

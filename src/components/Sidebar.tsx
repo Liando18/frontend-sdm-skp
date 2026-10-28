@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -13,9 +13,8 @@ import {
   FileText,
   UserCheck,
   ChevronRight,
-  ShieldCheck,
   Building2,
-  FolderOpen,
+  User,
 } from 'lucide-react'
 import { Role } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
@@ -51,7 +50,7 @@ export type NavItem =
 
 // SDM Nav Groups
 const sdmNavItems: NavItem[] = [
-  { type: 'link', id: 'dashboard', label: 'Beranda Eksekutif', icon: LayoutDashboard },
+  { type: 'link', id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
   {
     type: 'group',
     id: 'sdm-kinerja-saya',
@@ -84,11 +83,20 @@ const sdmNavItems: NavItem[] = [
       { id: 'laporan', label: 'Laporan & Rekapitulasi Institusi', icon: FileBarChart },
     ],
   },
+  {
+    type: 'group',
+    id: 'sdm-akun',
+    title: 'Pengaturan Akun',
+    icon: User,
+    items: [
+      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+    ],
+  },
 ]
 
 // Dosen Nav Groups
 const dosenNavItems: NavItem[] = [
-  { type: 'link', id: 'dashboard', label: 'Beranda Dosen', icon: LayoutDashboard },
+  { type: 'link', id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
   {
     type: 'group',
     id: 'dosen-kinerja',
@@ -99,11 +107,20 @@ const dosenNavItems: NavItem[] = [
       { id: 'hasil-kinerja-dosen', label: 'Hasil Kinerja Tahunan', icon: Award },
     ],
   },
+  {
+    type: 'group',
+    id: 'dosen-akun',
+    title: 'Pengaturan Akun',
+    icon: User,
+    items: [
+      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+    ],
+  },
 ]
 
 // Kaprodi Nav Groups
 const kaprodiNavItems: NavItem[] = [
-  { type: 'link', id: 'dashboard', label: 'Beranda Program Studi', icon: LayoutDashboard },
+  { type: 'link', id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
   {
     type: 'group',
     id: 'kaprodi-kinerja-saya',
@@ -124,11 +141,20 @@ const kaprodiNavItems: NavItem[] = [
       { id: 'kuesioner-kaprodi', label: 'Evaluasi Kinerja Dosen', icon: Award },
     ],
   },
+  {
+    type: 'group',
+    id: 'kaprodi-akun',
+    title: 'Pengaturan Akun',
+    icon: User,
+    items: [
+      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+    ],
+  },
 ]
 
 // Dekan Nav Groups
 const dekanNavItems: NavItem[] = [
-  { type: 'link', id: 'dashboard', label: 'Beranda Fakultas', icon: LayoutDashboard },
+  { type: 'link', id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
   {
     type: 'group',
     id: 'dekan-kinerja-saya',
@@ -149,6 +175,15 @@ const dekanNavItems: NavItem[] = [
       { id: 'kuesioner-dekan', label: 'Evaluasi Kinerja Ketua Program Studi', icon: Award },
     ],
   },
+  {
+    type: 'group',
+    id: 'dekan-akun',
+    title: 'Pengaturan Akun',
+    icon: User,
+    items: [
+      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+    ],
+  },
 ]
 
 const getRoleNavItems = (role: Role): NavItem[] => {
@@ -164,24 +199,6 @@ const getRoleNavItems = (role: Role): NavItem[] => {
   }
 }
 
-const getInitialOpenGroups = (role: Role, active: string): Record<string, boolean> => {
-  const items = getRoleNavItems(role)
-  const groups = items.filter((it): it is Extract<NavItem, { type: 'group' }> => it.type === 'group')
-  const groupCount = groups.length
-
-  // Rule: Jika pada role tersebut ada lebih dari 2 sub menu (> 2), defaultnya TUTUP.
-  // Kalau hanya 1 atau 2 (<= 2), defaultnya BUKA.
-  const isDefaultOpen = groupCount <= 2
-
-  const state: Record<string, boolean> = {}
-  groups.forEach((g) => {
-    const containsActive = g.items.some((it) => it.id === active)
-    state[g.id] = isDefaultOpen ? true : containsActive
-  })
-
-  return state
-}
-
 export const Sidebar: React.FC<SidebarProps> = ({
   currentRole,
   activeNav,
@@ -193,33 +210,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = getRoleNavItems(currentRole)
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    getInitialOpenGroups(currentRole, activeNav)
-  )
+  // Track user manual toggles
+  const [toggledGroups, setToggledGroups] = useState<Record<string, boolean>>({})
 
-  const toggleGroup = (groupId: string) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [groupId]: !prev[groupId],
-    }))
+  // Reset toggled overrides when role changes without cascading useEffect render
+  const [prevRole, setPrevRole] = useState(currentRole)
+  if (prevRole !== currentRole) {
+    setPrevRole(currentRole)
+    setToggledGroups({})
   }
 
-  // When role changes, recalculate default open groups according to role's group count rule
-  useEffect(() => {
-    setOpenGroups(getInitialOpenGroups(currentRole, activeNav))
-  }, [currentRole])
+  const isGroupOpen = (entry: Extract<NavItem, { type: 'group' }>) => {
+    if (typeof toggledGroups[entry.id] === 'boolean') {
+      return toggledGroups[entry.id]
+    }
+    const containsActive = entry.items.some((it) => it.id === activeNav)
+    if (containsActive) return true
+    const groups = navItems.filter((it): it is Extract<NavItem, { type: 'group' }> => it.type === 'group')
+    return groups.length <= 2
+  }
 
-  // Automatically keep group open if activeNav is in that group
-  useEffect(() => {
-    navItems.forEach((entry) => {
-      if (entry.type === 'group') {
-        const containsActive = entry.items.some((it) => it.id === activeNav)
-        if (containsActive) {
-          setOpenGroups((prev) => ({ ...prev, [entry.id]: true }))
-        }
-      }
-    })
-  }, [activeNav])
+  const toggleGroup = (groupId: string) => {
+    const group = navItems.find((it): it is Extract<NavItem, { type: 'group' }> => it.type === 'group' && it.id === groupId)
+    const currentlyOpen = group ? isGroupOpen(group) : false
+    setToggledGroups((prev) => ({
+      ...prev,
+      [groupId]: !currentlyOpen,
+    }))
+  }
 
   const navRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(navRef, '.nav__link, .nav__group-header', [currentRole], { y: 6, stagger: 0.03, duration: 0.22 })
@@ -271,47 +289,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <X size={16} />
             </button>
           </div>
-
-          <div style={{ padding: '0 20px', marginTop: 14 }}>
-            <div
-              style={{
-                padding: '5px 10px',
-                borderRadius: 'var(--r-sm)',
-                background: 'var(--panel-hover)',
-                border: '1px solid var(--hair)',
-                color: 'var(--navy-900)',
-                fontSize: '11px',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: 'var(--brand-600)',
-                }}
-              />
-              {currentRole === 'sdm'
-                ? 'Direktorat SDM'
-                : currentRole === 'dosen'
-                ? 'Portal Dosen'
-                : currentRole === 'kaprodi'
-                ? 'Portal Kaprodi'
-                : 'Portal Dekan'}
-            </div>
-          </div>
         </div>
 
         {/* Scrollable Middle Body */}
         <div className="sidebar__body">
           <nav className="nav">
-            <div className="nav__label">Menu {currentRole.toUpperCase()}</div>
+            <div className="nav__label">Menu Utama</div>
             <div className="sidebar__navs" ref={navRef}>
               {navItems.map((entry) => {
                 if (entry.type === 'link') {
@@ -335,7 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 // Group with Submenu
                 const GroupIcon = entry.icon
-                const isOpenGroup = Boolean(openGroups[entry.id])
+                const isOpenGroup = isGroupOpen(entry)
                 const hasActiveChild = entry.items.some((it) => it.id === activeNav)
 
                 return (
