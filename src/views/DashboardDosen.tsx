@@ -305,46 +305,50 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
         }}
       >
         <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>
-          Tahapan Alur Pengajuan SKP Anda
+          Tahapan Alur Pengesahan &amp; Penerbitan SKP
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-          {[
-            { step: '1', title: 'Penyusunan Rencana', desc: 'Input target beban SKS', active: true, completed: skpStatus !== 'Draft' },
-            { step: '2', title: 'Pengajuan Berkas', desc: 'Kirim SKP & dokumen bukti', active: skpStatus !== 'Draft', completed: ['Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus) },
-            { step: '3', title: 'Review Ka.Prodi', desc: 'Verifikasi & TTD Ka.Prodi', active: ['Diajukan', 'Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus), completed: ['Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus) },
-            { step: '4', title: 'Pengesahan Dekan', desc: 'Validasi & TTD Dekan', active: ['Dinilai Kaprodi', 'Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus), completed: ['Dinilai Dekan', 'Disetujui SDM'].includes(skpStatus) },
-            { step: '5', title: 'Persetujuan SDM', desc: 'Pengesahan akhir universitas', active: skpStatus === 'Disetujui SDM', completed: skpStatus === 'Disetujui SDM' },
-          ].map((s, idx) => (
-            <div
-              key={idx}
-              style={{
-                padding: '12px',
-                borderRadius: 'var(--r-md)',
-                background: s.completed ? 'rgba(16, 185, 129, 0.08)' : s.active ? 'rgba(240, 117, 46, 0.08)' : 'var(--panel-hover)',
-                border: s.completed ? '1px solid rgba(16, 185, 129, 0.3)' : s.active ? '1px solid rgba(240, 117, 46, 0.3)' : '1px solid var(--hair)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: s.completed ? '#10b981' : s.active ? '#f0752e' : 'var(--border)',
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  {s.completed ? <Check size={12} /> : s.step}
-                </span>
-                <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{s.title}</span>
+          {(() => {
+            const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(skpStatus)
+            const isSubmitted = ['Diajukan', 'Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi', 'Perlu Revisi'].includes(skpStatus)
+            const steps = [
+              { step: '1', title: 'Penyusunan Rencana', desc: 'Input beban SKS Tridharma', active: true, completed: skpStatus !== 'Draft' },
+              { step: '2', title: 'Pengajuan Berkas', desc: 'Kirim SKP & tautan dokumen', active: skpStatus !== 'Draft', completed: isSubmitted && skpStatus !== 'Draft' },
+              { step: '3', title: 'Penilaian & TTD Penilai', desc: 'Verifikasi atasan (Ka.Prodi/Dekan)', active: isSubmitted, completed: isSah },
+              { step: '4', title: 'Sah & Terbit Resmi', desc: 'Dokumen terbit (Monitoring SDM)', active: isSah, completed: isSah },
+            ]
+            return steps.map((s, idx) => (
+              <div
+                key={idx}
+                style={{
+                  padding: '12px',
+                  borderRadius: 'var(--r-md)',
+                  background: s.completed ? 'rgba(16, 185, 129, 0.08)' : s.active ? 'rgba(240, 117, 46, 0.08)' : 'var(--panel-hover)',
+                  border: s.completed ? '1px solid rgba(16, 185, 129, 0.3)' : s.active ? '1px solid rgba(240, 117, 46, 0.3)' : '1px solid var(--hair)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: s.completed ? '#10b981' : s.active ? '#f0752e' : 'var(--border)',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      display: 'grid',
+                      placeItems: 'center',
+                    }}
+                  >
+                    {s.completed ? <Check size={12} /> : s.step}
+                  </span>
+                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{s.title}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: 26 }}>{s.desc}</div>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', paddingLeft: 26 }}>{s.desc}</div>
-            </div>
-          ))}
+            ))
+          })()}
         </div>
       </div>
 
@@ -357,7 +361,11 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
           </span>
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-              {skpStatus}
+              {['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(skpStatus)
+                ? 'Sah & Terbit'
+                : skpStatus === 'Perlu Revisi'
+                ? 'Perlu Revisi'
+                : skpStatus}
             </div>
             <div style={{ marginTop: 10 }}>
               <span className="kpi-badge">

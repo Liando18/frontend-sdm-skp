@@ -1,4 +1,4 @@
-import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role, ProgramStudi } from '../types'
+import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role, ProgramStudi, JabatanKampus, DriveLinkCheckResult } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
@@ -111,6 +111,21 @@ export const api = {
     delete: (id: string) => request<{ success: boolean; message: string }>(`/program-studi/${id}`, { method: 'DELETE' }),
   },
 
+  jabatan: {
+    list: async (params?: { kategori?: string; is_struktural?: boolean }): Promise<JabatanKampus[]> => {
+      const q = new URLSearchParams(params as Record<string, string>).toString()
+      const res = await request<{ success: boolean; data: JabatanKampus[] }>(`/jabatan-kampus${q ? `?${q}` : ''}`)
+      return res.data || []
+    },
+    get: async (id: string): Promise<JabatanKampus> => {
+      const res = await request<{ success: boolean; data: JabatanKampus }>(`/jabatan-kampus/${id}`)
+      return res.data
+    },
+    create: (data: Partial<JabatanKampus>) => request<{ success: boolean; data: JabatanKampus }>('/jabatan-kampus', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<JabatanKampus>) => request<{ success: boolean; data: JabatanKampus }>(`/jabatan-kampus/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<{ success: boolean; message: string }>(`/jabatan-kampus/${id}`, { method: 'DELETE' }),
+  },
+
   komponen: {
     list: (params?: { kategori?: string; target_jabatan?: string; search?: string }) => {
       const q = new URLSearchParams(params as Record<string, string>).toString()
@@ -146,6 +161,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ action, notes }),
       }),
+    checkDriveLink: (url: string) =>
+      request<DriveLinkCheckResult>('/pengajuan-skp/check-drive-link', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      }),
   },
 
   indikator: {
@@ -170,9 +190,16 @@ export const api = {
   },
 
   notifications: {
-    list: () => request<NotificationItem[]>('/notifications'),
+    list: (params?: { role?: string; nip?: string; prodi?: string; nama?: string }) => {
+      const q = params ? new URLSearchParams(params as Record<string, string>).toString() : ''
+      return request<NotificationItem[]>(`/notifications${q ? `?${q}` : ''}`)
+    },
     markAsRead: (id: string) => request<{ data: NotificationItem }>(`/notifications/${id}/read`, { method: 'PATCH' }),
-    markAllRead: () => request<{ message: string }>('/notifications/mark-all-read', { method: 'POST' }),
+    markAllRead: (ids?: string[]) =>
+      request<{ message: string }>('/notifications/mark-all-read', {
+        method: 'POST',
+        body: ids ? JSON.stringify({ ids }) : undefined,
+      }),
   },
 
   dashboard: {

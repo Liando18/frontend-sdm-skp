@@ -20,7 +20,7 @@ interface KelolaKuesionerKaprodiProps {
   onShowToast: (msg: string) => void
 }
 
-const TAHUN_AJARAN_OPTIONS = ['2025/2026', '2024/2025', '2026/2027']
+const TAHUN_AJARAN_OPTIONS = ['2026/2027', '2025/2026', '2024/2025']
 
 const BERAKHLAK_DIMENSIONS = [
   {
@@ -68,7 +68,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   onSaveKuesioner,
   onShowToast,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'evaluate'>('list')
   const [activeDosen, setActiveDosen] = useState<Dosen | null>(null)
@@ -91,12 +91,17 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
 
   const filteredDosen = prodiDosen.filter((d) => {
     if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    return d.nama.toLowerCase().includes(q) || (d.nuptk && d.nuptk.toLowerCase().includes(q)) || d.nip.toLowerCase().includes(q)
+    const q = searchQuery.trim().toLowerCase()
+    return (
+      (d.nama || '').toLowerCase().includes(q) ||
+      (d.nuptk || '').toLowerCase().includes(q) ||
+      (d.nip || '').toLowerCase().includes(q) ||
+      (d.prodi || '').toLowerCase().includes(q)
+    )
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [filteredDosen, selectedTahun, viewMode], {
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [selectedTahun, viewMode], {
     y: 8,
     stagger: 0.035,
   })
@@ -544,6 +549,8 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
                 padding: '6px 32px 6px 12px',
                 borderRadius: 'var(--r-md)',
                 background: '#ffffff',
+                border: '1px solid var(--hair-strong)',
+                boxShadow: 'var(--shadow-xs)',
               }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}

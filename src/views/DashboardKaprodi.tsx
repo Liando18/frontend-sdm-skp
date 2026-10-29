@@ -49,8 +49,14 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
 
   const filteredProdiDosen = useMemo(() => {
     return prodiDosen.filter((d) => {
-      const q = searchDosen.toLowerCase().trim()
-      return q === '' || d.nama.toLowerCase().includes(q) || (d.nuptk || '').includes(q) || d.jafung.toLowerCase().includes(q)
+      const q = (searchDosen || '').toLowerCase().trim()
+      return (
+        q === '' ||
+        (d.nama || '').toLowerCase().includes(q) ||
+        (d.nuptk || '').includes(q) ||
+        (d.nip || '').includes(q) ||
+        (d.jafung || '').toLowerCase().includes(q)
+      )
     })
   }, [prodiDosen, searchDosen])
 
@@ -64,7 +70,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
   )
   const pendingReview = prodiSKP.filter((s) => s.status === 'Diajukan').length
   const approvedReview = prodiSKP.filter(
-    (s) => s.status === 'Dinilai Kaprodi' || s.status === 'Disetujui SDM'
+    (s) => ['Disahkan', 'Terbit', 'Dinilai Kaprodi', 'Disetujui SDM'].includes(s.status)
   ).length
 
   const prodiDosenIds = prodiDosen.map((d) => d.id)
@@ -369,17 +375,22 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
                         </span>
                       </td>
                       <td>
-                        <span
-                          className={`badge-pill ${
-                            dosen.skpStatus === 'Disetujui SDM'
-                              ? 'badge-pill--green'
-                              : dosen.skpStatus === 'Dinilai Kaprodi'
-                              ? 'badge-pill--blue'
-                              : 'badge-pill--orange'
-                          }`}
-                        >
-                          {dosen.skpStatus}
-                        </span>
+                        {(() => {
+                          const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi'].includes(dosen.skpStatus)
+                          return (
+                            <span
+                              className={`badge-pill ${
+                                isSah
+                                  ? 'badge-pill--green'
+                                  : dosen.skpStatus === 'Perlu Revisi'
+                                  ? 'badge-pill--red'
+                                  : 'badge-pill--orange'
+                              }`}
+                            >
+                              {isSah ? 'Sah & Terbit' : dosen.skpStatus}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <button

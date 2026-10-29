@@ -111,6 +111,32 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Izinkan scrolling penuh pada pratinjau cetak standalone (_blank) */
+@media screen {
+  html:has(.print-standalone-wrapper),
+  body:has(.print-standalone-wrapper),
+  body.print-mode,
+  html.print-mode {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+}
+
+@media print {
+  html, body, #root {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}
+
 h1, h2, h3, h4, h5, h6, p, ul, ol, figure {
   margin: 0;
   padding: 0;
@@ -492,19 +518,51 @@ svg {
   z-index: 25;
 }
 
-.search {
+.search,
+.search-box {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--page-bg);
-  border: 1px solid var(--hair);
+  background: #ffffff;
+  border: 1px solid var(--hair-strong);
   border-radius: var(--r-md);
-  padding: 8px 14px;
+  padding: 0 12px;
+  height: 38px;
+  box-sizing: border-box;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.search:hover {
-  border-color: var(--hair-strong);
+.search:hover,
+.search-box:hover {
+  border-color: #94a3b8;
+}
+
+.search:focus-within,
+.search-box:focus-within {
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.14);
+  background: #ffffff;
+}
+
+.search input,
+.search-box input {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: 13px;
+  color: var(--ink);
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+.search input:focus,
+.search-box input:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .search__kbd {
@@ -905,8 +963,10 @@ svg {
    Table & Badges
    ========================================================================== */
 
-.table-container {
+.table-container,
+.table-responsive {
   width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: auto;
   max-height: calc(100dvh - 230px);
@@ -918,25 +978,30 @@ svg {
   box-shadow: var(--shadow-xs);
   position: relative;
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  scrollbar-color: rgba(100, 116, 139, 0.45) rgba(241, 245, 249, 0.7);
 }
 
-.table-container::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+.table-container::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar {
+  width: 6px;
+  height: 8px;
 }
 
-.table-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.table-container::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
+.table-container::-webkit-scrollbar-track,
+.table-responsive::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.7);
   border-radius: 999px;
 }
 
-.table-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.6);
+.table-container::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 999px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.75);
 }
 
 .modal-card .table-container {
@@ -1067,6 +1132,93 @@ svg {
 .custom-table--sticky-skp tr:hover td:nth-child(1),
 .custom-table--sticky-skp tr:hover td:nth-child(2) {
   background: #f8fafc;
+}
+
+/* --------------------------------------------------------------------------
+   Sticky Columns: SKP Dosen Self (Col 1: No [44px], Col 2: Kode [80px], Col 3: Rencana Kinerja [260px])
+   -------------------------------------------------------------------------- */
+.custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(1),
+.custom-table--sticky-skp-self tbody > tr > td:nth-child(1):not([colspan]) {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: center;
+  background: #ffffff;
+  border-right: 1px solid var(--hair-subtle);
+}
+
+.custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(1) {
+  z-index: 30;
+  background: #f8fafc;
+  border-right: 1px solid var(--hair);
+  box-shadow: 0 1px 0 var(--hair);
+}
+
+.custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(2),
+.custom-table--sticky-skp-self tbody > tr > td:nth-child(2) {
+  position: sticky;
+  left: 44px;
+  z-index: 10;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  text-align: center;
+  background: #ffffff;
+  border-right: 1px solid var(--hair-subtle);
+}
+
+.custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(2) {
+  z-index: 30;
+  background: #f8fafc;
+  border-right: 1px solid var(--hair);
+  box-shadow: 0 1px 0 var(--hair);
+}
+
+.custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(3),
+.custom-table--sticky-skp-self tbody > tr > td:nth-child(3) {
+  position: sticky;
+  left: 124px;
+  z-index: 10;
+  min-width: 260px;
+  max-width: 320px;
+  background: #ffffff;
+  border-right: 2px solid var(--hair-strong);
+  box-shadow: 3px 0 8px -2px rgba(15, 23, 42, 0.08);
+}
+
+.custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(3) {
+  z-index: 30;
+  background: #f8fafc;
+  border-right: 2px solid var(--hair-strong);
+  box-shadow: 3px 1px 8px -2px rgba(15, 23, 42, 0.08);
+}
+
+.custom-table--sticky-skp-self thead > tr:nth-child(2) > th {
+  top: 35px;
+  z-index: 19;
+}
+
+.custom-table--sticky-skp-self tr:hover td:nth-child(1),
+.custom-table--sticky-skp-self tr:hover td:nth-child(2),
+.custom-table--sticky-skp-self tr:hover td:nth-child(3) {
+  background: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  .custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(3),
+  .custom-table--sticky-skp-self tbody > tr > td:nth-child(3) {
+    position: static;
+    box-shadow: none;
+    border-right: 1px solid var(--hair-subtle);
+  }
+  .custom-table--sticky-skp-self thead > tr:first-child > th:nth-child(2),
+  .custom-table--sticky-skp-self tbody > tr > td:nth-child(2) {
+    border-right: 2px solid var(--hair-strong);
+    box-shadow: 3px 0 8px -2px rgba(15, 23, 42, 0.08);
+  }
 }
 
 /* --------------------------------------------------------------------------

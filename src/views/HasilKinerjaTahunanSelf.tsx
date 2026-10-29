@@ -10,6 +10,7 @@ import {
 import { PenilaianKuesioner, UserSession } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
+import { openPrintTranskrip } from '../utils/printTranskrip'
 
 interface HasilKinerjaTahunanSelfProps {
   user: UserSession
@@ -61,11 +62,11 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
   onShowToast,
 }) => {
   const availableYears = useMemo(() => {
-    const years = Array.from(new Set(penilaianList.map((p) => p.tahun).filter(Boolean)))
-    return years.length > 0 ? years : ['2025/2026']
+    const years = Array.from(new Set([...penilaianList.map((p) => p.tahun).filter(Boolean), '2026/2027', '2025/2026', '2024/2025']))
+    return years.sort().reverse()
   }, [penilaianList])
 
-  const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
   const [showCetakTranskrip, setShowCetakTranskrip] = useState(false)
 
   // Find user's annual evaluation for selected academic year
@@ -105,9 +106,18 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
 
         {myEvaluation && (
           <button
-            onClick={() => setShowCetakTranskrip(true)}
+            onClick={() => {
+              openPrintTranskrip({
+                penilaian: myEvaluation,
+                dosenNama: user.name,
+                dosenNip: user.nip || '',
+                dosenProdi: user.prodi || 'Program Studi',
+                tahunAkademik: selectedTahun,
+              })
+            }}
             className="brand-btn btn-action-print"
             style={{ padding: '9px 18px', gap: 6 }}
+            title="Cetak Transkrip Evaluasi BerAKHLAK Resmi di Tab Baru"
           >
             <Printer size={15} />
             <span>Cetak Transkrip</span>
@@ -164,6 +174,8 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
                 padding: '6px 32px 6px 12px',
                 borderRadius: 'var(--r-md)',
                 background: '#ffffff',
+                border: '1px solid var(--hair-strong)',
+                boxShadow: 'var(--shadow-xs)',
               }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}

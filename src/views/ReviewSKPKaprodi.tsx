@@ -16,6 +16,7 @@ import {
 import { PengajuanSKP, Dosen, UserSession } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
+import { openPrintSKP } from '../utils/printSKP'
 import { useStaggerEntrance } from '../utils/animations'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 
@@ -29,7 +30,7 @@ interface ReviewSKPKaprodiProps {
   onShowToast: (msg: string) => void
 }
 
-const TAHUN_OPTIONS = ['2025/2026', '2024/2025', '2026/2027']
+const TAHUN_OPTIONS = ['2026/2027', '2025/2026', '2024/2025']
 
 export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   user,
@@ -57,7 +58,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   }
 
   // Filters: Tahun Ajaran, Semester, Search
-  const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
   const [selectedSemester, setSelectedSemester] = useState<'Semua' | 'Genap' | 'Ganjil'>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -89,10 +90,11 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
     }
 
     if (searchQuery) {
-      const q = searchQuery.toLowerCase()
+      const q = searchQuery.trim().toLowerCase()
       return (
-        skp.dosenNama.toLowerCase().includes(q) ||
-        (skp.dosenNip && skp.dosenNip.toLowerCase().includes(q))
+        (skp.dosenNama || '').toLowerCase().includes(q) ||
+        (skp.dosenNip || '').toLowerCase().includes(q) ||
+        (skp.dosenProdi || '').toLowerCase().includes(q)
       )
     }
 
@@ -100,7 +102,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [filteredRows, selectedTahun, selectedSemester, viewMode], {
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode, selectedTahun, selectedSemester], {
     y: 8,
     stagger: 0.035,
   })
@@ -169,9 +171,10 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
           </div>
 
           <button
-            onClick={() => setPrintSKPTarget(activeReviewSKP)}
+            onClick={() => openPrintSKP(activeReviewSKP, activeReviewSKP.ttdDosenUrl)}
             className="brand-btn brand-btn--outline"
             style={{ padding: '10px 18px' }}
+            title="Buka Cetak SKP Formal di Tab Baru"
           >
             <Printer size={16} />
             <span>Cetak Pratinjau SKP</span>
@@ -411,16 +414,16 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               onClick={() => setConfirmApprove(true)}
             >
               <CheckCircle size={16} />
-              <span>Setujui, Tanda Tangani &amp; Ajukan ke SDM</span>
+              <span>Setujui, TTD &amp; Sahkan SKP</span>
             </button>
           </div>
         </div>
 
         <ConfirmDialog
           isOpen={confirmApprove}
-          title="Setujui &amp; Tanda Tangani SKP Dosen"
-          message={`Setujui SKP ${activeReviewSKP.dosenNama} dengan tanda tangan digital Anda dan teruskan ke Direktorat SDM untuk pengesahan akhir?`}
-          confirmText="Ya, Setujui &amp; TTD"
+          title="Sahkan &amp; Terbitkan SKP Dosen"
+          message={`Apakah Anda yakin ingin menyetujui dan menandatangani SKP atas nama ${activeReviewSKP.dosenNama}? Berkas SKP akan langsung SAH dan TERBIT secara resmi tanpa perlu menunggu validasi SDM.`}
+          confirmText="Ya, Sahkan &amp; Terbitkan SKP"
           cancelText="Batal"
           onConfirm={handleExecuteApprove}
           onCancel={() => setConfirmApprove(false)}
@@ -503,6 +506,8 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 padding: '6px 32px 6px 12px',
                 borderRadius: 'var(--r-md)',
                 background: '#ffffff',
+                border: '1px solid var(--hair-strong)',
+                boxShadow: 'var(--shadow-xs)',
               }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
@@ -609,17 +614,22 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                     </td>
                     <td>{skp.dosenJabatan || '-'} {skp.dosenPangkat ? `(${skp.dosenPangkat})` : ''}</td>
                     <td>
-                      <span
-                        className={`badge-pill ${
-                          status === 'Disetujui SDM'
-                            ? 'badge-pill--green'
-                            : status === 'Dinilai Kaprodi'
-                            ? 'badge-pill--blue'
-                            : 'badge-pill--orange'
-                        }`}
-                      >
-                        {status}
-                      </span>
+                      {(() => {
+                        const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi'].includes(status)
+                        return (
+                          <span
+                            className={`badge-pill ${
+                              isSah
+                                ? 'badge-pill--green'
+                                : status === 'Perlu Revisi'
+                                ? 'badge-pill--red'
+                                : 'badge-pill--orange'
+                            }`}
+                          >
+                            {isSah ? 'Sah & Terbit' : status}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td>
                       <span style={{ fontWeight: 700, color: 'var(--brand-700)' }}>{realisasi} SKS</span>
@@ -650,8 +660,8 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                         <button
                           className="brand-btn btn-action-print"
                           style={{ padding: '6px 10px', fontSize: '12px' }}
-                          title="Cetak Formulir SKP"
-                          onClick={() => setPrintSKPTarget(skp)}
+                          title="Cetak Formulir SKP di Tab Baru"
+                          onClick={() => openPrintSKP(skp, skp.ttdDosenUrl)}
                         >
                           <Printer size={13} />
                         </button>
@@ -670,6 +680,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
         <FormulirCetakSKP
           skp={printSKPTarget}
           isOpen={Boolean(printSKPTarget)}
+          dosenSignatureUrl={dosenList.find((d) => d.id === printSKPTarget.dosenId || (printSKPTarget.dosenNip && d.nip === printSKPTarget.dosenNip) || d.nama === printSKPTarget.dosenNama)?.signatureUrl}
           onClose={() => setPrintSKPTarget(null)}
         />
       )}

@@ -11,6 +11,7 @@ import {
   Users,
   Building2,
   User,
+  ShieldCheck,
 } from 'lucide-react'
 import { UserSession, Role, NotificationItem } from '../types'
 
@@ -24,6 +25,7 @@ interface HeaderProps {
   onSelectNav?: (navId: string) => void
   onLogout: () => void
   onMarkNotificationAsRead: (id: string) => void
+  onMarkAllNotificationsAsRead?: () => void
   onShowToast?: (msg: string) => void
 }
 
@@ -35,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectNav,
   onLogout,
   onMarkNotificationAsRead,
+  onMarkAllNotificationsAsRead,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -150,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
                 position: 'absolute',
                 top: 'calc(100% + 8px)',
                 right: 0,
-                width: 320,
+                width: 360,
                 maxWidth: 'calc(100vw - 32px)',
                 background: 'var(--panel-bg)',
                 borderRadius: 'var(--r-lg)',
@@ -165,42 +168,136 @@ export const Header: React.FC<HeaderProps> = ({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 8,
+                  marginBottom: 10,
                   paddingBottom: 8,
                   borderBottom: '1px solid var(--hair-subtle)',
                 }}
               >
-                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                  Notifikasi ({unreadCount} baru)
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-                {notifications.length === 0 ? (
-                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>
-                    Tidak ada notifikasi baru
-                  </div>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => onMarkNotificationAsRead(n.id)}
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+                    Pemberitahuan
+                  </span>
+                  {unreadCount > 0 && (
+                    <span
                       style={{
-                        padding: '9px 10px',
-                        borderRadius: 'var(--r-sm)',
-                        background: n.read ? 'transparent' : 'var(--brand-50)',
-                        border: n.read ? '1px solid transparent' : '1px solid var(--brand-100)',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s',
+                        marginLeft: 6,
+                        fontSize: '11px',
+                        padding: '2px 7px',
+                        borderRadius: '12px',
+                        background: 'rgba(15, 118, 110, 0.12)',
+                        color: 'var(--brand-700)',
+                        fontWeight: 600,
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>{n.title}</span>
-                        <span style={{ fontSize: '10.5px', color: 'var(--faint)' }}>{n.time}</span>
+                      {unreadCount} baru
+                    </span>
+                  )}
+                </div>
+                {unreadCount > 0 && onMarkAllNotificationsAsRead && (
+                  <button
+                    onClick={onMarkAllNotificationsAsRead}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--brand-700)',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '2px 4px',
+                    }}
+                  >
+                    Tandai semua dibaca
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>
+                    Tidak ada pemberitahuan baru untuk akun{' '}
+                    <strong style={{ color: 'var(--ink)' }}>
+                      {user.role === 'dosen'
+                        ? 'Dosen'
+                        : user.role === 'kaprodi'
+                        ? 'Ketua Program Studi'
+                        : user.role === 'dekan'
+                        ? 'Dekan'
+                        : 'Biro SDM'}
+                    </strong>
+                    .
+                  </div>
+                ) : (
+                  notifications.map((n) => {
+                    const handleItemClick = () => {
+                      onMarkNotificationAsRead(n.id)
+                      setShowNotifications(false)
+                      if (!onSelectNav) return
+                      if (n.tag?.includes('SKP') || n.tag?.includes('Revisi')) {
+                        if (user.role === 'dosen') onSelectNav('kelola-skp-dosen')
+                        else if (user.role === 'kaprodi') onSelectNav('review-skp')
+                        else if (user.role === 'dekan') onSelectNav('review-skp-dekan')
+                        else onSelectNav('kelola-skp-dosen')
+                      } else if (n.tag?.includes('Kuesioner')) {
+                        if (user.role === 'dosen') onSelectNav('hasil-kinerja-tahunan')
+                        else if (user.role === 'kaprodi') onSelectNav('kelola-kuesioner-kaprodi')
+                        else if (user.role === 'dekan') onSelectNav('cek-hasil-kuesioner-dekan')
+                        else onSelectNav('kelola-penilaian-kuesioner')
+                      } else if (n.tag?.includes('Dosen')) {
+                        if (user.role === 'sdm') onSelectNav('kelola-dosen')
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={handleItemClick}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 'var(--r-sm)',
+                          background: n.read ? 'transparent' : 'rgba(15, 118, 110, 0.05)',
+                          border: n.read ? '1px solid transparent' : '1px solid rgba(15, 118, 110, 0.18)',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s, border-color 0.15s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {n.title}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {n.tag && (
+                              <span
+                                style={{
+                                  fontSize: '9.5px',
+                                  padding: '1.5px 5.5px',
+                                  borderRadius: '4px',
+                                  fontWeight: 600,
+                                  background:
+                                    n.type === 'warning'
+                                      ? '#FEF3C7'
+                                      : n.type === 'success'
+                                      ? '#DCFCE7'
+                                      : '#E0F2FE',
+                                  color:
+                                    n.type === 'warning'
+                                      ? '#B45309'
+                                      : n.type === 'success'
+                                      ? '#15803D'
+                                      : '#0369A1',
+                                }}
+                              >
+                                {n.tag}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '10px', color: 'var(--faint)' }}>{n.time}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--muted)', lineHeight: 1.45 }}>
+                          {n.desc || n.message}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>{n.desc || n.message}</div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>
@@ -273,7 +370,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div style={{ fontSize: '11px', color: 'var(--brand-700)', fontWeight: 600, marginTop: 2 }}>{user.rank}</div>
               </div>
 
-              {/* Tautan Profil & Ganti Sandi */}
+              {/* Tautan Profil & Keamanan */}
               <div style={{ padding: '4px 0', borderBottom: '1px solid var(--hair-subtle)' }}>
                 <button
                   onClick={() => {
@@ -291,12 +388,35 @@ export const Header: React.FC<HeaderProps> = ({
                     cursor: 'pointer',
                     fontSize: '12px',
                     borderRadius: 'var(--r-sm)',
-                    color: 'var(--brand-700)',
+                    color: 'var(--ink)',
                     fontWeight: 600,
                   }}
                 >
-                  <User size={14} />
-                  <span>Profil Saya & Ganti Sandi</span>
+                  <User size={14} color="var(--brand-600)" />
+                  <span>Profil Saya</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false)
+                    if (onSelectNav) onSelectNav('keamanan')
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    borderRadius: 'var(--r-sm)',
+                    color: 'var(--ink)',
+                    fontWeight: 600,
+                  }}
+                >
+                  <ShieldCheck size={14} color="var(--brand-600)" />
+                  <span>Keamanan Akun</span>
                 </button>
               </div>
 

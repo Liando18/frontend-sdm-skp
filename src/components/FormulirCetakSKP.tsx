@@ -10,16 +10,23 @@ interface FormulirCetakSKPProps {
   skp: PengajuanSKP
   isOpen: boolean
   onClose: () => void
+  dosenSignatureUrl?: string
 }
 
 export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
   skp,
   isOpen,
   onClose,
+  dosenSignatureUrl,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
+
+  const activeDosenSignature =
+    skp.ttdDosenUrl && !skp.ttdDosenUrl.startsWith('data:image/svg')
+      ? skp.ttdDosenUrl
+      : dosenSignatureUrl || skp.ttdDosenUrl
 
   useGSAP(
     () => {
@@ -448,9 +455,9 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                       justifyContent: 'center',
                     }}
                   >
-                    {skp.ttdDosenUrl ? (
+                    {activeDosenSignature ? (
                       <img
-                        src={resolveStorageUrl(skp.ttdDosenUrl)}
+                        src={resolveStorageUrl(activeDosenSignature)}
                         alt="Tanda Tangan Dosen"
                         onError={(e) => {
                           const target = e.currentTarget
@@ -695,9 +702,9 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                       justifyContent: 'center',
                     }}
                   >
-                    {skp.ttdDosenUrl ? (
+                    {activeDosenSignature ? (
                       <img
-                        src={resolveStorageUrl(skp.ttdDosenUrl)}
+                        src={resolveStorageUrl(activeDosenSignature)}
                         alt="Tanda Tangan Dosen"
                         onError={(e) => {
                           const target = e.currentTarget

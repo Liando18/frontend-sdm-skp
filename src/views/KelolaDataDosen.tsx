@@ -14,8 +14,9 @@ import {
   X,
   Check,
   Sparkles,
+  Loader2,
 } from 'lucide-react'
-import { Dosen } from '../types'
+import { Dosen, JabatanKampus, Role } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
 import { generateEntityId } from '../utils/security'
@@ -24,24 +25,32 @@ import { TablePagination } from '../components/TablePagination'
 interface KelolaDataDosenProps {
   dosenList: Dosen[]
   prodiList?: string[]
-  onAddDosen: (dosen: Dosen) => void
-  onUpdateDosen: (dosen: Dosen) => void
-  onDeleteDosen: (id: string) => void
+  jabatanList?: JabatanKampus[]
+  onAddDosen: (dosen: Dosen) => Promise<any> | void
+  onUpdateDosen: (dosen: Dosen) => Promise<any> | void
+  onDeleteDosen: (id: string) => Promise<any> | void
   onAddProdi?: (name: string) => Promise<void> | void
   onUpdateProdi?: (oldName: string, newName: string) => Promise<void> | void
   onDeleteProdi?: (name: string) => Promise<void> | void
+  onAddJabatan?: (data: Partial<JabatanKampus>) => Promise<void> | void
+  onUpdateJabatan?: (id: string, data: Partial<JabatanKampus>) => Promise<void> | void
+  onDeleteJabatan?: (id: string) => Promise<void> | void
   onShowToast: (msg: string) => void
 }
 
 export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   dosenList,
   prodiList: prodiListProp,
+  jabatanList: jabatanListProp,
   onAddDosen,
   onUpdateDosen,
   onDeleteDosen,
   onAddProdi,
   onUpdateProdi,
   onDeleteProdi,
+  onAddJabatan,
+  onUpdateJabatan,
+  onDeleteJabatan,
   onShowToast,
 }) => {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
@@ -49,6 +58,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit' | 'detail'>(initialMode)
   const [selectedDosen, setSelectedDosen] = useState<Dosen | null>(null)
   const [deleteConfirmDosen, setDeleteConfirmDosen] = useState<Dosen | null>(null)
+  const [isSavingDosen, setIsSavingDosen] = useState(false)
 
   // Derive prodi list dynamically from database / props
   const [customAddedProdis, setCustomAddedProdis] = useState<string[]>([])
@@ -59,6 +69,95 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [newProdiInput, setNewProdiInput] = useState('')
   const [editingProdiIdx, setEditingProdiIdx] = useState<number | null>(null)
   const [editingProdiValue, setEditingProdiValue] = useState('')
+
+  // Derive jabatan kampus list dynamically from database / props
+  const defaultJabatanList: JabatanKampus[] = [
+    { id: 'jab-dosen', kode: 'DOSEN', nama: 'Dosen', kategori: 'Fungsional', level: 10, is_struktural: false },
+    { id: 'jab-rektor', kode: 'REKTOR', nama: 'Rektor', kategori: 'Pimpinan', level: 1, is_struktural: true },
+    { id: 'jab-warek1', kode: 'WAREK_1', nama: 'Wakil Rektor I (Bidang Akademik)', kategori: 'Pimpinan', level: 2, is_struktural: true },
+    { id: 'jab-warek2', kode: 'WAREK_2', nama: 'Wakil Rektor II (Bidang Non-Akademik)', kategori: 'Pimpinan', level: 2, is_struktural: true },
+    { id: 'jab-dekan', kode: 'DEKAN', nama: 'Dekan Fakultas', kategori: 'Struktural', level: 3, is_struktural: true },
+    { id: 'jab-kaprodi', kode: 'KAPRODI', nama: 'Ketua Program Studi (Kaprodi)', kategori: 'Struktural', level: 4, is_struktural: true },
+    { id: 'jab-sekprodi', kode: 'SEKPRODI', nama: 'Sekretaris Program Studi', kategori: 'Struktural', level: 5, is_struktural: true },
+  ]
+  const jabatanList = jabatanListProp && jabatanListProp.length > 0 ? jabatanListProp : defaultJabatanList
+  const [isManageJabatanOpen, setIsManageJabatanOpen] = useState(false)
+  const [newJabatanNama, setNewJabatanNama] = useState('')
+  const [newJabatanKode, setNewJabatanKode] = useState('')
+  const [newJabatanKategori, setNewJabatanKategori] = useState<'Pimpinan' | 'Struktural' | 'Fungsional' | 'Tenaga Kependidikan' | 'Lainnya'>('Struktural')
+  const [newJabatanRoleAkses, setNewJabatanRoleAkses] = useState<Role>('dosen')
+  const [editingJabatanId, setEditingJabatanId] = useState<string | null>(null)
+  const [editingJabatanNama, setEditingJabatanNama] = useState('')
+  const [editingJabatanRoleAkses, setEditingJabatanRoleAkses] = useState<Role>('dosen')
+  const [jabatanSearchQuery, setJabatanSearchQuery] = useState('')
+
+  const filteredJabatanList = useMemo(() => {
+    const q = (jabatanSearchQuery || '').trim().toLowerCase()
+    if (!q) return jabatanList
+    return jabatanList.filter(
+      (j) =>
+        (j.nama || '').toLowerCase().includes(q) ||
+        (j.kode || '').toLowerCase().includes(q) ||
+        (j.kategori || '').toLowerCase().includes(q) ||
+        (j.role_akses || j.default_role || '').toLowerCase().includes(q)
+    )
+  }, [jabatanList, jabatanSearchQuery])
+
+  const handleAddJabatanAction = async () => {
+    const val = newJabatanNama.trim()
+    if (!val) {
+      onShowToast('Nama jabatan kampus tidak boleh kosong!')
+      return
+    }
+    const kode = (newJabatanKode.trim() || val.toUpperCase().replace(/[^A-Z0-9]/g, '_')).slice(0, 30)
+    if (onAddJabatan) {
+      await onAddJabatan({
+        nama: val,
+        kode: kode,
+        kategori: newJabatanKategori,
+        is_struktural: newJabatanKategori !== 'Fungsional',
+        role_akses: newJabatanRoleAkses,
+      })
+    }
+    setFormData((prev) => ({
+      ...prev,
+      jabatanStruktural: val,
+      roleLogin: newJabatanRoleAkses,
+    }))
+    setNewJabatanNama('')
+    setNewJabatanKode('')
+    setNewJabatanRoleAkses('dosen')
+    onShowToast(`Jabatan kampus "${val}" dengan role "${newJabatanRoleAkses.toUpperCase()}" berhasil ditambahkan!`)
+  }
+
+  const handleSaveEditJabatanAction = async (id: string) => {
+    const val = editingJabatanNama.trim()
+    if (!val) return
+    if (onUpdateJabatan) {
+      await onUpdateJabatan(id, { nama: val, role_akses: editingJabatanRoleAkses })
+    }
+    if (formData.jabatanKampusId === id) {
+      setFormData((prev) => ({
+        ...prev,
+        jabatanStruktural: val,
+        roleLogin: editingJabatanRoleAkses,
+      }))
+    }
+    setEditingJabatanId(null)
+    setEditingJabatanNama('')
+    onShowToast('Data jabatan kampus dan role akses berhasil diperbarui!')
+  }
+
+  const handleDeleteJabatanAction = async (item: JabatanKampus) => {
+    if (item.kode === 'DOSEN' || item.id === 'jab-dosen' || item.nama.toLowerCase() === 'dosen') {
+      onShowToast('Jabatan default "Dosen" dilindungi dan tidak boleh dihapus!')
+      return
+    }
+    if (onDeleteJabatan) {
+      await onDeleteJabatan(item.id)
+      onShowToast(`Jabatan "${item.nama}" berhasil dihapus.`)
+    }
+  }
 
   const handleAddProdi = async () => {
     const val = newProdiInput.trim()
@@ -128,6 +227,9 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     nip: '',
     nuptk: '',
     prodi: defaultProdi,
+    jabatanStruktural: 'Dosen',
+    jabatanKampusId: 'jab-dosen',
+    roleLogin: 'dosen' as Role,
     jafung: 'Asisten Ahli',
     golongan: 'Penata Muda Tk I / IIIb',
     pendidikanS1: '',
@@ -141,11 +243,14 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   })
 
   const filteredDosen = dosenList.filter((d) => {
-    const q = searchQuery.toLowerCase()
+    const q = (searchQuery || '').trim().toLowerCase()
     const matchSearch =
-      d.nama.toLowerCase().includes(q) ||
-      d.nip.toLowerCase().includes(q) ||
-      (d.nuptk && d.nuptk.toLowerCase().includes(q))
+      !q ||
+      (d.nama || '').toLowerCase().includes(q) ||
+      (d.nip || '').toLowerCase().includes(q) ||
+      (d.nuptk || '').toLowerCase().includes(q) ||
+      (d.email || '').toLowerCase().includes(q) ||
+      (d.prodi || '').toLowerCase().includes(q)
     const matchProdi = selectedProdi === 'Semua Program Studi' || d.prodi === selectedProdi
     const matchStatus = selectedStatus === 'Semua Status' || d.status === selectedStatus
     return matchSearch && matchProdi && matchStatus
@@ -164,11 +269,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode], { y: 8, stagger: 0.035 })
 
   const handleOpenCreate = () => {
+    const defaultJab = jabatanList.find((j) => j.kode === 'DOSEN' || j.nama.toLowerCase() === 'dosen')
     setFormData({
       nama: '',
       nip: '',
       nuptk: '',
       prodi: defaultProdi,
+      jabatanStruktural: defaultJab?.nama || 'Dosen',
+      jabatanKampusId: defaultJab?.id || 'jab-dosen',
+      roleLogin: (defaultJab?.role_akses || defaultJab?.default_role || 'dosen') as Role,
       jafung: 'Asisten Ahli',
       golongan: 'Penata Muda Tk I / IIIb',
       pendidikanS1: '',
@@ -185,11 +294,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
   const handleAutoFillDummyDosen = () => {
     const randomNipSuffix = Math.floor(1000 + Math.random() * 9000)
+    const kaprodiJab = jabatanList.find((j) => j.kode === 'KAPRODI' || j.nama.toLowerCase().includes('kaprodi'))
     setFormData({
       nama: 'Dr. apt. Farhan Prasetyo, M.Farm.',
       nip: `19850720201201${randomNipSuffix}`,
       nuptk: `987654321098${randomNipSuffix}`,
       prodi: prodiList[0] || 'S1 Keperawatan',
+      jabatanStruktural: kaprodiJab?.nama || 'Ketua Program Studi (Kaprodi)',
+      jabatanKampusId: kaprodiJab?.id || 'jab-kaprodi',
+      roleLogin: 'kaprodi',
       jafung: 'Lektor',
       golongan: 'Penata / III-c',
       pendidikanS1: 'S1 Farmasi - ITB (2007)',
@@ -206,11 +319,21 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
   const handleOpenEdit = (dosen: Dosen) => {
     setSelectedDosen(dosen)
+    const currentJabName = dosen.jabatanStruktural || 'Dosen'
+    const matchedJab = jabatanList.find((j) => j.id === dosen.jabatanKampusId || j.nama.toLowerCase() === currentJabName.toLowerCase())
+    let derivedRole: Role = (matchedJab?.role_akses || matchedJab?.default_role || 'dosen') as Role
+    if (dosen.isKaprodi) derivedRole = 'kaprodi'
+    else if (dosen.isDekan) derivedRole = 'dekan'
+    else if (currentJabName.toLowerCase().includes('sdm')) derivedRole = 'sdm'
+
     setFormData({
       nama: dosen.nama,
       nip: dosen.nip,
       nuptk: dosen.nuptk || '',
       prodi: dosen.prodi,
+      jabatanStruktural: currentJabName,
+      jabatanKampusId: matchedJab?.id || dosen.jabatanKampusId || 'jab-dosen',
+      roleLogin: derivedRole,
       jafung: dosen.jafung,
       golongan: dosen.golongan,
       pendidikanS1: dosen.pendidikanS1 || dosen.pendidikan || '',
@@ -230,7 +353,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     setViewMode('detail')
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const degreeParts = [
@@ -241,57 +364,73 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     ].filter(Boolean)
     const combinedPendidikan = degreeParts.length > 0 ? degreeParts.join(' • ') : formData.pendidikanS1
 
-    if (viewMode === 'edit' && selectedDosen) {
-      const updated: Dosen = {
-        ...selectedDosen,
-        nama: formData.nama,
-        nip: formData.nip,
-        nuptk: formData.nuptk,
-        prodi: formData.prodi,
-        jafung: formData.jafung,
-        golongan: formData.golongan,
-        pendidikanS1: formData.pendidikanS1,
-        pendidikanS2: formData.pendidikanS2,
-        pendidikanS3: formData.pendidikanS3,
-        pendidikanProfesi: formData.pendidikanProfesi,
-        pendidikan: combinedPendidikan,
-        status: formData.status,
-        email: formData.email,
-        phone: formData.phone,
+    setIsSavingDosen(true)
+    try {
+      if (viewMode === 'edit' && selectedDosen) {
+        const updated: Dosen = {
+          ...selectedDosen,
+          nama: formData.nama,
+          nip: formData.nip,
+          nuptk: formData.nuptk,
+          prodi: formData.prodi,
+          jabatanStruktural: formData.jabatanStruktural || 'Dosen',
+          jabatanKampusId: formData.jabatanKampusId,
+          isKaprodi: formData.roleLogin === 'kaprodi',
+          isDekan: formData.roleLogin === 'dekan',
+          jafung: formData.jafung,
+          golongan: formData.golongan,
+          pendidikanS1: formData.pendidikanS1,
+          pendidikanS2: formData.pendidikanS2,
+          pendidikanS3: formData.pendidikanS3,
+          pendidikanProfesi: formData.pendidikanProfesi,
+          pendidikan: combinedPendidikan,
+          status: formData.status,
+          email: formData.email,
+          phone: formData.phone,
+        }
+        await onUpdateDosen({ ...updated, role: formData.roleLogin, roleLogin: formData.roleLogin } as any)
+      } else {
+        const newDosen: Dosen = {
+          id: generateEntityId('dosen'),
+          nip: formData.nip || '0000000000000000',
+          nuptk: formData.nuptk || '',
+          nama: formData.nama,
+          prodi: formData.prodi,
+          jabatanStruktural: formData.jabatanStruktural || 'Dosen',
+          jabatanKampusId: formData.jabatanKampusId,
+          isKaprodi: formData.roleLogin === 'kaprodi',
+          isDekan: formData.roleLogin === 'dekan',
+          jafung: formData.jafung,
+          golongan: formData.golongan,
+          pendidikanS1: formData.pendidikanS1,
+          pendidikanS2: formData.pendidikanS2,
+          pendidikanS3: formData.pendidikanS3,
+          pendidikanProfesi: formData.pendidikanProfesi,
+          pendidikan: combinedPendidikan,
+          status: formData.status,
+          skpStatus: 'Draft',
+          nilaiAkhir: 0,
+          email: formData.email || `${formData.nama.toLowerCase().replace(/[^a-z]/g, '')}@bku.ac.id`,
+          phone: formData.phone || '',
+        }
+        await onAddDosen({ ...newDosen, role: formData.roleLogin, roleLogin: formData.roleLogin } as any)
       }
-      onUpdateDosen(updated)
-      onShowToast(`Data dosen ${formData.nama} berhasil diperbarui!`)
-    } else {
-      const newDosen: Dosen = {
-        id: generateEntityId('dosen'),
-        nip: formData.nip || '0000000000000000',
-        nuptk: formData.nuptk || '',
-        nama: formData.nama,
-        prodi: formData.prodi,
-        jafung: formData.jafung,
-        golongan: formData.golongan,
-        pendidikanS1: formData.pendidikanS1,
-        pendidikanS2: formData.pendidikanS2,
-        pendidikanS3: formData.pendidikanS3,
-        pendidikanProfesi: formData.pendidikanProfesi,
-        pendidikan: combinedPendidikan,
-        status: formData.status,
-        skpStatus: 'Draft',
-        nilaiAkhir: 0,
-        email: formData.email || `${formData.nama.toLowerCase().replace(/[^a-z]/g, '')}@bku.ac.id`,
-        phone: formData.phone || '',
-      }
-      onAddDosen(newDosen)
-      onShowToast(`Dosen baru ${formData.nama} berhasil ditambahkan!`)
+      setViewMode('list')
+    } catch (err: unknown) {
+      console.error('Gagal menyimpan dosen ke basis data:', err)
+    } finally {
+      setIsSavingDosen(false)
     }
-    setViewMode('list')
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (deleteConfirmDosen) {
-      onDeleteDosen(deleteConfirmDosen.id)
-      onShowToast(`Data dosen ${deleteConfirmDosen.nama} telah dihapus.`)
-      setDeleteConfirmDosen(null)
+      try {
+        await onDeleteDosen(deleteConfirmDosen.id)
+        setDeleteConfirmDosen(null)
+      } catch (err: unknown) {
+        console.error('Gagal menghapus dosen:', err)
+      }
     }
   }
 
@@ -301,7 +440,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       'Nama Dosen',
       'NUPTK',
       'Prodi',
-      'Jafung',
+      'Jabatan Fungsional',
+      'Jabatan Kampus',
       'Golongan',
       'Pendidikan',
       'Status Kepegawaian',
@@ -315,6 +455,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       `"${d.nuptk || ''}"`,
       `"${d.prodi || ''}"`,
       `"${d.jafung || ''}"`,
+      `"${d.jabatanStruktural || 'Dosen'}"`,
       `"${d.golongan || ''}"`,
       `"${d.pendidikan || ''}"`,
       `"${d.status || ''}"`,
@@ -532,6 +673,355 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     )
   }
 
+  const renderManageJabatanModal = () => {
+    if (!isManageJabatanOpen) return null
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 1000,
+          display: 'grid',
+          placeItems: 'center',
+          padding: '16px',
+        }}
+      >
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 'var(--r-xl)',
+            boxShadow: 'var(--shadow-xl)',
+            width: '100%',
+            maxWidth: 620,
+            maxHeight: '92vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--hair)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--panel-hover)',
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
+                Kelola Master Jabatan Kampus &amp; Role Login
+              </h3>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
+                Atur jabatan struktural/fungsional beserta akses role login otomatisnya di portal.
+              </div>
+            </div>
+            <button
+              onClick={() => setIsManageJabatanOpen(false)}
+              className="icon-btn"
+              style={{ width: 30, height: 30 }}
+              aria-label="Tutup modal"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Add Input */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--hair)', background: '#fafbfc' }}>
+            <label className="form-label" style={{ fontSize: '12px', fontWeight: 700, marginBottom: 8, display: 'block' }}>
+              Tambah Jabatan &amp; Role Baru
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  className="custom-input"
+                  placeholder="Nama jabatan (misal: Rektor, Dekan, Ka.Bagian...)"
+                  value={newJabatanNama}
+                  onChange={(e) => setNewJabatanNama(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddJabatanAction()
+                    }
+                  }}
+                  style={{ height: 36, fontSize: '13px', flex: '2 1 200px' }}
+                />
+                <select
+                  className="custom-select"
+                  value={newJabatanKategori}
+                  onChange={(e) => setNewJabatanKategori(e.target.value as any)}
+                  style={{ height: 36, fontSize: '12.5px', flex: '1 1 140px' }}
+                >
+                  <option value="Struktural">Struktural</option>
+                  <option value="Pimpinan">Pimpinan</option>
+                  <option value="Fungsional">Fungsional</option>
+                  <option value="Tenaga Kependidikan">Tenaga Kependidikan</option>
+                  <option value="Lainnya">Lainnya</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ flex: '2 1 200px' }}>
+                  <select
+                    className="custom-select"
+                    value={newJabatanRoleAkses}
+                    onChange={(e) => setNewJabatanRoleAkses(e.target.value as Role)}
+                    style={{ height: 36, fontSize: '12.5px', width: '100%', borderColor: newJabatanRoleAkses !== 'dosen' ? 'var(--brand)' : undefined }}
+                  >
+                    <option value="dosen">Role Login: Dosen (Default - Rektor / Wadek / Dosen Tetap)</option>
+                    <option value="kaprodi">Role Login: Ketua Program Studi (Ka.Prodi)</option>
+                    <option value="dekan">Role Login: Dekan Fakultas</option>
+                    <option value="sdm">Role Login: Bagian SDM (Kepegawaian)</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddJabatanAction}
+                  className="brand-btn btn-action-add"
+                  style={{ padding: '6px 16px', height: 36, flex: '1 1 auto', justifyContent: 'center' }}
+                >
+                  <Plus size={14} />
+                  <span>Tambah Jabatan</span>
+                </button>
+              </div>
+
+              <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4 }}>
+                ℹ️ <strong>Ketentuan Role:</strong> Bagian SDM &rarr; role <code>SDM</code>, Ka.Prodi &rarr; role <code>Ka.Prodi</code>, Dekan &rarr; role <code>Dekan</code>, sisanya (Rektor, Wakil Dekan, Dosen) login sebagai role <code>Dosen</code>.
+              </div>
+            </div>
+          </div>
+
+          {/* Search Bar inside Modal */}
+          <div style={{ padding: '12px 20px 8px 20px', borderBottom: '1px solid var(--hair)' }}>
+            <div style={{ position: 'relative' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--muted)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Cari nama jabatan, kategori, atau role login (sdm, kaprodi, dekan, dosen)..."
+                value={jabatanSearchQuery}
+                onChange={(e) => setJabatanSearchQuery(e.target.value)}
+                style={{ height: 34, paddingLeft: 32, fontSize: '12.5px' }}
+              />
+              {jabatanSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setJabatanSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--muted)',
+                    padding: 4,
+                  }}
+                  title="Hapus pencarian"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Jabatan List */}
+          <div style={{ padding: '12px 20px', overflowY: 'auto', flex: 1, maxHeight: 340 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+              <span>Daftar Jabatan Kampus ({filteredJabatanList.length} dari {jabatanList.length})</span>
+              {jabatanSearchQuery && <span>Filter aktif</span>}
+            </div>
+            {filteredJabatanList.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '12.5px' }}>
+                Tidak ada data jabatan yang cocok dengan pencarian "{jabatanSearchQuery}".
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filteredJabatanList.map((item) => {
+                  const roleKey = item.role_akses || item.default_role || 'dosen'
+                  const roleBadgeConfig = {
+                    sdm: { bg: '#f5f3ff', border: '#ddd6fe', color: '#7c3aed', label: 'SDM' },
+                    kaprodi: { bg: '#fef3c7', border: '#fde68a', color: '#b45309', label: 'Ka.Prodi' },
+                    dekan: { bg: '#eff6ff', border: '#bfdbfe', color: '#1d4ed8', label: 'Dekan' },
+                    dosen: { bg: '#f1f5f9', border: '#cbd5e1', color: '#475569', label: 'Dosen' },
+                  }[roleKey] || { bg: '#f1f5f9', border: '#cbd5e1', color: '#475569', label: 'Dosen' }
+
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: 'var(--r-md)',
+                        background: 'var(--panel-hover)',
+                        border: '1px solid var(--hair)',
+                        gap: 8,
+                      }}
+                    >
+                      {editingJabatanId === item.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            className="custom-input"
+                            value={editingJabatanNama}
+                            onChange={(e) => setEditingJabatanNama(e.target.value)}
+                            style={{ height: 32, fontSize: '12.5px', flex: '2 1 180px' }}
+                            placeholder="Nama jabatan..."
+                            autoFocus
+                          />
+                          <select
+                            className="custom-select"
+                            value={editingJabatanRoleAkses}
+                            onChange={(e) => setEditingJabatanRoleAkses(e.target.value as Role)}
+                            style={{ height: 32, fontSize: '12px', flex: '1 1 140px' }}
+                          >
+                            <option value="dosen">Role: Dosen</option>
+                            <option value="kaprodi">Role: Ka.Prodi</option>
+                            <option value="dekan">Role: Dekan</option>
+                            <option value="sdm">Role: SDM</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEditJabatanAction(item.id)}
+                            className="brand-btn btn-action-edit"
+                            style={{ padding: '4px 10px', height: 32, fontSize: '11px' }}
+                            title="Simpan Perubahan"
+                          >
+                            <Check size={13} />
+                            <span>Simpan</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingJabatanId(null)
+                              setEditingJabatanNama('')
+                            }}
+                            className="brand-btn brand-btn--outline"
+                            style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
+                            title="Batal"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                background: item.is_struktural ? '#eff6ff' : '#f1f5f9',
+                                color: item.is_struktural ? '#1d4ed8' : '#475569',
+                                border: item.is_struktural ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {item.kategori || (item.is_struktural ? 'Struktural' : 'Fungsional')}
+                            </span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                              {item.nama}
+                            </span>
+                            <span
+                              style={{
+                                padding: '2px 7px',
+                                borderRadius: '12px',
+                                background: roleBadgeConfig.bg,
+                                color: roleBadgeConfig.color,
+                                border: `1px solid ${roleBadgeConfig.border}`,
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}
+                              title={`Akun pejabat ini otomatis mendapatkan role login ${roleBadgeConfig.label}`}
+                            >
+                              🔑 Role: {roleBadgeConfig.label}
+                            </span>
+                            {(item.kode === 'DOSEN' || item.id === 'jab-dosen') && (
+                              <span style={{ fontSize: '10px', color: 'var(--muted)', background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px' }}>
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingJabatanId(item.id)
+                                setEditingJabatanNama(item.nama)
+                                setEditingJabatanRoleAkses(item.role_akses || item.default_role || 'dosen')
+                              }}
+                              className="btn-table-action btn-table-action--edit"
+                              title="Edit Jabatan & Role"
+                              aria-label={`Edit ${item.nama}`}
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            {item.kode !== 'DOSEN' && item.id !== 'jab-dosen' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteJabatanAction(item)}
+                                className="btn-table-action btn-table-action--delete"
+                                title="Hapus Jabatan"
+                                aria-label={`Hapus ${item.nama}`}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '12px 20px',
+              borderTop: '1px solid var(--hair)',
+              background: 'var(--panel-hover)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsManageJabatanOpen(false)}
+              className="brand-btn brand-btn--outline"
+              style={{ padding: '6px 16px', fontSize: '12.5px' }}
+            >
+              Selesai
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (viewMode === 'create' || viewMode === 'edit') {
     return (
       <div className="page-container" ref={containerRef}>
@@ -662,6 +1152,77 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 </select>
                 <span className="form-help">
                   Status ikatan kerja dosen di lingkungan yayasan / institusi.
+                </span>
+              </div>
+            </div>
+
+            <div className="form-grid-2" style={{ marginTop: 14 }}>
+              <div className="form-field">
+                <div className="form-field-label-row">
+                  <label className="form-label">Jabatan Kampus / Tugas Tambahan *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsManageJabatanOpen(true)}
+                    className="btn-manage-pill"
+                    title="Kelola Opsi Jabatan Kampus"
+                  >
+                    <Settings size={12} />
+                    <span>Kelola Jabatan</span>
+                  </button>
+                </div>
+                <select
+                  className="custom-select"
+                  value={formData.jabatanStruktural}
+                  onChange={(e) => {
+                    const sel = jabatanList.find((j) => j.nama === e.target.value)
+                    let autoRole: Role = (sel?.role_akses || sel?.default_role || 'dosen') as Role
+                    if (!sel?.role_akses && !sel?.default_role) {
+                      const lower = e.target.value.toLowerCase()
+                      if (lower.includes('sdm')) autoRole = 'sdm'
+                      else if (lower.includes('kaprodi') || lower.includes('ketua program studi') || lower.includes('ka prodi') || lower.includes('ka.prodi')) autoRole = 'kaprodi'
+                      else if (lower.includes('dekan') && !lower.includes('wakil')) autoRole = 'dekan'
+                      else autoRole = 'dosen'
+                    }
+                    setFormData({
+                      ...formData,
+                      jabatanStruktural: e.target.value,
+                      jabatanKampusId: sel?.id || '',
+                      roleLogin: autoRole,
+                    })
+                  }}
+                >
+                  {jabatanList.map((j) => (
+                    <option key={j.id} value={j.nama}>
+                      {j.nama} {j.kategori ? `(${j.kategori})` : ''} - [Role: {(j.role_akses || j.default_role || 'dosen').toUpperCase()}]
+                    </option>
+                  ))}
+                  {!jabatanList.some((j) => j.nama === formData.jabatanStruktural) && (
+                    <option value={formData.jabatanStruktural}>{formData.jabatanStruktural}</option>
+                  )}
+                </select>
+                <span className="form-help">
+                  Pilih "Dosen" apabila pengajar tidak memegang tugas pimpinan/struktural tambahan di kampus.
+                </span>
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">Role Akses Login Portal *</label>
+                <select
+                  className="custom-select"
+                  value={formData.roleLogin}
+                  onChange={(e) => setFormData({ ...formData, roleLogin: e.target.value as Role })}
+                  style={{
+                    borderColor: formData.roleLogin !== 'dosen' ? 'var(--brand)' : undefined,
+                    fontWeight: 600,
+                  }}
+                >
+                  <option value="dosen">Dosen (Akses Portal Dosen - Default)</option>
+                  <option value="kaprodi">Ketua Program Studi (Ka.Prodi - Review SKP Prodi)</option>
+                  <option value="dekan">Dekan (Pengesahan SKP Fakultas)</option>
+                  <option value="sdm">Bagian SDM (Akses Master Data SDM)</option>
+                </select>
+                <span className="form-help">
+                  Sesuai ketentuan: SDM &rarr; SDM, Ka.Prodi &rarr; Ka.Prodi, Dekan &rarr; Dekan, lainnya (Rektor/Wadek/Dosen) &rarr; Dosen.
                 </span>
               </div>
             </div>
@@ -801,17 +1362,26 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <button
               type="button"
               className="brand-btn brand-btn--outline"
+              disabled={isSavingDosen}
               onClick={() => setViewMode('list')}
             >
               Batal
             </button>
-            <button type="submit" className="brand-btn btn-action-add">
-              <span>{viewMode === 'create' ? 'Simpan Data Dosen' : 'Perbarui Data Dosen'}</span>
+            <button type="submit" className="brand-btn btn-action-add" disabled={isSavingDosen}>
+              {isSavingDosen ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Menyimpan ke Database...</span>
+                </>
+              ) : (
+                <span>{viewMode === 'create' ? 'Simpan Data Dosen' : 'Perbarui Data Dosen'}</span>
+              )}
             </button>
           </div>
         </form>
 
         {renderManageProdiModal()}
+        {renderManageJabatanModal()}
       </div>
     )
   }
@@ -864,16 +1434,23 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 {selectedDosen.nama}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: 3 }}>
-                NIP: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.nip}</strong> &bull; NUPTK: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.nuptk || '-'}</strong> &bull; Homebase: {selectedDosen.prodi}
+                NIP: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.nip}</strong> &bull; NUPTK: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.nuptk || '-'}</strong> &bull; Homebase: {selectedDosen.prodi} &bull; Jabatan Kampus: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.jabatanStruktural || 'Dosen'}</strong>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jabatan Fungsional</div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 4 }}>
                 {selectedDosen.jafung}
+              </div>
+            </div>
+
+            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jabatan Kampus / Tugas Tambahan</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: selectedDosen.jabatanStruktural && selectedDosen.jabatanStruktural !== 'Dosen' ? '#1d4ed8' : 'var(--ink)', marginTop: 4 }}>
+                {selectedDosen.jabatanStruktural || 'Dosen'}
               </div>
             </div>
 
@@ -894,19 +1471,24 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Status SKP Semester Ini</div>
               <div style={{ marginTop: 4 }}>
-                <span
-                  className={`badge-pill ${
-                    selectedDosen.skpStatus === 'Disetujui SDM'
-                      ? 'badge-pill--green'
-                      : selectedDosen.skpStatus === 'Dinilai Kaprodi'
-                      ? 'badge-pill--blue'
-                      : selectedDosen.skpStatus === 'Diajukan'
-                      ? 'badge-pill--orange'
-                      : 'badge-pill--gray'
-                  }`}
-                >
-                  {selectedDosen.skpStatus}
-                </span>
+                {(() => {
+                  const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(selectedDosen.skpStatus)
+                  return (
+                    <span
+                      className={`badge-pill ${
+                        isSah
+                          ? 'badge-pill--green'
+                          : selectedDosen.skpStatus === 'Perlu Revisi'
+                          ? 'badge-pill--red'
+                          : selectedDosen.skpStatus === 'Diajukan'
+                          ? 'badge-pill--orange'
+                          : 'badge-pill--gray'
+                      }`}
+                    >
+                      {isSah ? 'Sah & Terbit' : selectedDosen.skpStatus}
+                    </span>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -1076,7 +1658,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <tr>
               <th style={{ minWidth: 240 }}>Nama Dosen &amp; Identitas</th>
               <th>Homebase Prodi</th>
-              <th>Jabatan Fungsional</th>
+              <th>Jabatan Fungsional &amp; Kampus</th>
               <th>Pangkat / Golongan</th>
               <th>Status</th>
               <th>Status SKP</th>
@@ -1109,38 +1691,60 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                     <div style={{ fontSize: '11px', color: 'var(--faint)' }}>Universitas Bhakti Kencana</div>
                   </td>
                   <td>
-                    <span
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 'var(--r-xs)',
-                        background: 'var(--panel-hover)',
-                        border: '1px solid var(--hair)',
-                        color: 'var(--brand-700)',
-                        fontWeight: 600,
-                        fontSize: '11.5px',
-                      }}
-                    >
-                      {dosen.jafung}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 'var(--r-xs)',
+                          background: 'var(--panel-hover)',
+                          border: '1px solid var(--hair)',
+                          color: 'var(--brand-700)',
+                          fontWeight: 600,
+                          fontSize: '11.5px',
+                          width: 'fit-content',
+                        }}
+                      >
+                        {dosen.jafung}
+                      </span>
+                      <span
+                        style={{
+                          padding: '2px 7px',
+                          borderRadius: 'var(--r-xs)',
+                          background: dosen.jabatanStruktural && dosen.jabatanStruktural !== 'Dosen' ? '#eff6ff' : '#f8fafc',
+                          border: dosen.jabatanStruktural && dosen.jabatanStruktural !== 'Dosen' ? '1px solid #bfdbfe' : '1px solid var(--hair)',
+                          color: dosen.jabatanStruktural && dosen.jabatanStruktural !== 'Dosen' ? '#1d4ed8' : 'var(--muted)',
+                          fontWeight: 600,
+                          fontSize: '11px',
+                          width: 'fit-content',
+                        }}
+                      >
+                        🏛️ {dosen.jabatanStruktural || 'Dosen'}
+                      </span>
+                    </div>
                   </td>
                   <td>{dosen.golongan}</td>
                   <td>
                     <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{dosen.status}</span>
                   </td>
                   <td>
-                    <span
-                      className={`badge-pill ${
-                        dosen.skpStatus === 'Disetujui SDM'
-                          ? 'badge-pill--green'
-                          : dosen.skpStatus === 'Dinilai Kaprodi'
-                          ? 'badge-pill--blue'
-                          : dosen.skpStatus === 'Diajukan'
-                          ? 'badge-pill--orange'
-                          : 'badge-pill--gray'
-                      }`}
-                    >
-                      {dosen.skpStatus}
-                    </span>
+                    {(() => {
+                      const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(dosen.skpStatus)
+                      return (
+                        <span
+                          className={`badge-pill ${
+                            isSah
+                              ? 'badge-pill--green'
+                              : dosen.skpStatus === 'Perlu Revisi'
+                              ? 'badge-pill--red'
+                              : dosen.skpStatus === 'Diajukan'
+                              ? 'badge-pill--orange'
+                              : 'badge-pill--gray'
+                          }`}
+                        >
+                          {isSah ? 'Sah & Terbit' : dosen.skpStatus}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1198,6 +1802,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       />
 
       {renderManageProdiModal()}
+      {renderManageJabatanModal()}
     </div>
   )
 }

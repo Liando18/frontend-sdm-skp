@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo } from 'react'
 import { Download, Search, FileText } from 'lucide-react'
 import { Dosen, PengajuanSKP, PenilaianKuesioner } from '../types'
 import { CetakOutputFinalTahunan, OutputFinalData } from '../components/CetakOutputFinalTahunan'
+import { openPrintOutputFinal } from '../utils/printOutputFinal'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
 
@@ -28,11 +29,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     new Set([
       ...skpList.map((s) => s.tahunAkademik).filter(Boolean),
       ...penilaianList.map((p) => p.tahun).filter(Boolean),
+      '2026/2027',
       '2025/2026',
+      '2024/2025',
     ])
-  )
+  ).sort().reverse()
 
-  const [selectedTahun, setSelectedTahun] = useState(availableYears[0] || '2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState('2026/2027')
   const [selectedProdi, setSelectedProdi] = useState('Semua Program Studi')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOutputFinal, setSelectedOutputFinal] = useState<OutputFinalData | null>(null)
@@ -101,11 +104,14 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   })
 
   const filteredLaporan = laporanData.filter((item) => {
-    const matchProdi = selectedProdi === 'Semua Program Studi' || item.dosen.prodi === selectedProdi
+    const matchProdi = selectedProdi === 'Semua Program Studi' || item.dosen?.prodi === selectedProdi
+    const q = (searchQuery || '').trim().toLowerCase()
     const matchSearch =
-      item.dosen.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.dosen.nuptk && item.dosen.nuptk.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      item.dosen.nip.toLowerCase().includes(searchQuery.toLowerCase())
+      q === '' ||
+      (item.dosen?.nama || '').toLowerCase().includes(q) ||
+      (item.dosen?.nuptk || '').toLowerCase().includes(q) ||
+      (item.dosen?.nip || '').toLowerCase().includes(q) ||
+      (item.dosen?.prodi || '').toLowerCase().includes(q)
     return matchProdi && matchSearch
   })
 
@@ -274,7 +280,16 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </span>
             <select
               className="custom-select"
-              style={{ height: 38, minWidth: 220, width: 'auto', fontSize: '13px' }}
+              style={{
+                height: 38,
+                minWidth: 200,
+                width: 'auto',
+                fontSize: '13px',
+                fontWeight: 600,
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                boxShadow: 'var(--shadow-xs)',
+              }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
             >
@@ -293,7 +308,16 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </span>
             <select
               className="custom-select"
-              style={{ height: 38, minWidth: 230, width: 'auto', fontSize: '13px' }}
+              style={{
+                height: 38,
+                minWidth: 230,
+                width: 'auto',
+                fontSize: '13px',
+                fontWeight: 600,
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                boxShadow: 'var(--shadow-xs)',
+              }}
               value={selectedProdi}
               onChange={(e) => setSelectedProdi(e.target.value)}
             >
@@ -398,10 +422,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <button
-                      onClick={() => setSelectedOutputFinal(item)}
+                      onClick={() => openPrintOutputFinal(item)}
                       className="btn-action-print"
                       style={{ padding: '6px 14px', fontSize: '12px' }}
-                      title={`Cetak Output Final untuk dosen ${item.dosen.nama}`}
+                      title={`Cetak Output Final untuk dosen ${item.dosen.nama} di tab baru`}
                     >
                       <FileText size={13} />
                       <span>Cetak Output Final</span>

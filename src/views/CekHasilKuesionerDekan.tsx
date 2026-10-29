@@ -19,6 +19,7 @@ import {
 import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
+import { openPrintTranskrip } from '../utils/printTranskrip'
 
 interface CekHasilKuesionerDekanProps {
   user: UserSession
@@ -29,7 +30,7 @@ interface CekHasilKuesionerDekanProps {
   onShowToast: (msg: string) => void
 }
 
-const TAHUN_AJARAN_OPTIONS = ['2025/2026', '2024/2025', '2026/2027']
+const TAHUN_AJARAN_OPTIONS = ['2026/2027', '2025/2026', '2024/2025']
 
 const BERAKHLAK_DIMENSIONS = [
   {
@@ -76,7 +77,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   onSavePenilaian,
   onShowToast,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
   const [searchQuery, setSearchQuery] = useState('')
   const [activeDetailItem, setActiveDetailItem] = useState<{
     dosen: Dosen
@@ -117,12 +118,12 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   // Search filter
   const filteredKaprodi = kaprodiList.filter((k) => {
     if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
+    const q = searchQuery.trim().toLowerCase()
     return (
-      k.nama.toLowerCase().includes(q) ||
-      k.nip.toLowerCase().includes(q) ||
-      (k.nuptk && k.nuptk.toLowerCase().includes(q)) ||
-      k.prodi.toLowerCase().includes(q)
+      (k.nama || '').toLowerCase().includes(q) ||
+      (k.nip || '').toLowerCase().includes(q) ||
+      (k.nuptk || '').toLowerCase().includes(q) ||
+      (k.prodi || '').toLowerCase().includes(q)
     )
   })
 
@@ -141,7 +142,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   })
 
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [selectedTahun, searchQuery, rowsData], {
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [selectedTahun], {
     y: 8,
     stagger: 0.035,
   })
@@ -343,6 +344,8 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                 padding: '6px 32px 6px 12px',
                 borderRadius: 'var(--r-md)',
                 background: '#ffffff',
+                border: '1px solid var(--hair-strong)',
+                boxShadow: 'var(--shadow-xs)',
               }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
@@ -1132,13 +1135,19 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
               {activeDetailItem.penilaian && (
                 <button
                   onClick={() => {
-                    setTranscriptToPrint({
-                      dosen: activeDetailItem.dosen,
+                    openPrintTranskrip({
                       penilaian: activeDetailItem.penilaian!,
+                      dosenNama: activeDetailItem.dosen.nama,
+                      dosenNip: activeDetailItem.dosen.nip,
+                      dosenProdi: activeDetailItem.dosen.prodi,
+                      dosenJafung: activeDetailItem.dosen.jafung,
+                      dosenGolongan: activeDetailItem.dosen.golongan,
+                      tahunAkademik: selectedTahun,
                     })
                   }}
                   className="brand-btn btn-action-print"
                   style={{ padding: '8px 16px', fontSize: '12.5px' }}
+                  title="Cetak Transkrip Evaluasi BerAKHLAK Resmi di Tab Baru"
                 >
                   <Printer size={14} />
                   <span>Cetak Transkrip</span>

@@ -24,12 +24,12 @@ const BERAKHLAK_KEYS = [
 export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> = ({
   penilaianList,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('Semua Tahun')
+  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
   const [selectedRole, setSelectedRole] = useState<string>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDetail, setSelectedDetail] = useState<PenilaianKuesioner | null>(null)
 
-  const tahunList = ['Semua Tahun', '2025/2026', '2024/2025', '2026/2027']
+  const tahunList = ['Semua Tahun', '2026/2027', '2025/2026', '2024/2025']
   const roleList = ['Semua', 'Ka Prodi (Menilai)', 'Dekan (Menilai)']
 
   const filteredList = penilaianList.filter((item) => {
@@ -38,10 +38,12 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
       selectedRole === 'Semua' ||
       (selectedRole === 'Ka Prodi (Menilai)' && item.penilaiRole === 'Kaprodi') ||
       (selectedRole === 'Dekan (Menilai)' && item.penilaiRole === 'Dekan')
+    const q = (searchQuery || '').trim().toLowerCase()
     const matchSearch =
-      item.dosenNama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.penilaiNama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.dosenProdi.toLowerCase().includes(searchQuery.toLowerCase())
+      q === '' ||
+      (item.dosenNama || '').toLowerCase().includes(q) ||
+      (item.penilaiNama || '').toLowerCase().includes(q) ||
+      (item.dosenProdi || '').toLowerCase().includes(q)
     return matchTahun && matchRole && matchSearch
   })
 
@@ -84,15 +86,24 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Filter Tahun Akademik */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
               Tahun Ajaran
             </span>
             <select
               className="custom-select"
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
-              style={{ width: 'auto', minWidth: 150, height: 38, fontSize: '13px', fontWeight: 600 }}
+              style={{
+                width: 'auto',
+                minWidth: 155,
+                height: 38,
+                fontSize: '13px',
+                fontWeight: 600,
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                boxShadow: 'var(--shadow-xs)',
+              }}
             >
               {tahunList.map((thn, idx) => (
                 <option key={idx} value={thn}>
@@ -126,8 +137,8 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
           </div>
         </div>
 
-        <div className="search-box" style={{ minWidth: 260 }}>
-          <Search size={16} color="var(--muted)" />
+        <div className="search" style={{ minWidth: 260 }}>
+          <Search size={15} color="var(--muted)" />
           <input
             type="text"
             placeholder="Cari pegawai, penilai, prodi..."

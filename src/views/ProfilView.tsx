@@ -30,12 +30,31 @@ import { resolveStorageUrl } from '../utils/security'
 
 interface ProfilViewProps {
   user: UserSession
+  mode?: 'profil' | 'keamanan'
+  initialTab?: 'keamanan' | 'ttd' | 'profil' | 'mitigasi'
   onShowToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void
   onUpdateUser?: (updated: UserSession) => void
 }
 
-export const ProfilView: React.FC<ProfilViewProps> = ({ user, onShowToast, onUpdateUser }) => {
-  const [activeTab, setActiveTab] = useState<'keamanan' | 'ttd' | 'profil' | 'mitigasi'>('keamanan')
+export const ProfilView: React.FC<ProfilViewProps> = ({
+  user,
+  mode = 'profil',
+  initialTab,
+  onShowToast,
+  onUpdateUser,
+}) => {
+  const defaultInitial = initialTab || (mode === 'keamanan' ? 'keamanan' : 'profil')
+  const [activeTab, setActiveTab] = useState<'keamanan' | 'ttd' | 'profil' | 'mitigasi'>(defaultInitial)
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab)
+    } else if (mode === 'keamanan') {
+      setActiveTab((prev) => (prev === 'keamanan' || prev === 'mitigasi' ? prev : 'keamanan'))
+    } else {
+      setActiveTab((prev) => (prev === 'profil' || prev === 'ttd' ? prev : 'profil'))
+    }
+  }, [mode, initialTab])
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -238,7 +257,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({ user, onShowToast, onUpd
   }
 
   return (
-    <div style={{ maxWidth: '1080px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* ========================================================= */}
       {/* EXECUTIVE PROFILE HEADER - CARD PUTIH BERSIH & MODERN     */}
       {/* ========================================================= */}
@@ -377,111 +396,119 @@ export const ProfilView: React.FC<ProfilViewProps> = ({ user, onShowToast, onUpd
       </div>
 
       {/* ========================================================= */}
-      {/* TAB NAVIGATION: DATA PROFIL | GANTI PASSWORD | MITIGASI   */}
+      {/* TAB NAVIGATION: DATA PROFIL / KEAMANAN                   */}
       {/* ========================================================= */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--hair)', paddingBottom: '2px' }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('keamanan')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 18px',
-            borderRadius: 'var(--r-md) var(--r-md) 0 0',
-            border: 'none',
-            fontSize: '13.5px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            background: activeTab === 'keamanan' ? '#ffffff' : 'transparent',
-            color: activeTab === 'keamanan' ? 'var(--brand-600)' : 'var(--muted)',
-            borderBottom: activeTab === 'keamanan' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-            boxShadow: activeTab === 'keamanan' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <KeyRound size={16} />
-          <span>Ganti Kata Sandi &amp; Akses</span>
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--hair)', paddingBottom: '2px', overflowX: 'auto' }}>
+        {(!mode || mode === 'profil') && (
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveTab('profil')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: 'var(--r-md) var(--r-md) 0 0',
+                border: 'none',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: activeTab === 'profil' ? '#ffffff' : 'transparent',
+                color: activeTab === 'profil' ? 'var(--brand-600)' : 'var(--muted)',
+                borderBottom: activeTab === 'profil' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+                boxShadow: activeTab === 'profil' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <User size={16} />
+              <span>Identitas &amp; Kepegawaian</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('ttd')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 18px',
-            borderRadius: 'var(--r-md) var(--r-md) 0 0',
-            border: 'none',
-            fontSize: '13.5px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            background: activeTab === 'ttd' ? '#ffffff' : 'transparent',
-            color: activeTab === 'ttd' ? 'var(--brand-600)' : 'var(--muted)',
-            borderBottom: activeTab === 'ttd' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-            boxShadow: activeTab === 'ttd' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <PenTool size={16} />
-          <span>Tanda Tangan Digital (TTD)</span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ttd')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: 'var(--r-md) var(--r-md) 0 0',
+                border: 'none',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: activeTab === 'ttd' ? '#ffffff' : 'transparent',
+                color: activeTab === 'ttd' ? 'var(--brand-600)' : 'var(--muted)',
+                borderBottom: activeTab === 'ttd' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+                boxShadow: activeTab === 'ttd' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <PenTool size={16} />
+              <span>Tanda Tangan Digital (TTD)</span>
+            </button>
+          </>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('profil')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 18px',
-            borderRadius: 'var(--r-md) var(--r-md) 0 0',
-            border: 'none',
-            fontSize: '13.5px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            background: activeTab === 'profil' ? '#ffffff' : 'transparent',
-            color: activeTab === 'profil' ? 'var(--brand-600)' : 'var(--muted)',
-            borderBottom: activeTab === 'profil' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-            boxShadow: activeTab === 'profil' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <User size={16} />
-          <span>Identitas &amp; Kepegawaian</span>
-        </button>
+        {(!mode || mode === 'keamanan') && (
+          <>
+            <button
+              type="button"
+              onClick={() => setActiveTab('keamanan')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: 'var(--r-md) var(--r-md) 0 0',
+                border: 'none',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: activeTab === 'keamanan' ? '#ffffff' : 'transparent',
+                color: activeTab === 'keamanan' ? 'var(--brand-600)' : 'var(--muted)',
+                borderBottom: activeTab === 'keamanan' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+                boxShadow: activeTab === 'keamanan' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <KeyRound size={16} />
+              <span>Ganti Kata Sandi &amp; Akses</span>
+            </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('mitigasi')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 18px',
-            borderRadius: 'var(--r-md) var(--r-md) 0 0',
-            border: 'none',
-            fontSize: '13.5px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            background: activeTab === 'mitigasi' ? '#ffffff' : 'transparent',
-            color: activeTab === 'mitigasi' ? 'var(--brand-600)' : 'var(--muted)',
-            borderBottom: activeTab === 'mitigasi' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-            boxShadow: activeTab === 'mitigasi' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <ShieldCheck size={16} />
-          <span>Audit Keamanan Produksi</span>
-        </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('mitigasi')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: 'var(--r-md) var(--r-md) 0 0',
+                border: 'none',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: activeTab === 'mitigasi' ? '#ffffff' : 'transparent',
+                color: activeTab === 'mitigasi' ? 'var(--brand-600)' : 'var(--muted)',
+                borderBottom: activeTab === 'mitigasi' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+                boxShadow: activeTab === 'mitigasi' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <ShieldCheck size={16} />
+              <span>Audit Keamanan Produksi</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* ========================================================= */}
       {/* TAB 1: FORM GANTI KATA SANDI (DENGAN TOMBOL AUTO DUMMY)   */}
       {/* ========================================================= */}
       {activeTab === 'keamanan' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
           {/* Card Form Ganti Sandi (Card Putih) */}
           <div
             className="panel"
@@ -787,7 +814,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({ user, onShowToast, onUpd
       {/* TAB TTD: KELOLA TANDA TANGAN DIGITAL INSTITUSI RESMI       */}
       {/* ========================================================= */}
       {activeTab === 'ttd' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
           {/* Card 1: Pratinjau TTD Aktif Saat Ini */}
           <div
             className="panel"
@@ -1084,7 +1111,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({ user, onShowToast, onUpd
       {/* TAB 2: IDENTITAS & KEPEGAWAIAN LENGKAP (CARD PUTIH)      */}
       {/* ========================================================= */}
       {activeTab === 'profil' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
           {/* Card Biodata Utama */}
           <div
             className="panel"
@@ -1323,7 +1350,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({ user, onShowToast, onUpd
       {/* TAB 3: AUDIT KEAMANAN PRODUKSI & MITIGASI AKTIF          */}
       {/* ========================================================= */}
       {activeTab === 'mitigasi' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
           <div
             className="panel"
             style={{

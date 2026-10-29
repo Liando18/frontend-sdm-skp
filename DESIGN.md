@@ -37,7 +37,7 @@
 
 ## 3. Tipografi
 - **Keluarga Font**: `Plus Jakarta Sans`, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif.
-- **Fitur Numerik**: `font-variant-numeric: tabular-nums` (memastikan angka NIP, NIDN, nilai SKS, dan tanggal sejajar rapi).
+- **Fitur Numerik**: `font-variant-numeric: tabular-nums` (memastikan angka NIP, NUPTK, nilai SKS, dan tanggal sejajar rapi).
 - **Skala Ukuran**:
   - Judul Halaman: 24px - 26px (Weight 700, letter-spacing -0.025em)
   - Judul Bagian / Kartu: 16px - 18px (Weight 600-700)

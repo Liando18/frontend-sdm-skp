@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react'
-import { Plus, Edit2, Trash2, ArrowLeft, Search, Filter, Settings, X, Check, Sparkles } from 'lucide-react'
-import { KomponenSKP, TargetJabatanSKP, KategoriKomponenSKP } from '../types'
+import { Plus, Edit2, Trash2, ArrowLeft, Search, Filter, Settings, X, Check, Sparkles, Loader2 } from 'lucide-react'
+import { KomponenSKP, TargetJabatanSKP, KategoriKomponenSKP, JabatanKampus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
 import { generateEntityId } from '../utils/security'
@@ -8,9 +8,10 @@ import { TablePagination } from '../components/TablePagination'
 
 interface KelolaKomponenSKPProps {
   komponenList: KomponenSKP[]
-  onAddKomponen: (item: KomponenSKP) => void
-  onUpdateKomponen: (item: KomponenSKP) => void
-  onDeleteKomponen: (id: string) => void
+  jabatanList?: JabatanKampus[]
+  onAddKomponen: (item: KomponenSKP) => Promise<any> | void
+  onUpdateKomponen: (item: KomponenSKP) => Promise<any> | void
+  onDeleteKomponen: (id: string) => Promise<any> | void
   onShowToast: (msg: string) => void
 }
 
@@ -54,6 +55,7 @@ const COMMON_SATUAN_LIST = [
 
 export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
   komponenList,
+  jabatanList,
   onAddKomponen,
   onUpdateKomponen,
   onDeleteKomponen,
@@ -64,6 +66,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'edit'>(initialMode)
   const [editingItem, setEditingItem] = useState<KomponenSKP | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<KomponenSKP | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [filterTargetJabatan, setFilterTargetJabatan] = useState<string>('Semua')
   const [filterKategori, setFilterKategori] = useState<string>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,13 +78,30 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     return Array.from(new Set([...fromDb, ...customKategori, ...KATEGORI_OPTIONS]))
   }, [komponenList, customKategori])
 
-  const availableTargetJabatan = Array.from(
-    new Set([
-      'Semua Jabatan',
-      ...komponenList.map((k) => k.targetJabatan).filter(Boolean),
-      ...TARGET_JABATAN_OPTIONS,
-    ])
-  ) as TargetJabatanSKP[]
+  // Derive target jabatan dynamically from campus database positions
+  const availableTargetJabatan = useMemo(() => {
+    const dbJabatanNames = (jabatanList || []).map((j) => j.nama).filter(Boolean)
+    const fromKomponen = komponenList.map((k) => k.targetJabatan).filter(Boolean)
+    const defaults = [
+      'Dosen',
+      'Ketua Program Studi',
+      'Dekan Fakultas',
+      'Wakil Dekan',
+      'Rektor',
+      'Wakil Rektor I (Bidang Akademik & Riset)',
+      'Wakil Rektor II (Bidang Keuangan & SDM)',
+      'Sekretaris Program Studi',
+      'Kepala Bagian SDM',
+    ]
+    return Array.from(
+      new Set([
+        'Semua Jabatan',
+        ...dbJabatanNames,
+        ...fromKomponen,
+        ...defaults,
+      ])
+    )
+  }, [jabatanList, komponenList])
 
   const availableSatuan = Array.from(
     new Set([
@@ -146,7 +166,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     waktuSatuan: 'bulan' | 'tahun'
   }>({
     kode: '',
-    targetJabatan: 'Dosen Tetap',
+    targetJabatan: 'Dosen',
     kategori: 'Pendidikan',
     namaKegiatan: '',
     targetOutput: '',
@@ -162,12 +182,13 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       k.targetJabatan === filterTargetJabatan ||
       k.targetJabatan === 'Semua Jabatan'
     const matchKategori = filterKategori === 'Semua' || k.kategori === filterKategori
+    const q = (searchQuery || '').trim().toLowerCase()
     const matchSearch =
-      searchQuery === '' ||
-      k.kode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      k.namaKegiatan.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      k.targetOutput.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (k.targetJabatan && k.targetJabatan.toLowerCase().includes(searchQuery.toLowerCase()))
+      q === '' ||
+      (k.kode || '').toLowerCase().includes(q) ||
+      (k.namaKegiatan || '').toLowerCase().includes(q) ||
+      (k.targetOutput || '').toLowerCase().includes(q) ||
+      (k.targetJabatan || '').toLowerCase().includes(q)
     return matchJabatan && matchKategori && matchSearch
   })
 
@@ -186,7 +207,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     setEditingItem(null)
     setFormData({
       kode: `KOMP-0${komponenList.length + 1}`,
-      targetJabatan: 'Dosen Tetap',
+      targetJabatan: 'Dosen',
       kategori: 'Pendidikan',
       namaKegiatan: '',
       targetOutput: '',
@@ -201,7 +222,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     const randomSuffix = Math.floor(10 + Math.random() * 90)
     setFormData({
       kode: `PEN-${randomSuffix}`,
-      targetJabatan: 'Dosen Tetap',
+      targetJabatan: 'Dosen',
       kategori: 'Penelitian',
       namaKegiatan: 'Publikasi Hasil Penelitian Ilmiah pada Jurnal Nasional Terakreditasi Sinta 2',
       targetOutput: '1 Naskah Artikel Publikasi Online (DOI) Terbit',
@@ -216,7 +237,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     setEditingItem(item)
     setFormData({
       kode: item.kode,
-      targetJabatan: item.targetJabatan || 'Dosen Tetap',
+      targetJabatan: item.targetJabatan || 'Dosen',
       kategori: item.kategori,
       namaKegiatan: item.namaKegiatan,
       targetOutput: item.targetOutput,
@@ -227,45 +248,53 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     setViewMode('edit')
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (viewMode === 'edit' && editingItem) {
-      const updated: KomponenSKP = {
-        ...editingItem,
-        kode: formData.kode,
-        targetJabatan: formData.targetJabatan,
-        kategori: formData.kategori,
-        namaKegiatan: formData.namaKegiatan,
-        targetOutput: formData.targetOutput,
-        satuan: formData.satuan,
-        waktuNilai: Number(formData.waktuNilai),
-        waktuSatuan: formData.waktuSatuan,
+    setIsSaving(true)
+    try {
+      if (viewMode === 'edit' && editingItem) {
+        const updated: KomponenSKP = {
+          ...editingItem,
+          kode: formData.kode,
+          targetJabatan: formData.targetJabatan,
+          kategori: formData.kategori,
+          namaKegiatan: formData.namaKegiatan,
+          targetOutput: formData.targetOutput,
+          satuan: formData.satuan,
+          waktuNilai: Number(formData.waktuNilai),
+          waktuSatuan: formData.waktuSatuan,
+        }
+        await onUpdateKomponen(updated)
+      } else {
+        const newItem: KomponenSKP = {
+          id: generateEntityId('komp'),
+          kode: formData.kode,
+          targetJabatan: formData.targetJabatan,
+          kategori: formData.kategori,
+          namaKegiatan: formData.namaKegiatan,
+          targetOutput: formData.targetOutput,
+          satuan: formData.satuan,
+          waktuNilai: Number(formData.waktuNilai),
+          waktuSatuan: formData.waktuSatuan,
+        }
+        await onAddKomponen(newItem)
       }
-      onUpdateKomponen(updated)
-      onShowToast(`Komponen SKP ${formData.kode} untuk jabatan ${formData.targetJabatan} berhasil diperbarui!`)
-    } else {
-      const newItem: KomponenSKP = {
-        id: generateEntityId('komp'),
-        kode: formData.kode,
-        targetJabatan: formData.targetJabatan,
-        kategori: formData.kategori,
-        namaKegiatan: formData.namaKegiatan,
-        targetOutput: formData.targetOutput,
-        satuan: formData.satuan,
-        waktuNilai: Number(formData.waktuNilai),
-        waktuSatuan: formData.waktuSatuan,
-      }
-      onAddKomponen(newItem)
-      onShowToast(`Komponen SKP baru ${formData.kode} untuk target ${formData.targetJabatan} berhasil ditambahkan!`)
+      setViewMode('list')
+    } catch (err: unknown) {
+      console.error('Gagal menyimpan komponen SKP:', err)
+    } finally {
+      setIsSaving(false)
     }
-    setViewMode('list')
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (deleteTarget) {
-      onDeleteKomponen(deleteTarget.id)
-      onShowToast(`Komponen ${deleteTarget.kode} telah dihapus.`)
-      setDeleteTarget(null)
+      try {
+        await onDeleteKomponen(deleteTarget.id)
+        setDeleteTarget(null)
+      } catch (err: unknown) {
+        console.error('Gagal menghapus komponen SKP:', err)
+      }
     }
   }
 
@@ -544,6 +573,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                   value={formData.targetJabatan}
                   onChange={(e) => setFormData({ ...formData, targetJabatan: e.target.value as TargetJabatanSKP })}
                 >
+                  <option value="Semua Jabatan">🌟 Semua Jabatan (Berlaku Seluruh Dosen)</option>
                   {availableTargetJabatan.filter((j) => j !== 'Semua Jabatan').map((jab, idx) => (
                     <option key={idx} value={jab}>
                       {jab}
@@ -674,13 +704,21 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
             <button
               type="button"
               className="brand-btn brand-btn--outline"
+              disabled={isSaving}
               style={{ padding: '10px 24px' }}
               onClick={() => setViewMode('list')}
             >
               Batal
             </button>
-            <button type="submit" className="brand-btn btn-action-add" style={{ padding: '10px 28px' }}>
-              <span>{viewMode === 'create' ? 'Simpan Komponen SKP' : 'Perbarui Komponen'}</span>
+            <button type="submit" className="brand-btn btn-action-add" disabled={isSaving} style={{ padding: '10px 28px' }}>
+              {isSaving ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Menyimpan ke Database...</span>
+                </>
+              ) : (
+                <span>{viewMode === 'create' ? 'Simpan Komponen SKP' : 'Perbarui Komponen'}</span>
+              )}
             </button>
           </div>
         </form>
@@ -733,7 +771,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
               onChange={(e) => setFilterTargetJabatan(e.target.value)}
             >
               <option value="Semua">Semua Target Jabatan</option>
-              {availableTargetJabatan.filter((j) => j !== 'Semua Jabatan').map((jab, idx) => (
+              {availableTargetJabatan.map((jab, idx) => (
                 <option key={idx} value={jab}>
                   {jab}
                 </option>
@@ -877,7 +915,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                       }`}
                       style={{ fontSize: '11px', whiteSpace: 'nowrap' }}
                     >
-                      {komp.targetJabatan || 'Dosen Tetap'}
+                      {komp.targetJabatan || 'Dosen'}
                     </span>
                   </td>
                   <td>

@@ -38,8 +38,8 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
   onShowToast,
 }) => {
   const totalDosen = dosenList.length
-  const skpDisetujui = skpList.filter((s) => s.status === 'Disetujui SDM').length
-  const skpMenunggu = skpList.filter((s) => s.status === 'Diajukan' || s.status === 'Dinilai Kaprodi').length
+  const skpDisetujui = skpList.filter((s) => ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(s.status)).length
+  const skpMenunggu = skpList.filter((s) => s.status === 'Diajukan').length
   const skpRevisi = skpList.filter((s) => s.status === 'Perlu Revisi').length
 
   // Dynamically calculate JAD distribution from database
@@ -99,13 +99,16 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
   // Filter across whole dataset
   const filteredSkpList = useMemo(() => {
     return skpList.filter((s) => {
-      const q = tableSearch.toLowerCase().trim()
+      const q = (tableSearch || '').toLowerCase().trim()
       const matchSearch =
         q === '' ||
-        s.dosenNama.toLowerCase().includes(q) ||
-        s.dosenNip.includes(q) ||
-        s.dosenProdi.toLowerCase().includes(q)
-      const matchStatus = tableStatus === 'Semua' || s.status === tableStatus
+        (s.dosenNama || '').toLowerCase().includes(q) ||
+        (s.dosenNip || '').toLowerCase().includes(q) ||
+        (s.dosenProdi || '').toLowerCase().includes(q)
+      const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(s.status)
+      const matchStatus =
+        tableStatus === 'Semua' ||
+        (tableStatus === 'Disahkan' ? isSah : s.status === tableStatus)
       return matchSearch && matchStatus
     })
   }, [skpList, tableSearch, tableStatus])
@@ -586,10 +589,8 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
               }}
             >
               <option value="Semua">Semua Status</option>
-              <option value="Dinilai Kaprodi">Dinilai Kaprodi</option>
-              <option value="Dinilai Dekan">Dinilai Dekan</option>
+              <option value="Disahkan">Sah &amp; Terbit</option>
               <option value="Diajukan">Diajukan</option>
-              <option value="Disetujui SDM">Disetujui SDM</option>
               <option value="Perlu Revisi">Perlu Revisi</option>
             </select>
 
@@ -642,19 +643,22 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
                       </span>
                     </td>
                     <td>
-                      <span
-                        className={`badge-pill ${
-                          skp.status === 'Disetujui SDM'
-                            ? 'badge-pill--green'
-                            : skp.status === 'Dinilai Kaprodi' || skp.status === 'Dinilai Dekan'
-                            ? 'badge-pill--blue'
-                            : skp.status === 'Diajukan'
-                            ? 'badge-pill--orange'
-                            : 'badge-pill--red'
-                        }`}
-                      >
-                        {skp.status}
-                      </span>
+                      {(() => {
+                        const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(skp.status)
+                        return (
+                          <span
+                            className={`badge-pill ${
+                              isSah
+                                ? 'badge-pill--green'
+                                : skp.status === 'Diajukan'
+                                ? 'badge-pill--orange'
+                                : 'badge-pill--red'
+                            }`}
+                          >
+                            {isSah ? 'Sah & Terbit' : skp.status === 'Perlu Revisi' ? 'Dibatalkan / Revisi' : skp.status}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button

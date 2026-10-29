@@ -8,13 +8,21 @@ import {
   Info,
   ShieldCheck,
   Zap,
+  Loader2,
+  AlertCircle,
+  X,
 } from 'lucide-react'
 import { Role } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { OwlMascot } from '../components/OwlMascot'
 
 interface LoginViewProps {
-  onLogin: (role: Role, identifier: string, password: string, rememberMe?: boolean) => void
+  onLogin: (
+    role: Role,
+    identifier: string,
+    password: string,
+    rememberMe?: boolean
+  ) => Promise<{ success: boolean; message?: string }> | void
 }
 
 interface TestActor {
@@ -66,6 +74,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     return localStorage.getItem('ubk_remember_me') !== 'false'
   })
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Mascot focus states
   const [isEmailFocused, setIsEmailFocused] = useState(false)
@@ -89,6 +99,42 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     return 'sdm'
   }
 
+  const executeLogin = async (
+    role: Role,
+    idVal: string,
+    passVal: string,
+    remember: boolean
+  ) => {
+    setErrorMessage(null)
+    const cleanId = idVal.trim()
+    const cleanPass = passVal.trim()
+
+    if (!cleanId) {
+      setErrorMessage('Silakan masukkan Email Institusi atau NIP Anda.')
+      return
+    }
+    if (!cleanPass) {
+      setErrorMessage('Silakan masukkan kata sandi akun Anda.')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const result = await onLogin(role, cleanId, cleanPass, remember)
+      if (result && !result.success) {
+        setErrorMessage(
+          result.message || 'Data yang Anda masukkan tidak dikenali. Silakan periksa kembali Email/NIP dan kata sandi Anda.'
+        )
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        err?.message || 'Terjadi gangguan saat menghubungi server autentikasi UBK. Pastikan server backend berjalan.'
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (rememberMe) {
@@ -99,18 +145,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       localStorage.setItem('ubk_remember_me', 'false')
     }
     const detectedRole = resolveRole(identifier)
-    onLogin(detectedRole, identifier, password, rememberMe)
+    executeLogin(detectedRole, identifier, password, rememberMe)
   }
 
   const handleQuickTestLogin = (actor: TestActor, autoSubmit = false) => {
     setIdentifier(actor.email)
     setPassword(actor.nip)
+    setErrorMessage(null)
     if (autoSubmit) {
       if (rememberMe) {
         localStorage.setItem('ubk_saved_identifier', actor.email)
         localStorage.setItem('ubk_remember_me', 'true')
       }
-      onLogin(actor.role, actor.email, actor.nip, rememberMe)
+      executeLogin(actor.role, actor.email, actor.nip, rememberMe)
     }
   }
 
@@ -180,6 +227,32 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             </p>
           </div>
 
+          {/* Notifikasi / Informasi Kesalahan Login */}
+          {errorMessage && (
+            <div
+              className="mb-4 flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs shadow-sm animate-in fade-in slide-in-from-top-1 duration-200"
+              role="alert"
+            >
+              <AlertCircle size={17} className="text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-bold text-rose-900">
+                  Gagal Masuk Portal
+                </div>
+                <div className="text-rose-700 mt-0.5 leading-relaxed">
+                  {errorMessage}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorMessage(null)}
+                className="text-rose-400 hover:text-rose-700 p-0.5 rounded cursor-pointer transition-colors"
+                aria-label="Tutup pesan kesalahan"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+
           {/* Form Login */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
             {/* Input NIP atau Email Akun */}
@@ -192,12 +265,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   id="input-identifier"
                   type="text"
                   required
+                  disabled={isLoading}
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(e) => {
+                    setIdentifier(e.target.value)
+                    if (errorMessage) setErrorMessage(null)
+                  }}
                   onFocus={() => setIsEmailFocused(true)}
                   onBlur={() => setIsEmailFocused(false)}
                   className="custom-input"
-                  style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px' }}
+                  style={{
+                    paddingLeft: '38px',
+                    height: '42px',
+                    fontSize: '13.5px',
+                    background: isLoading ? 'var(--panel-bg)' : '#ffffff',
+                  }}
                   placeholder="Contoh: sdm@bku.ac.id atau 19810415..."
                   autoComplete="username"
                 />
@@ -218,12 +300,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   id="input-password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={isLoading}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (errorMessage) setErrorMessage(null)
+                  }}
                   onFocus={() => setIsPasswordFocused(true)}
                   onBlur={() => setIsPasswordFocused(false)}
                   className="custom-input"
-                  style={{ paddingLeft: '38px', paddingRight: '40px', height: '42px', fontSize: '13.5px' }}
+                  style={{
+                    paddingLeft: '38px',
+                    paddingRight: '40px',
+                    height: '42px',
+                    fontSize: '13.5px',
+                    background: isLoading ? 'var(--panel-bg)' : '#ffffff',
+                  }}
                   placeholder="Masukkan kata sandi"
                   autoComplete="current-password"
                 />
@@ -233,6 +325,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 />
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 transition-colors"
                   aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
@@ -247,6 +340,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
+                  disabled={isLoading}
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 accent-orange-600 cursor-pointer"
@@ -255,6 +349,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </label>
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={() => setShowForgotPasswordModal(true)}
                 className="text-orange-600 hover:text-orange-700 font-semibold cursor-pointer text-xs"
               >
@@ -262,14 +357,28 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </button>
             </div>
 
-            {/* Tombol Masuk Portal */}
+            {/* Tombol Masuk Portal dengan Efek Loading */}
             <button
               type="submit"
-              className="brand-btn brand-btn--dark w-full justify-center text-sm font-semibold mt-1 py-2.5 sm:py-3 cursor-pointer"
-              style={{ minHeight: '44px' }}
+              disabled={isLoading}
+              className="brand-btn brand-btn--dark w-full justify-center text-sm font-semibold mt-1 py-2.5 sm:py-3 cursor-pointer transition-all"
+              style={{
+                minHeight: '44px',
+                opacity: isLoading ? 0.8 : 1,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+              }}
             >
-              <span>Masuk ke Sistem Portal</span>
-              <ArrowRight size={16} />
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 size={16} className="animate-spin text-orange-400" />
+                  <span>Memverifikasi Kredensial...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <span>Masuk ke Sistem Portal</span>
+                  <ArrowRight size={16} />
+                </div>
+              )}
             </button>
           </form>
 
@@ -285,11 +394,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 <button
                   key={actor.role}
                   type="button"
+                  disabled={isLoading}
                   onClick={() => handleQuickTestLogin(actor, true)}
-                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-[11px] font-semibold text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1 cursor-pointer"
+                  className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                    isLoading
+                      ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer'
+                  }`}
                   title={`Login cepat sebagai ${actor.name}`}
                 >
-                  <Zap size={10} className="text-amber-500" />
+                  {isLoading ? (
+                    <Loader2 size={10} className="animate-spin text-slate-400" />
+                  ) : (
+                    <Zap size={10} className="text-amber-500" />
+                  )}
                   <span>{actor.label}</span>
                 </button>
               ))}

@@ -626,7 +626,7 @@ const SKP_ITEMS_AGUS_MIRAJ_GENAP = [
   { id: 'item-25', komponenId: 'komp-25', kegiatan: 'Menjadi Asesor/ Tim Penilai BKD/JAD/Jurnal/Akreditasi', kategori: 'Penunjang' as const, rencanaAwal: 3, perubahanTengah: 3, realisasi: 3, satuan: 'Kegiatan', kualitasMutu: 100, waktuNilai: 12, waktuSatuan: 'bln', linkDokumen: 'https://siakad.bku.ac.id/dokumen/dosen-3/asesor.pdf', nilaiCapaian: 100 },
 ]
 
-export const INITIAL_PENGAJUAN_SKP: PengajuanSKP[] = [
+const baseSKPList: PengajuanSKP[] = [
   // 1. SKP Genap Agus Miraj Darajat (sesuai lampiran gambar)
   {
     id: 'skp-agus-genap-2026',
@@ -983,6 +983,15 @@ export const INITIAL_PENGAJUAN_SKP: PengajuanSKP[] = [
   },
 ]
 
+export const INITIAL_PENGAJUAN_SKP: PengajuanSKP[] = [
+  ...baseSKPList.map((s) => ({
+    ...s,
+    id: `${s.id}-2627`,
+    tahunAkademik: '2026/2027',
+  })),
+  ...baseSKPList,
+]
+
 export const INITIAL_INDIKATOR: IndikatorKuesioner[] = [
   {
     id: 'ind-1',
@@ -1098,7 +1107,7 @@ export const INITIAL_INDIKATOR: IndikatorKuesioner[] = [
   },
 ]
 
-export const INITIAL_PENILAIAN_KUESIONER: PenilaianKuesioner[] = [
+const basePenilaianList: PenilaianKuesioner[] = [
   // 1. Ka Prodi menilai Dosen (Agus Miraj Darajat) - Tahunan
   {
     id: 'kuis-tahunan-agus',
@@ -1360,31 +1369,16 @@ export const INITIAL_PENILAIAN_KUESIONER: PenilaianKuesioner[] = [
   },
 ]
 
-export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'notif-1',
-    title: 'Pengajuan SKP Semester Genap',
-    desc: 'Agus Miraj Darajat, M.Kep telah mengajukan 25 kegiatan luaran Tridharma.',
-    time: '10 menit yang lalu',
-    read: false,
-    tag: 'SKP',
-  },
-  {
-    id: 'notif-2',
-    title: 'Kuesioner Tahunan Siap',
-    desc: 'Periode pengisian evaluasi perilaku BerAKHLAK tahunan 2025/2026 telah dibuka.',
-    time: '1 jam yang lalu',
-    read: false,
-    tag: 'Kuesioner',
-  },
-  {
-    id: 'notif-3',
-    title: 'Penilaian Ka Prodi oleh SDM',
-    desc: 'SDM telah menyelesaikan evaluasi SKP dan Kuesioner Tahunan Ka Prodi S1 Keperawatan.',
-    time: '2 jam yang lalu',
-    read: false,
-    tag: 'Dosen',
-  },
+export const INITIAL_PENILAIAN_KUESIONER: PenilaianKuesioner[] = [
+  ...basePenilaianList
+    .filter((p) => p.tahun === '2025/2026')
+    .map((p) => ({
+      ...p,
+      id: `${p.id}-2627`,
+      tahun: '2026/2027',
+      tanggal: p.tanggal ? p.tanggal.replace('2026', '2027').replace('2025', '2026') : '18 Oktober 2027',
+    })),
+  ...basePenilaianList,
 ]
 
 export const PRODI_LIST = [
@@ -1392,18 +1386,28 @@ export const PRODI_LIST = [
   'S1 Keperawatan',
   'D3 Keperawatan',
   'Profesi Ners',
+  'S1 Kebidanan',
+  'D3 Kebidanan',
+  'Profesi Bidan',
   'S1 Farmasi',
   'D3 Farmasi',
   'Profesi Apoteker',
-  'S2 Farmasi',
-  'D3 Kebidanan',
-  'S1 Kebidanan',
-  'Profesi Bidan',
-  'Informatika Kesehatan',
-  'Psikologi',
-  'Ilmu Komunikasi',
-  'S1 Kesehatan Masyarakat',
+  'S2 Ilmu Farmasi',
   'D4 Anestesiologi',
-  'Fisioterapi',
+  'S1 Kesehatan Masyarakat',
+  'S1 Fisioterapi',
   'S1 Gizi',
+  'S1 Informatika Kesehatan',
+  'S1 Psikologi',
+  'S1 Ilmu Komunikasi',
+  'PSDKU Kebidanan Subang',
+  'PSDKU Kebidanan Serang',
+  'PSDKU Kebidanan Kendal',
+  'PSDKU Kebidanan Mataram',
+  'PSDKU Kebidanan Tasik',
+  'PSDKU D3 Keperawatan Garut',
+  'PSDKU D3 Keperawatan Jakarta',
+  'PSDKU S1 Keperawatan Tasik',
+  'PSDKU Profesi Ners Tasik',
+  'PSDKU S1 Farmasi Kendal',
 ]

@@ -194,83 +194,66 @@ export async function exportSKPToExcel(skp: PengajuanSKP) {
   hKeg.border = thinBorder
   sheet.getCell('B13').border = thinBorder
 
-  sheet.mergeCells('C12:E12')
-  const hTarget = sheet.getCell('C12')
-  hTarget.value = 'TARGET / REALISASI'
-  hTarget.alignment = { horizontal: 'center', vertical: 'middle' }
-  hTarget.font = { name: 'Arial', size: 9, bold: true }
-  hTarget.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
-  hTarget.border = thinBorder
-  sheet.getCell('D12').border = thinBorder
-  sheet.getCell('E12').border = thinBorder
-
-  const hTargetAwal = sheet.getCell('C13')
-  hTargetAwal.value = 'Rencana Awal'
-  hTargetAwal.alignment = { horizontal: 'center', vertical: 'middle' }
+  sheet.mergeCells('C12:C13')
+  const hTargetAwal = sheet.getCell('C12')
+  hTargetAwal.value = 'Rencana Awal Semester'
+  hTargetAwal.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
   hTargetAwal.font = { name: 'Arial', size: 8.5, bold: true }
   hTargetAwal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
   hTargetAwal.border = thinBorder
+  sheet.getCell('C13').border = thinBorder
 
-  const hTargetUbah = sheet.getCell('D13')
-  hTargetUbah.value = 'Perubahan'
-  hTargetUbah.alignment = { horizontal: 'center', vertical: 'middle' }
+  sheet.mergeCells('D12:D13')
+  const hTargetUbah = sheet.getCell('D12')
+  hTargetUbah.value = 'Perubahan Tengah Semester'
+  hTargetUbah.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
   hTargetUbah.font = { name: 'Arial', size: 8.5, bold: true }
   hTargetUbah.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
   hTargetUbah.border = thinBorder
+  sheet.getCell('D13').border = thinBorder
 
-  const hRealisasi = sheet.getCell('E13')
+  sheet.mergeCells('E12:J12')
+  const hRealisasi = sheet.getCell('E12')
   hRealisasi.value = 'Realisasi'
   hRealisasi.alignment = { horizontal: 'center', vertical: 'middle' }
-  hRealisasi.font = { name: 'Arial', size: 8.5, bold: true }
+  hRealisasi.font = { name: 'Arial', size: 9, bold: true }
   hRealisasi.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
   hRealisasi.border = thinBorder
+  sheet.getCell('F12').border = thinBorder
+  sheet.getCell('G12').border = thinBorder
+  sheet.getCell('H12').border = thinBorder
+  sheet.getCell('I12').border = thinBorder
+  sheet.getCell('J12').border = thinBorder
 
-  sheet.mergeCells('F12:F13')
-  const hSatuan = sheet.getCell('F12')
-  hSatuan.value = 'SATUAN'
-  hSatuan.alignment = { horizontal: 'center', vertical: 'middle' }
-  hSatuan.font = { name: 'Arial', size: 9, bold: true }
-  hSatuan.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
-  hSatuan.border = thinBorder
+  sheet.mergeCells('E13:F13')
+  const hKuant = sheet.getCell('E13')
+  hKuant.value = 'KUANT/OUTPUT'
+  hKuant.alignment = { horizontal: 'center', vertical: 'middle' }
+  hKuant.font = { name: 'Arial', size: 8.5, bold: true }
+  hKuant.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
+  hKuant.border = thinBorder
   sheet.getCell('F13').border = thinBorder
 
-  sheet.mergeCells('G12:G13')
-  const hMutu = sheet.getCell('G12')
-  hMutu.value = 'KUAL / MUTU (%)'
+  const hMutu = sheet.getCell('G13')
+  hMutu.value = 'KUAL/MUTU'
   hMutu.alignment = { horizontal: 'center', vertical: 'middle' }
-  hMutu.font = { name: 'Arial', size: 9, bold: true }
+  hMutu.font = { name: 'Arial', size: 8.5, bold: true }
   hMutu.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
   hMutu.border = thinBorder
-  sheet.getCell('G13').border = thinBorder
 
-  sheet.mergeCells('H12:I12')
-  const hWaktu = sheet.getCell('H12')
+  sheet.mergeCells('H13:I13')
+  const hWaktu = sheet.getCell('H13')
   hWaktu.value = 'WAKTU'
   hWaktu.alignment = { horizontal: 'center', vertical: 'middle' }
-  hWaktu.font = { name: 'Arial', size: 9, bold: true }
+  hWaktu.font = { name: 'Arial', size: 8.5, bold: true }
   hWaktu.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
   hWaktu.border = thinBorder
-  sheet.getCell('I12').border = thinBorder
+  sheet.getCell('I13').border = thinBorder
 
-  const hWaktuDurasi = sheet.getCell('H13')
-  hWaktuDurasi.value = 'Durasi'
-  hWaktuDurasi.alignment = { horizontal: 'center', vertical: 'middle' }
-  hWaktuDurasi.font = { name: 'Arial', size: 8.5, bold: true }
-  hWaktuDurasi.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
-  hWaktuDurasi.border = thinBorder
-
-  const hWaktuSatuan = sheet.getCell('I13')
-  hWaktuSatuan.value = 'Satuan'
-  hWaktuSatuan.alignment = { horizontal: 'center', vertical: 'middle' }
-  hWaktuSatuan.font = { name: 'Arial', size: 8.5, bold: true }
-  hWaktuSatuan.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
-  hWaktuSatuan.border = thinBorder
-
-  sheet.mergeCells('J12:J13')
-  const hLink = sheet.getCell('J12')
-  hLink.value = 'LINK BUKTI DUKUNG'
+  const hLink = sheet.getCell('J13')
+  hLink.value = 'Link Dokumen'
   hLink.alignment = { horizontal: 'center', vertical: 'middle' }
-  hLink.font = { name: 'Arial', size: 9, bold: true }
+  hLink.font = { name: 'Arial', size: 8.5, bold: true }
   hLink.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
   hLink.border = thinBorder
   sheet.getCell('J13').border = thinBorder

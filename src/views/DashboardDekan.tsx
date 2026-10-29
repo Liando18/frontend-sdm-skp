@@ -55,8 +55,13 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
 
   const filteredKaprodiSKPs = useMemo(() => {
     return kaprodiSKPs.filter((s) => {
-      const q = searchKaprodi.toLowerCase().trim()
-      return q === '' || s.dosenNama.toLowerCase().includes(q) || s.dosenNip.includes(q) || s.dosenProdi.toLowerCase().includes(q)
+      const q = (searchKaprodi || '').trim().toLowerCase()
+      if (!q) return true
+      return (
+        (s.dosenNama || '').toLowerCase().includes(q) ||
+        (s.dosenNip || '').toLowerCase().includes(q) ||
+        (s.dosenProdi || '').toLowerCase().includes(q)
+      )
     })
   }, [kaprodiSKPs, searchKaprodi])
 
@@ -70,7 +75,7 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
   ).length
 
   const approvedCount = kaprodiSKPs.filter(
-    (s) => s.status === 'Dinilai Dekan' || s.status === 'Disetujui SDM'
+    (s) => ['Disahkan', 'Terbit', 'Dinilai Dekan', 'Disetujui SDM'].includes(s.status)
   ).length
 
   return (
@@ -398,17 +403,22 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                       {skp.nilaiKinerjaSKP}%
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span
-                        className={`badge-pill ${
-                          skp.status === 'Disetujui SDM'
-                            ? 'badge-pill--green'
-                            : skp.status === 'Dinilai Dekan'
-                            ? 'badge-pill--blue'
-                            : 'badge-pill--orange'
-                        }`}
-                      >
-                        {skp.status}
-                      </span>
+                      {(() => {
+                        const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan'].includes(skp.status)
+                        return (
+                          <span
+                            className={`badge-pill ${
+                              isSah
+                                ? 'badge-pill--green'
+                                : skp.status === 'Perlu Revisi'
+                                ? 'badge-pill--red'
+                                : 'badge-pill--orange'
+                            }`}
+                          >
+                            {isSah ? 'Sah & Terbit' : skp.status}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       {skp.ttdDekanUrl ? (

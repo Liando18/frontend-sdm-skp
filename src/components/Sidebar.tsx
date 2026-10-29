@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Building2,
   User,
+  ShieldCheck,
 } from 'lucide-react'
 import { Role } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
@@ -89,7 +90,8 @@ const sdmNavItems: NavItem[] = [
     title: 'Pengaturan Akun',
     icon: User,
     items: [
-      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+      { id: 'profil', label: 'Profil', icon: User },
+      { id: 'keamanan', label: 'Keamanan', icon: ShieldCheck },
     ],
   },
 ]
@@ -113,7 +115,8 @@ const dosenNavItems: NavItem[] = [
     title: 'Pengaturan Akun',
     icon: User,
     items: [
-      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+      { id: 'profil', label: 'Profil', icon: User },
+      { id: 'keamanan', label: 'Keamanan', icon: ShieldCheck },
     ],
   },
 ]
@@ -147,7 +150,8 @@ const kaprodiNavItems: NavItem[] = [
     title: 'Pengaturan Akun',
     icon: User,
     items: [
-      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+      { id: 'profil', label: 'Profil', icon: User },
+      { id: 'keamanan', label: 'Keamanan', icon: ShieldCheck },
     ],
   },
 ]
@@ -181,7 +185,8 @@ const dekanNavItems: NavItem[] = [
     title: 'Pengaturan Akun',
     icon: User,
     items: [
-      { id: 'profil', label: 'Profil & Keamanan', icon: User },
+      { id: 'profil', label: 'Profil', icon: User },
+      { id: 'keamanan', label: 'Keamanan', icon: ShieldCheck },
     ],
   },
 ]

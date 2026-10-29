@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react'
-import { Printer, X, ExternalLink } from 'lucide-react'
+import { Printer, X, ExternalLink, ArrowLeft } from 'lucide-react'
 import { Dosen, PengajuanSKP, PenilaianKuesioner, SKPItem } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
@@ -24,10 +24,11 @@ export interface OutputFinalData {
   predikat: string
 }
 
-interface CetakOutputFinalTahunanProps {
+export interface CetakOutputFinalTahunanProps {
   data: OutputFinalData | null
-  isOpen: boolean
-  onClose: () => void
+  isOpen?: boolean
+  onClose?: () => void
+  isStandalone?: boolean
 }
 
 /**
@@ -344,8 +345,9 @@ const PolaDistribusiLineChart: React.FC<{ predikat: string }> = ({ predikat }) =
 
 export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = ({
   data,
-  isOpen,
+  isOpen = true,
   onClose,
+  isStandalone = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'skp' | 'lampiran' | 'evaluasi' | 'dokumen'>('all')
   const modalRef = useRef<HTMLDivElement>(null)
@@ -447,45 +449,18 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
   const tambahanItems = useMemo(() => [...penunjangItems, ...otherItems], [penunjangItems, otherItems])
 
-  // =========================================================================
-  // PAGINATION CHUNKS (Strictly bounded per A4 sheet to guarantee NO cut-off borders)
-  // =========================================================================
-  // Bagian 1: Sasaran Kinerja Pegawai
-  const isHal1Split = useMemo(() => {
-    const totalCount = pendidikanItems.length + penelitianItems.length + pengabdianItems.length + tambahanItems.length
-    return totalCount > 8
-  }, [pendidikanItems, penelitianItems, pengabdianItems, tambahanItems])
-
-  const skpPendidikanHal1 = useMemo(() => (isHal1Split ? pendidikanItems.slice(0, 4) : pendidikanItems), [isHal1Split, pendidikanItems])
-  const skpPenelitianHal1 = useMemo(() => (isHal1Split ? penelitianItems.slice(0, 3) : penelitianItems), [isHal1Split, penelitianItems])
-  const skpPendidikanLanjutan = useMemo(() => (isHal1Split ? pendidikanItems.slice(4) : []), [isHal1Split, pendidikanItems])
-  const skpPenelitianLanjutan = useMemo(() => (isHal1Split ? penelitianItems.slice(3) : []), [isHal1Split, penelitianItems])
-
-  // Bagian 3: Evaluasi Kinerja Pegawai
-  const evalPendidikanHal4 = useMemo(() => pendidikanItems.slice(0, 2), [pendidikanItems])
-  const evalPendidikanHal5 = useMemo(() => pendidikanItems.slice(2, 6), [pendidikanItems])
-  const evalPenelitianHal5 = useMemo(() => penelitianItems.slice(0, 3), [penelitianItems])
-  const evalPenelitianHal6 = useMemo(() => penelitianItems.slice(3), [penelitianItems])
-  const evalPengabdianHal6 = useMemo(() => pengabdianItems, [pengabdianItems])
-  const evalTambahanHal6 = useMemo(() => tambahanItems.slice(0, 4), [tambahanItems])
-  const evalTambahanHal6b = useMemo(() => tambahanItems.slice(4), [tambahanItems])
-  const hasEvalHal6b = useMemo(() => evalTambahanHal6b.length > 0, [evalTambahanHal6b])
-  const hasPage5 = useMemo(() => {
-    return evalPendidikanHal5.length > 0 || evalPenelitianHal5.length > 0
-  }, [evalPendidikanHal5, evalPenelitianHal5])
-
   if (!isOpen || !data) return null
 
-  const { dosen, tahunAkademik } = data
+  const { dosen, tahunAkademik, predikat } = data
 
   const penilaiNama =
     data.skpGenap?.penilaiNama ||
     data.skpGanjil?.penilaiNama ||
-    (dosen.isKaprodi ? 'Dr. Apt Entris Sutrisno, MH.Kes' : 'Ketua Program Studi')
+    (dosen.isKaprodi ? 'Dr. Hj. Ratna Dian Saraswati, M.Kes' : 'Ketua Program Studi')
   const penilaiNip =
     data.skpGenap?.penilaiNip ||
     data.skpGanjil?.penilaiNip ||
-    (dosen.isKaprodi ? '8750757658130140' : '-')
+    (dosen.isKaprodi ? '197506122005012001' : '-')
   const penilaiPangkat =
     data.skpGenap?.penilaiPangkat ||
     data.skpGanjil?.penilaiPangkat ||
@@ -493,11 +468,11 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
   const penilaiJabatan =
     data.skpGenap?.penilaiJabatan ||
     data.skpGanjil?.penilaiJabatan ||
-    (dosen.isKaprodi ? 'Rektor' : 'Ketua Program Studi')
+    (dosen.isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi')
   const penilaiUnit =
     data.skpGenap?.penilaiUnit ||
     data.skpGanjil?.penilaiUnit ||
-    (dosen.isKaprodi ? 'Universitas Bhakti Kencana' : dosen.prodi)
+    (dosen.isKaprodi ? 'Fakultas Keperawatan dan Kebidanan' : dosen.prodi)
 
   const tanggalCetak =
     data.skpGenap?.tanggalPenilaianDekan ||
@@ -601,9 +576,6 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
     },
   ]
 
-  const coreValuesHal6 = useMemo(() => coreValues.slice(0, 4), [coreValues])
-  const coreValuesHal7 = useMemo(() => coreValues.slice(4), [coreValues])
-
   const getEkspektasiText = (customText: string, score?: number) => {
     if (score === undefined || score === null) return customText
     if (score >= 3.8) {
@@ -623,127 +595,12 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
     }
   }
 
-  return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
-      <div
-        ref={modalRef}
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: 1040,
-          width: '96vw',
-          maxHeight: '94vh',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 0,
-          overflow: 'hidden',
-          background: '#ffffff',
-        }}
-      >
-        {/* Top Control Bar (Hidden when printing) */}
-        <div
-          className="no-print"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '14px 24px',
-            borderBottom: '1px solid var(--hair)',
-            background: 'var(--panel-bg)',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--navy-900)' }}>
-              Pratinjau Cetak: Output Final Laporan Prestasi Kerja Tahunan
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Sesuai Format Resmi Ouput Final.pdf &bull; Dosen: <strong>{dosen.nama}</strong> (NIP: {dosen.nip})
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              onClick={handlePrint}
-              className="brand-btn btn-action-print"
-              style={{ padding: '8px 18px', fontSize: '13px' }}
-            >
-              <Printer size={15} />
-              <span>Cetak Output Final</span>
-            </button>
-            <button
-              onClick={onClose}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair)',
-                display: 'grid',
-                placeItems: 'center',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-              }}
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation Tabs (Hidden when printing) */}
-        <div
-          className="no-print"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 24px',
-            borderBottom: '1px solid var(--hair)',
-            background: 'var(--page-bg)',
-            overflowX: 'auto',
-          }}
-        >
-          {[
-            { id: 'all' as const, label: 'Semua Bagian (Format Lengkap Ouput Final.pdf)' },
-            { id: 'skp' as const, label: '1. Sasaran Kinerja (Hal. 1-2)' },
-            { id: 'lampiran' as const, label: '2. Lampiran SKP (Hal. 3)' },
-            { id: 'evaluasi' as const, label: '3. Evaluasi Kualitatif & Pola Distribusi (Hal. 4-7)' },
-            { id: 'dokumen' as const, label: '4. Dokumen Evaluasi Akhir (Hal. 8)' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 'var(--r-sm)',
-                border: 'none',
-                background: activeTab === tab.id ? 'var(--navy-900)' : 'transparent',
-                color: activeTab === tab.id ? '#ffffff' : 'var(--muted)',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s var(--ease)',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Printable Document Body with Slate A4 Viewport */}
-        <div
-          ref={viewportRef}
-          className="a4-print-viewport"
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-          }}
-        >
-          {/* ====================================================================
-              BAGIAN 1: SASARAN KINERJA PEGAWAI (HALAMAN 1)
-             ==================================================================== */}
-          {(activeTab === 'all' || activeTab === 'skp') && (
+  const renderSheets = () => (
+    <>
+      {/* ====================================================================
+          BAGIAN 1: SASARAN KINERJA PEGAWAI (HALAMAN 1)
+         ==================================================================== */}
+      {(activeTab === 'all' || activeTab === 'skp') && (
             <>
               <div className="a4-sheet avoid-break">
                 {/* Header Hal. 1 */}
@@ -825,7 +682,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   ) : (
                     <>
                       {/* 1. Pendidikan */}
-                      {skpPendidikanHal1.length > 0 && (
+                      {pendidikanItems.length > 0 && (
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ fontWeight: 600 }}>
                             1. Meningkatnya kualitas dan mutu pembelajaran yang sesuai dengan rencana strategis perguruan tinggi (Penugasan dari Rektor)
@@ -833,7 +690,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                           <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
                             Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
                             <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                              {skpPendidikanHal1.map((it) => (
+                              {pendidikanItems.map((it) => (
                                 <li key={it.id}>
                                   <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan} (Capaian: {it.kualitasMutu || 100}%)
                                 </li>
@@ -844,15 +701,15 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                       )}
 
                       {/* 2. Penelitian */}
-                      {skpPenelitianHal1.length > 0 && (
+                      {penelitianItems.length > 0 && (
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ fontWeight: 600 }}>
-                            {skpPendidikanHal1.length > 0 ? '2.' : '1.'} Meningkatnya jumlah dan kualitas penelitian dosen (Penugasan dari Rektor)
+                            {pendidikanItems.length > 0 ? '2.' : '1.'} Meningkatnya jumlah dan kualitas penelitian dosen (Penugasan dari Rektor)
                           </div>
                           <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
                             Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
                             <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                              {skpPenelitianHal1.map((it) => (
+                              {penelitianItems.map((it) => (
                                 <li key={it.id}>
                                   <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan} (Capaian: {it.kualitasMutu || 100}%)
                                 </li>
@@ -862,11 +719,11 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                         </div>
                       )}
 
-                      {/* Jika tidak split, tampilkan Pengabdian di sini */}
-                      {!isHal1Split && pengabdianItems.length > 0 && (
+                      {/* 3. Pengabdian */}
+                      {pengabdianItems.length > 0 && (
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ fontWeight: 600 }}>
-                            {(skpPendidikanHal1.length > 0 ? 1 : 0) + (skpPenelitianHal1.length > 0 ? 1 : 0) + 1}. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)
+                            {(pendidikanItems.length > 0 ? 1 : 0) + (penelitianItems.length > 0 ? 1 : 0) + 1}. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)
                           </div>
                           <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
                             Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
@@ -884,33 +741,29 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   )}
                 </div>
 
-                {/* B. Tambahan (Jika tidak split) */}
-                {!isHal1Split && (
-                  <>
-                    <div style={{ fontWeight: 700, marginBottom: 4, marginTop: 10 }}>B. Tambahan</div>
-                    <div style={{ paddingLeft: 10 }}>
-                      {tambahanItems.length > 0 ? (
-                        <div>
-                          <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
-                          <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                            Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
-                            <ul style={{ margin: '2px 0 4px 16px', padding: 0 }}>
-                              {tambahanItems.map((it) => (
-                                <li key={it.id}>
-                                  <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '11px' }}>
-                          Tidak ada target hasil kerja tambahan terdaftar untuk periode ini.
-                        </div>
-                      )}
+                {/* B. Tambahan */}
+                <div style={{ fontWeight: 700, marginBottom: 4, marginTop: 10 }}>B. Tambahan</div>
+                <div style={{ paddingLeft: 10 }}>
+                  {tambahanItems.length > 0 ? (
+                    <div>
+                      <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
+                      <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
+                        Ukuran keberhasilan / Indikator Kinerja Individu, dan Target:
+                        <ul style={{ margin: '2px 0 4px 16px', padding: 0 }}>
+                          {tambahanItems.map((it) => (
+                            <li key={it.id}>
+                              <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '11px' }}>
+                      Tidak ada target hasil kerja tambahan terdaftar untuk periode ini.
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Footer Hal. 1 */}
@@ -919,116 +772,6 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 <span style={{ fontStyle: 'italic' }}>Hal. 1</span>
               </div>
             </div>
-
-            {/* HALAMAN 1 LANJUTAN (JIKA ITEM MELEBIHI KAPASITAS 1 KERTAS A4) */}
-            {isHal1Split && (
-              <div className="a4-sheet avoid-break">
-                <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    SASARAN KINERJA PEGAWAI
-                  </div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN)
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
-                    <span>Universitas Bhakti Kencana</span>
-                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
-                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
-                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
-                </div>
-
-                {/* Box Hasil Kerja Lanjutan */}
-                <div style={{ border: '1.5px solid #000000', padding: '10px 14px', marginBottom: 14 }}>
-                  <div style={{ fontWeight: 800, fontSize: '12px', borderBottom: '1px solid #000000', paddingBottom: 4, marginBottom: 8 }}>
-                    HASIL KERJA (LANJUTAN)
-                  </div>
-
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>A. Utama (Lanjutan)</div>
-                  <div style={{ paddingLeft: 10, marginBottom: 8 }}>
-                    {/* Sisa Pendidikan */}
-                    {skpPendidikanLanjutan.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dan mutu pembelajaran (Lanjutan)</div>
-                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                          <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                            {skpPendidikanLanjutan.map((it) => (
-                              <li key={it.id}>
-                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Sisa Penelitian */}
-                    {skpPenelitianLanjutan.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontWeight: 600 }}>2. Meningkatnya jumlah dan kualitas penelitian dosen (Lanjutan)</div>
-                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                          <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                            {skpPenelitianLanjutan.map((it) => (
-                              <li key={it.id}>
-                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3. Pengabdian */}
-                    {pengabdianItems.length > 0 && (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontWeight: 600 }}>3. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)</div>
-                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                          <ul style={{ margin: '2px 0 6px 16px', padding: 0 }}>
-                            {pengabdianItems.map((it) => (
-                              <li key={it.id}>
-                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* B. Tambahan */}
-                  <div style={{ fontWeight: 700, marginBottom: 4, marginTop: 10 }}>B. Tambahan</div>
-                  <div style={{ paddingLeft: 10 }}>
-                    {tambahanItems.length > 0 ? (
-                      <div>
-                        <div style={{ fontWeight: 600 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
-                        <div style={{ fontSize: '11px', color: '#334155', marginTop: 2, paddingLeft: 12 }}>
-                          <ul style={{ margin: '2px 0 4px 16px', padding: 0 }}>
-                            {tambahanItems.map((it) => (
-                              <li key={it.id}>
-                                <strong>{it.kegiatan}</strong>: Target {it.rencanaAwal} {it.satuan}, Realisasi: {it.realisasi} {it.satuan}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '11px' }}>
-                        Tidak ada target hasil kerja tambahan terdaftar untuk periode ini.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer Hal. 1 Lanjutan */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                  <span style={{ fontStyle: 'italic' }}>Hal. 1 (Lanjutan)</span>
-                </div>
-              </div>
-            )}
 
             {/* ====================================================================
                 HALAMAN 2: PERILAKU KERJA (TABEL 2 KOLOM SESUAI Ouput Final.pdf)
@@ -1242,17 +985,17 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                       <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>A. Utama</td>
                     </tr>
 
-                    {/* 1. Pendidikan (Batch 1 - Hal. 4: Maksimal 2 Butir agar Muat Sempurna 1 Halaman A4) */}
-                    {evalPendidikanHal4.length > 0 ? (
+                    {/* 1. Pendidikan */}
+                    {pendidikanItems.length > 0 && (
                       <tr>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
                           <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dan mutu pembelajaran yang sesuai dengan rencana strategis perguruan tinggi (Penugasan dari Rektor)</div>
                           <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalPendidikanHal4.map((it) => it.kegiatan).join(', ')}
+                            {pendidikanItems.map((it) => it.kegiatan).join(', ')}
                           </div>
                         </td>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalPendidikanHal4.map((it, idx) => (
+                          {pendidikanItems.map((it, idx) => (
                             <div key={idx} style={{ marginBottom: 4 }}>
                               <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan} (Target: {it.rencanaAwal})</div>
                               {it.linkDokumen ? (
@@ -1283,109 +1026,21 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                           {data.skpGenap?.catatanKaprodi || data.skpGanjil?.catatanKaprodi || 'Hasil kerja secara umum sudah baik dan mencukupi komponen yang dibutuhkan.'}
                         </td>
                       </tr>
-                    ) : (
-                      <tr>
-                        <td colSpan={3} style={{ border: '1px solid #000000', padding: '8px', color: '#64748b', fontStyle: 'italic' }}>
-                          Belum ada rincian kegiatan SKP yang diajukan untuk periode ini.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-
-                {/* Footer Hal. 4 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                  <span style={{ fontStyle: 'italic' }}>Hal. 4</span>
-                </div>
-              </div>
-
-              {/* HALAMAN 5: LEMBAR LANJUTAN 1 (EVALUASI HASIL KERJA - PENDIDIKAN LANJUTAN & PENELITIAN) */}
-              <div className="a4-sheet avoid-break">
-                <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
-                  </div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN 1)
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
-                    <span>Universitas Bhakti Kencana</span>
-                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
-                  </div>
-                </div>
-
-                {/* Identitas Ringkas Lanjutan */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
-                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
-                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
-                </div>
-
-                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
-                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
-                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Sisa Pendidikan jika ada */}
-                    {evalPendidikanHal5.length > 0 && (
-                      <tr>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                          <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dan mutu pembelajaran (Lanjutan)</div>
-                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalPendidikanHal5.map((it) => it.kegiatan).join(', ')}
-                          </div>
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalPendidikanHal5.map((it, idx) => (
-                            <div key={idx} style={{ marginBottom: 4 }}>
-                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
-                              {it.linkDokumen ? (
-                                <a
-                                  href={sanitizeUrl(it.linkDokumen)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    color: '#1d4ed8',
-                                    textDecoration: 'underline',
-                                    fontWeight: 600,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 3,
-                                    fontSize: '10px',
-                                  }}
-                                >
-                                  <span>Tautan di sini</span>
-                                  <ExternalLink size={10} />
-                                </a>
-                              ) : (
-                                <span style={{ fontSize: '10px', color: '#64748b' }}>(Bukti terverifikasi)</span>
-                              )}
-                            </div>
-                          ))}
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                          Hasil pembelajaran lanjutan telah sesuai dengan silabus institusi.
-                        </td>
-                      </tr>
                     )}
 
-                    {/* 2. Penelitian (Batch 1 - Hal. 5) */}
-                    {evalPenelitianHal5.length > 0 && (
+                    {/* 2. Penelitian */}
+                    {penelitianItems.length > 0 && (
                       <tr>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
                           <div style={{ fontWeight: 700 }}>
                             {pendidikanItems.length > 0 ? '2.' : '1.'} Meningkatnya jumlah dan kualitas penelitian dosen (Penugasan dari Rektor)
                           </div>
                           <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalPenelitianHal5.map((it) => it.kegiatan).join(', ')}
+                            {penelitianItems.map((it) => it.kegiatan).join(', ')}
                           </div>
                         </td>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalPenelitianHal5.map((it, idx) => (
+                          {penelitianItems.map((it, idx) => (
                             <div key={idx} style={{ marginBottom: 4 }}>
                               <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
                               {it.linkDokumen ? (
@@ -1417,99 +1072,20 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                         </td>
                       </tr>
                     )}
-                  </tbody>
-                </table>
 
-                {/* Footer Hal. 5 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                  <span style={{ fontStyle: 'italic' }}>Hal. 5</span>
-                </div>
-              </div>
-
-              {/* HALAMAN 6: LEMBAR LANJUTAN 2 (PENELITIAN LANJUTAN, PENGABDIAN & TAMBAHAN) */}
-              <div className="a4-sheet avoid-break">
-                <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
-                  </div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                    BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN 2)
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
-                    <span>Universitas Bhakti Kencana</span>
-                    <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
-                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
-                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
-                </div>
-
-                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
-                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
-                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Sisa Penelitian jika ada */}
-                    {evalPenelitianHal6.length > 0 && (
-                      <tr>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                          <div style={{ fontWeight: 700 }}>2. Meningkatnya jumlah dan kualitas penelitian dosen (Lanjutan)</div>
-                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalPenelitianHal6.map((it) => it.kegiatan).join(', ')}
-                          </div>
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalPenelitianHal6.map((it, idx) => (
-                            <div key={idx} style={{ marginBottom: 4 }}>
-                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
-                              {it.linkDokumen && (
-                                <a
-                                  href={sanitizeUrl(it.linkDokumen)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    color: '#1d4ed8',
-                                    textDecoration: 'underline',
-                                    fontWeight: 600,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 3,
-                                    fontSize: '10px',
-                                  }}
-                                >
-                                  <span>Tautan di sini</span>
-                                  <ExternalLink size={10} />
-                                </a>
-                              )}
-                            </div>
-                          ))}
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                          Hasil publikasi lanjutan telah tercatat pada pangkalan data institusi.
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* 3. Pengabdian Masyarakat */}
-                    {evalPengabdianHal6.length > 0 && (
+                    {/* 3. Pengabdian */}
+                    {pengabdianItems.length > 0 && (
                       <tr>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
                           <div style={{ fontWeight: 700 }}>
                             {(pendidikanItems.length > 0 ? 1 : 0) + (penelitianItems.length > 0 ? 1 : 0) + 1}. Meningkatnya kualitas kegiatan pengabdian kepada masyarakat (Penugasan dari Rektor)
                           </div>
                           <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalPengabdianHal6.map((it) => it.kegiatan).join(', ')}
+                            {pengabdianItems.map((it) => it.kegiatan).join(', ')}
                           </div>
                         </td>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalPengabdianHal6.map((it, idx) => (
+                          {pengabdianItems.map((it, idx) => (
                             <div key={idx} style={{ marginBottom: 4 }}>
                               <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
                               {it.linkDokumen ? (
@@ -1547,16 +1123,16 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                       <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>B. Tambahan</td>
                     </tr>
 
-                    {evalTambahanHal6.length > 0 ? (
+                    {tambahanItems.length > 0 ? (
                       <tr>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
                           <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang</div>
                           <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalTambahanHal6.map((it) => it.kegiatan).join(', ')}
+                            {tambahanItems.map((it) => it.kegiatan).join(', ')}
                           </div>
                         </td>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalTambahanHal6.map((it, idx) => (
+                          {tambahanItems.map((it, idx) => (
                             <div key={idx} style={{ marginBottom: 4 }}>
                               <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
                               {it.linkDokumen && (
@@ -1593,119 +1169,26 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                       </tr>
                     )}
 
-                    {/* RATING HASIL KERJA (Jika tidak ada lembar tambahan 3) */}
-                    {!hasEvalHal6b && (
-                      <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                        <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
-                          RATING HASIL KERJA :
-                        </td>
-                        <td style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#047857' }}>
-                          {data.rataRataSKP > 90 ? 'Di Atas Ekspektasi' : data.rataRataSKP >= 71 ? 'Sesuai Ekspektasi' : 'Di Bawah Ekspektasi'}
-                        </td>
-                      </tr>
-                    )}
+                    {/* RATING HASIL KERJA */}
+                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                      <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
+                        RATING HASIL KERJA :
+                      </td>
+                      <td style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#047857' }}>
+                        {data.rataRataSKP > 90 ? 'Di Atas Ekspektasi' : data.rataRataSKP >= 71 ? 'Sesuai Ekspektasi' : 'Di Bawah Ekspektasi'}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
 
-                {/* Footer Hal. 6 */}
+                {/* Footer Hal. 4 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                   <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                  <span style={{ fontStyle: 'italic' }}>Hal. 6</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. 4</span>
                 </div>
               </div>
 
-              {/* HALAMAN 6b: LEMBAR LANJUTAN 3 (KHUSUS JIKA TUGAS TAMBAHAN SANGAT BANYAK) */}
-              {hasEvalHal6b && (
-                <div className="a4-sheet avoid-break">
-                  <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      EVALUASI KINERJA PEGAWAI PENDEKATAN HASIL KERJA KUALITATIF
-                    </div>
-                    <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
-                      BAGI PEJABAT ADMINISTRASI / FUNGSIONAL (LEMBAR LANJUTAN 3)
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 600, marginTop: 6, borderBottom: '1px solid #000000', paddingBottom: 4 }}>
-                      <span>Universitas Bhakti Kencana</span>
-                      <span>Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
-                    <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
-                    <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
-                  </div>
-
-                  <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                        <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>HASIL KERJA</th>
-                        <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Realisasi Berdasarkan Bukti Dukung</th>
-                        <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                        <td colSpan={3} style={{ border: '1px solid #000000', padding: '5px 8px' }}>B. Tambahan (Lanjutan)</td>
-                      </tr>
-                      <tr>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                          <div style={{ fontWeight: 700 }}>1. Meningkatnya kualitas dosen tetap melalui unsur penunjang (Lanjutan)</div>
-                          <div style={{ fontSize: '10.5px', color: '#475569', marginTop: 2 }}>
-                            {evalTambahanHal6b.map((it) => it.kegiatan).join(', ')}
-                          </div>
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontSize: '10.5px' }}>
-                          {evalTambahanHal6b.map((it, idx) => (
-                            <div key={idx} style={{ marginBottom: 4 }}>
-                              <div>&bull; <strong>{it.kegiatan}</strong>: Realisasi {it.realisasi} {it.satuan}</div>
-                              {it.linkDokumen && (
-                                <a
-                                  href={sanitizeUrl(it.linkDokumen)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    color: '#1d4ed8',
-                                    textDecoration: 'underline',
-                                    fontWeight: 600,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 3,
-                                    fontSize: '10px',
-                                  }}
-                                >
-                                  <span>Tautan di sini</span>
-                                  <ExternalLink size={10} />
-                                </a>
-                              )}
-                            </div>
-                          ))}
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                          Hasil kerja secara umum sudah baik dan memenuhi komponen pelengkap.
-                        </td>
-                      </tr>
-
-                      {/* RATING HASIL KERJA */}
-                      <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                        <td colSpan={2} style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'right' }}>
-                          RATING HASIL KERJA :
-                        </td>
-                        <td style={{ border: '1.5px solid #000000', padding: '6px 8px', textAlign: 'center', color: '#047857' }}>
-                          {data.rataRataSKP > 90 ? 'Di Atas Ekspektasi' : data.rataRataSKP >= 71 ? 'Sesuai Ekspektasi' : 'Di Bawah Ekspektasi'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {/* Footer Hal. 6b */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                    <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                    <span style={{ fontStyle: 'italic' }}>Hal. 6 (Lanjutan)</span>
-                  </div>
-                </div>
-              )}
-
-              {/* HALAMAN 6: EVALUASI PERILAKU KERJA (BERAKHLAK) - BAGIAN 1 (CORE VALUES 1 - 4) */}
+              {/* HALAMAN 5: EVALUASI PERILAKU KERJA (BERAKHLAK) LENGKAP 7 CORE VALUES */}
               <div className="a4-sheet avoid-break">
                 <div style={{ textAlign: 'center', marginBottom: 14 }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1721,7 +1204,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
                 </div>
 
-                {/* TABEL PERILAKU KERJA EVALUASI (3 KOLOM SESUAI Ouput Final.pdf Hal. 6) */}
+                {/* TABEL PERILAKU KERJA EVALUASI (3 KOLOM GABUNG LENGKAP) */}
                 <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
@@ -1731,61 +1214,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                     </tr>
                   </thead>
                   <tbody>
-                    {coreValuesHal6.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
-                          <div style={{ fontWeight: 700 }}>{item.no} {item.title}</div>
-                          <ul style={{ margin: '2px 0 0 16px', padding: 0, fontSize: '10.5px', color: '#334155' }}>
-                            {item.bullets.map((b, bIdx) => (
-                              <li key={bIdx}>{b}</li>
-                            ))}
-                          </ul>
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafbfc' }}>
-                          {item.ekspektasi}
-                        </td>
-                        <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top', fontStyle: 'italic', background: '#fafafa' }}>
-                          Pegawai selalu menunjukkan aspek perilaku kerja tersebut dan dapat diandalkan dalam kegiatan akademik prodi.
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Footer Hal. 6 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                  <span style={{ fontStyle: 'italic' }}>Hal. {hasEvalHal6b ? '7' : '6'}</span>
-                </div>
-              </div>
-
-              {/* HALAMAN 7: EVALUASI PERILAKU KERJA (BERAKHLAK) - BAGIAN 2 (CORE VALUES 5 - 7 & TTD) */}
-              <div className="a4-sheet avoid-break">
-                <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    EVALUASI PERILAKU KERJA PEGAWAI (BERAKHLAK - LANJUTAN)
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#475569' }}>
-                    Universitas Bhakti Kencana &bull; Periode: 01 Januari s/d 31 Desember {tahunAkademik.split('/')[0] || '2026'}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
-                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
-                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
-                </div>
-
-                {/* TABEL PERILAKU KERJA EVALUASI (3 KOLOM SESUAI Ouput Final.pdf Hal. 7) */}
-                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: '1.5px solid #000000', marginBottom: 14, fontSize: '11px', wordBreak: 'break-word' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                      <th style={{ width: '38%', border: '1px solid #000000', padding: 6, textAlign: 'left' }}>PERILAKU KERJA</th>
-                      <th style={{ width: '28%', border: '1px solid #000000', padding: 6 }}>Ekspektasi Khusus Pimpinan</th>
-                      <th style={{ width: '34%', border: '1px solid #000000', padding: 6 }}>Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {coreValuesHal7.map((item, idx) => (
+                    {coreValues.map((item, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
                         <td style={{ border: '1px solid #000000', padding: '6px 8px', verticalAlign: 'top' }}>
                           <div style={{ fontWeight: 700 }}>{item.no} {item.title}</div>
@@ -1824,7 +1253,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   </tbody>
                 </table>
 
-                {/* Tanda Tangan Hal. 7 */}
+                {/* Tanda Tangan Hal. 5 */}
                 <div className="avoid-break" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20, paddingRight: 10 }}>
                   <SignatureBox
                     title="Pejabat Penilai Kinerja"
@@ -1836,17 +1265,17 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   />
                 </div>
 
-                {/* Footer Hal. 7 */}
+                {/* Footer Hal. 5 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                   <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                  <span style={{ fontStyle: 'italic' }}>Hal. {hasEvalHal6b ? '8' : '7'}</span>
+                  <span style={{ fontStyle: 'italic' }}>Hal. 5</span>
                 </div>
               </div>
             </>
           )}
 
           {/* ====================================================================
-              BAGIAN 4: DOKUMEN EVALUASI KINERJA PEGAWAI (HALAMAN 8)
+              BAGIAN 4: DOKUMEN EVALUASI KINERJA PEGAWAI (HALAMAN 6)
              ==================================================================== */}
           {(activeTab === 'all' || activeTab === 'dokumen') && (
             <div className="a4-sheet avoid-break">
@@ -1963,13 +1392,395 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 />
               </div>
 
-              {/* Footer Hal. 8 */}
+              {/* Footer Hal. 6 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                 <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
-                <span style={{ fontStyle: 'italic' }}>Hal. 8</span>
+                <span style={{ fontStyle: 'italic' }}>Hal. 6</span>
               </div>
             </div>
           )}
+    </>
+  )
+
+  if (isStandalone) {
+    return (
+      <div className="print-standalone-wrapper">
+        <style>{`
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm 8mm 10mm;
+            }
+
+            *, *::before, *::after {
+              box-shadow: none !important;
+              text-shadow: none !important;
+            }
+
+            html, body, #root, .print-standalone-wrapper {
+              background: #ffffff !important;
+              background-color: #ffffff !important;
+              color: #000000 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            .fixed-print-header, .no-print-bar, .no-print-tabs {
+              display: none !important;
+            }
+
+            .print-standalone-wrapper {
+              padding-top: 0 !important;
+            }
+
+            .a4-print-viewport {
+              display: block !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              background: #ffffff !important;
+              width: 100% !important;
+            }
+
+            .a4-sheet {
+              display: block !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              box-shadow: none !important;
+              border: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              page-break-after: always !important;
+              break-after: page !important;
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+              background: #ffffff !important;
+              box-sizing: border-box !important;
+              overflow: visible !important;
+            }
+
+            .a4-sheet:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+
+            tr {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+
+            .avoid-break {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+          }
+
+          @media screen {
+            html, body {
+              overflow-y: auto !important;
+              overflow-x: hidden !important;
+              height: auto !important;
+              min-height: 100% !important;
+              background-color: #334155 !important;
+            }
+
+            #root {
+              height: auto !important;
+              min-height: 100vh !important;
+              overflow: visible !important;
+            }
+
+            .print-standalone-wrapper {
+              min-height: 100vh;
+              height: auto;
+              width: 100%;
+              background-color: #334155;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              overflow-y: visible;
+              padding-top: 115px;
+              padding-bottom: 60px;
+            }
+
+            .a4-sheet {
+              background: #ffffff;
+              width: 210mm;
+              min-height: 297mm;
+              margin: 20px auto 40px;
+              padding: 12mm 14mm 16mm 14mm;
+              box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+              box-sizing: border-box;
+            }
+          }
+
+          .print-standalone-wrapper {
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          }
+
+          .fixed-print-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 9999;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+          }
+
+          .no-print-bar {
+            width: 100%;
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          }
+
+          .no-print-tabs {
+            width: 100%;
+            background: #1e293b;
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow-x: auto;
+            border-bottom: 1px solid #334155;
+          }
+
+          .a4-sheet {
+            color: #000000;
+            font-size: 8.5pt;
+            line-height: 1.3;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          }
+        `}</style>
+
+        {/* Fixed Top Header (Tetap Stay di Atas saat Halaman di-Scroll) */}
+        <div className="fixed-print-header">
+          <div className="no-print-bar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button
+                onClick={() => (onClose ? onClose() : window.close())}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#1e293b',
+                  color: '#cbd5e1',
+                  border: '1px solid #334155',
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                <ArrowLeft size={14} />
+                <span>Tutup Tab</span>
+              </button>
+
+              <div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>Output Final Prestasi Kerja Tahunan</span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: '#059669', color: '#ffffff' }}>
+                    {predikat}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 1 }}>
+                  {dosen.nama} &bull; TA {tahunAkademik} &bull; {dosen.prodi}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 20px',
+                background: '#2563eb',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
+              }}
+            >
+              <Printer size={16} />
+              <span>Cetak / Simpan PDF</span>
+            </button>
+          </div>
+
+          {/* Section Tabs */}
+          <div className="no-print-tabs">
+            {[
+              { id: 'all' as const, label: 'Semua Bagian (Format Lengkap Ouput Final)' },
+              { id: 'skp' as const, label: '1. Sasaran Kinerja & Perilaku (Hal. 1-2)' },
+              { id: 'lampiran' as const, label: '2. Lampiran SKP (Hal. 3)' },
+              { id: 'evaluasi' as const, label: '3. Evaluasi Kualitatif & BerAKHLAK (Hal. 4-5)' },
+              { id: 'dokumen' as const, label: '4. Dokumen Evaluasi Akhir (Hal. 6)' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: activeTab === tab.id ? '#2563eb' : '#0f172a',
+                  color: activeTab === tab.id ? '#ffffff' : '#cbd5e1',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Printable Viewport */}
+        <div ref={viewportRef} className="a4-print-viewport" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {renderSheets()}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
+      <div
+        ref={modalRef}
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: 1040,
+          width: '96vw',
+          maxHeight: '94vh',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0,
+          overflow: 'hidden',
+          background: '#ffffff',
+        }}
+      >
+        {/* Top Control Bar (Hidden when printing) */}
+        <div
+          className="no-print"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '14px 24px',
+            borderBottom: '1px solid var(--hair)',
+            background: 'var(--panel-bg)',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--navy-900)' }}>
+              Pratinjau Cetak: Output Final Laporan Prestasi Kerja Tahunan
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Sesuai Format Resmi Ouput Final.pdf &bull; Dosen: <strong>{dosen.nama}</strong> (NIP: {dosen.nip})
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={handlePrint}
+              className="brand-btn btn-action-print"
+              style={{ padding: '8px 18px', fontSize: '13px' }}
+            >
+              <Printer size={15} />
+              <span>Cetak Output Final</span>
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair)',
+                display: 'grid',
+                placeItems: 'center',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Tabs (Hidden when printing) */}
+        <div
+          className="no-print"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 24px',
+            borderBottom: '1px solid var(--hair)',
+            background: 'var(--page-bg)',
+            overflowX: 'auto',
+          }}
+        >
+          {[
+            { id: 'all' as const, label: 'Semua Bagian (Format Lengkap Ouput Final)' },
+            { id: 'skp' as const, label: '1. Sasaran Kinerja & Perilaku (Hal. 1-2)' },
+            { id: 'lampiran' as const, label: '2. Lampiran SKP (Hal. 3)' },
+            { id: 'evaluasi' as const, label: '3. Evaluasi Kualitatif & BerAKHLAK (Hal. 4-5)' },
+            { id: 'dokumen' as const, label: '4. Dokumen Evaluasi Akhir (Hal. 6)' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--r-sm)',
+                border: 'none',
+                background: activeTab === tab.id ? 'var(--navy-900)' : 'transparent',
+                color: activeTab === tab.id ? '#ffffff' : 'var(--muted)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s var(--ease)',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Printable Document Body with Slate A4 Viewport */}
+        <div
+          ref={viewportRef}
+          className="a4-print-viewport"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+          }}
+        >
+          {renderSheets()}
         </div>
       </div>
     </div>

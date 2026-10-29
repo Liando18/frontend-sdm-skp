@@ -11,6 +11,8 @@ export interface UserSession {
   rank: string
   fakultas?: string
   signatureUrl?: string
+  jabatanStruktural?: string
+  jabatanKampusId?: string
 }
 
 export interface Dosen {
@@ -27,24 +29,38 @@ export interface Dosen {
   pendidikanProfesi?: string
   pendidikan: string
   status: 'Tetap Yayasan' | 'PNS DPK' | 'Dosen Khusus'
-  skpStatus: 'Draft' | 'Diajukan' | 'Dinilai Kaprodi' | 'Dinilai Dekan' | 'Disetujui SDM' | 'Perlu Revisi'
+  skpStatus: 'Draft' | 'Diajukan' | 'Dinilai Kaprodi' | 'Dinilai Dekan' | 'Disetujui SDM' | 'Disahkan' | 'Terbit' | 'Perlu Revisi'
   nilaiAkhir: number
   email: string
   phone: string
   isKaprodi?: boolean
   isDekan?: boolean
   signatureUrl?: string
+  jabatanStruktural?: string
+  jabatanKampusId?: string
 }
 
-export type TargetJabatanSKP =
-  | 'Semua Jabatan'
-  | 'Rektor'
-  | 'Wakil Rektor'
-  | 'Dekan'
-  | 'Wakil Dekan'
-  | 'Ketua Program Studi'
-  | 'Dosen Tetap'
-  | 'Tenaga Kependidikan / Staf'
+export interface JabatanKampus {
+  id: string
+  kode: string
+  nama: string
+  kategori: string
+  level: number
+  is_struktural: boolean
+  role_akses?: Role
+  default_role?: Role
+  deskripsi?: string
+}
+
+export interface DriveLinkCheckResult {
+  status: 'public' | 'restricted' | 'not_found' | 'external_link' | 'warning' | 'invalid_url'
+  message: string
+  is_google_drive?: boolean
+  type?: string
+  resource_id?: string
+}
+
+export type TargetJabatanSKP = string
 
 export type KategoriKomponenSKP =
   | 'Pendidikan'
@@ -105,11 +121,11 @@ export interface PengajuanSKP {
   totalSksRealisasi: number
   persentaseCapaian: number
   nilaiKinerjaSKP: number
-  status: 'Draft' | 'Diajukan' | 'Dinilai Kaprodi' | 'Dinilai Dekan' | 'Disetujui SDM' | 'Perlu Revisi'
+  status: 'Draft' | 'Diajukan' | 'Dinilai Kaprodi' | 'Dinilai Dekan' | 'Disetujui SDM' | 'Disahkan' | 'Terbit' | 'Perlu Revisi'
   tanggalPengajuan: string
   catatanKaprodi: string
   catatanDekan?: string
-  catatanSDM: string
+  catatanSDM?: string
   ttdKaprodiUrl?: string
   ttdDekanUrl?: string
   ttdDosenUrl?: string
