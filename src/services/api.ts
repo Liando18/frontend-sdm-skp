@@ -1,4 +1,4 @@
-import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role, ProgramStudi, JabatanKampus, DriveLinkCheckResult } from '../types'
+import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role, ProgramStudi, JabatanKampus, DriveLinkCheckResult, Fakultas, Psdku } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
@@ -96,15 +96,45 @@ export const api = {
     delete: (id: string) => request<{ message: string }>(`/dosen/${id}`, { method: 'DELETE' }),
   },
 
-  prodi: {
-    list: async (params?: { fakultas?: string; jenjang?: string; kampus?: string }): Promise<ProgramStudi[]> => {
+  fakultas: {
+    list: async (params?: { search?: string }): Promise<Fakultas[]> => {
       const q = new URLSearchParams(params as Record<string, string>).toString()
-      const res = await request<{ success: boolean; data: ProgramStudi[] }>(`/program-studi${q ? `?${q}` : ''}`)
-      return res.data || []
+      const res = await request<any>(`/fakultas${q ? `?${q}` : ''}`)
+      return Array.isArray(res) ? res : (res?.data || [])
+    },
+    get: async (id: string): Promise<Fakultas> => {
+      const res = await request<any>(`/fakultas/${id}`)
+      return res?.data || res
+    },
+    create: (data: Partial<Fakultas>) => request<{ success: boolean; data: Fakultas }>('/fakultas', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<Fakultas>) => request<{ success: boolean; data: Fakultas }>(`/fakultas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<{ success: boolean; message: string }>(`/fakultas/${id}`, { method: 'DELETE' }),
+  },
+
+  psdku: {
+    list: async (params?: { search?: string }): Promise<Psdku[]> => {
+      const q = new URLSearchParams(params as Record<string, string>).toString()
+      const res = await request<any>(`/psdku${q ? `?${q}` : ''}`)
+      return Array.isArray(res) ? res : (res?.data || [])
+    },
+    get: async (id: string): Promise<Psdku> => {
+      const res = await request<any>(`/psdku/${id}`)
+      return res?.data || res
+    },
+    create: (data: Partial<Psdku>) => request<{ success: boolean; data: Psdku }>('/psdku', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<Psdku>) => request<{ success: boolean; data: Psdku }>(`/psdku/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request<{ success: boolean; message: string }>(`/psdku/${id}`, { method: 'DELETE' }),
+  },
+
+  prodi: {
+    list: async (params?: { fakultas?: string; fakultas_id?: string; psdku_id?: string; tipe_unit?: string; jenjang?: string; kampus?: string }): Promise<ProgramStudi[]> => {
+      const q = new URLSearchParams(params as Record<string, string>).toString()
+      const res = await request<any>(`/program-studi${q ? `?${q}` : ''}`)
+      return Array.isArray(res) ? res : (res?.data || [])
     },
     get: async (id: string): Promise<ProgramStudi> => {
-      const res = await request<{ success: boolean; data: ProgramStudi }>(`/program-studi/${id}`)
-      return res.data
+      const res = await request<any>(`/program-studi/${id}`)
+      return res?.data || res
     },
     create: (data: Partial<ProgramStudi>) => request<{ success: boolean; data: ProgramStudi }>('/program-studi', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<ProgramStudi>) => request<{ success: boolean; data: ProgramStudi }>(`/program-studi/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

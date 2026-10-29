@@ -10,6 +10,10 @@ export interface UserSession {
   avatar: string
   rank: string
   fakultas?: string
+  fakultasId?: string
+  psdkuId?: string
+  tipeLokasi?: 'Pusat' | 'PSDKU'
+  programStudiId?: string
   signatureUrl?: string
   jabatanStruktural?: string
   jabatanKampusId?: string
@@ -20,6 +24,16 @@ export interface Dosen {
   nip: string
   nuptk?: string
   nama: string
+  tipeLokasi?: 'Pusat' | 'PSDKU'
+  tipe_lokasi?: 'Pusat' | 'PSDKU'
+  fakultasId?: string | null
+  fakultas_id?: string | null
+  psdkuId?: string | null
+  psdku_id?: string | null
+  programStudiId?: string | null
+  program_studi_id?: string | null
+  fakultas?: string
+  kampus?: string
   prodi: string
   jafung: string
   golongan: string
@@ -38,6 +52,25 @@ export interface Dosen {
   signatureUrl?: string
   jabatanStruktural?: string
   jabatanKampusId?: string
+}
+
+export interface Fakultas {
+  id: string
+  kode?: string
+  nama: string
+  dekan_id?: string
+  dekan_nama?: string
+  dekan_nip?: string
+}
+
+export interface Psdku {
+  id: string
+  kode?: string
+  nama: string
+  lokasi?: string
+  kecab_id?: string
+  kecab_nama?: string
+  kecab_nip?: string
 }
 
 export interface JabatanKampus {
@@ -185,13 +218,22 @@ export interface NotificationItem {
 export interface ProgramStudi {
   id: string
   kode?: string
-  nama: string
-  jenjang: string
-  fakultas: string
-  kampus: string
+  nama: string // pure prodi name, e.g. "Informatika Kesehatan"
+  jenjang: string // "S1", "D3", "Profesi"
+  tipe_unit?: 'Pusat' | 'PSDKU'
+  tipeUnit?: 'Pusat' | 'PSDKU'
+  fakultas_id?: string
+  fakultasId?: string
+  psdku_id?: string
+  psdkuId?: string
+  fakultas?: string
+  psdku_nama?: string
+  kampus?: string
   kaprodiNama?: string
   kaprodiNip?: string
   kaprodiId?: string
-  akreditasi: string
+  akreditasi?: string
   isActive?: boolean
+  nama_lengkap?: string
+  namaLengkap?: string
 }

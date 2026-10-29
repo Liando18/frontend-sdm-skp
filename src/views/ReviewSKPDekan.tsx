@@ -12,7 +12,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
-import { PengajuanSKP, Dosen, UserSession } from '../types'
+import { PengajuanSKP, Dosen, UserSession, ProgramStudi, Fakultas } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { openPrintSKP } from '../utils/printSKP'
@@ -23,6 +23,8 @@ interface ReviewSKPDekanProps {
   user: UserSession
   skpList: PengajuanSKP[]
   dosenList: Dosen[]
+  prodiList?: ProgramStudi[]
+  fakultasList?: Fakultas[]
   onApproveByDekan: (skpId: string, catatan: string, ttdUrl?: string) => void
   onRejectByDekan: (skpId: string, catatan: string) => void
   onShowToast: (msg: string) => void
@@ -32,6 +34,8 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   user,
   skpList,
   dosenList,
+  prodiList = [],
+  fakultasList = [],
   onApproveByDekan,
   onRejectByDekan,
   onShowToast,
@@ -58,16 +62,57 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
     `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="70"><path d="M15 50 Q 55 15 100 45 T 165 25" fill="none" stroke="%231e3a5f" stroke-width="3"/><text x="18" y="62" font-family="sans-serif" font-weight="bold" font-size="10.5" fill="%231e3a5f">${encodeURIComponent(user.name || 'Dekan')} - Dekan</text></svg>`
   const [ttdPreview, setTtdPreview] = useState<string>(defaultDekanTTD)
 
-  // Filter kaprodi
-  const kaprodiList = dosenList.filter((d) => d.isKaprodi)
-  const kaprodiIds = new Set(kaprodiList.map((d) => d.id))
-  const kaprodiNames = new Set(kaprodiList.map((d) => d.nama))
+  // Filter kaprodi khusus dari program studi di fakultas yang dekan pimpin
+  const dekanFakultasId = user.fakultasId || (user as any).fakultas_id
+  const dekanFakultasName = (user.fakultas || '').toLowerCase()
+
+  const prodiFakultasSet = useMemo(() => {
+    const set = new Set<string>()
+    if (prodiList && prodiList.length > 0) {
+      prodiList.forEach((p) => {
+        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        if (matchFakId || matchFakName || (!dekanFakultasId && !dekanFakultasName)) {
+          set.add(p.nama.toLowerCase())
+          if (p.nama_lengkap) set.add(p.nama_lengkap.toLowerCase())
+          if (p.namaLengkap) set.add(p.namaLengkap.toLowerCase())
+          if (p.jenjang && p.nama) set.add(`${p.jenjang} ${p.nama}`.toLowerCase())
+        }
+      })
+    }
+    return set
+  }, [prodiList, dekanFakultasId, dekanFakultasName])
+
+  const kaprodiList = useMemo(() => {
+    return dosenList.filter((d) => {
+      if (!d.isKaprodi) return false
+
+      if (dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)) {
+        return true
+      }
+      if (dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)) {
+        return true
+      }
+      const pName = (d.prodi || '').toLowerCase()
+      if (prodiFakultasSet.has(pName)) {
+        return true
+      }
+      if (!dekanFakultasId && !dekanFakultasName) {
+        return true
+      }
+      return false
+    })
+  }, [dosenList, dekanFakultasId, dekanFakultasName, prodiFakultasSet])
+
+  const kaprodiIds = useMemo(() => new Set(kaprodiList.map((d) => d.id)), [kaprodiList])
+  const kaprodiNames = useMemo(() => new Set(kaprodiList.map((d) => d.nama)), [kaprodiList])
 
   const filteredRows = skpList.filter((skp) => {
     const isKap =
       kaprodiIds.has(skp.dosenId) ||
       kaprodiNames.has(skp.dosenNama) ||
-      kaprodiList.some((k) => k.prodi === skp.dosenProdi)
+      kaprodiList.some((k) => k.prodi === skp.dosenProdi) ||
+      prodiFakultasSet.has((skp.dosenProdi || '').toLowerCase())
 
     if (!isKap) return false
 
@@ -461,7 +506,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         <div>
           <h1 className="page-title">Verifikasi &amp; Pengesahan SKP Ketua Program Studi</h1>
           <p className="page-desc">
-            Sebagai Dekan, Anda adalah atasan penilai langsung yang memverifikasi capaian Tridharma dan manajerial Ketua Program Studi serta mengesahkan dengan tanda tangan digital resmi.
+            Sebagai Dekan {user.fakultas ? `(${user.fakultas})` : ''}, Anda memverifikasi capaian Tridharma dan manajerial Ketua Program Studi di lingkungan fakultas yang Anda pimpin serta mengesahkan dengan tanda tangan digital resmi.
           </p>
         </div>
       </div>

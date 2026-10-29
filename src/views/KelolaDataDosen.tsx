@@ -15,8 +15,12 @@ import {
   Check,
   Sparkles,
   Loader2,
+  Building2,
+  MapPin,
+  School,
+  Layers,
 } from 'lucide-react'
-import { Dosen, JabatanKampus, Role } from '../types'
+import { Dosen, JabatanKampus, Role, ProgramStudi, Fakultas, Psdku } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
 import { generateEntityId } from '../utils/security'
@@ -25,13 +29,22 @@ import { TablePagination } from '../components/TablePagination'
 interface KelolaDataDosenProps {
   dosenList: Dosen[]
   prodiList?: string[]
+  prodiObjects?: ProgramStudi[]
+  fakultasList?: Fakultas[]
+  psdkuList?: Psdku[]
   jabatanList?: JabatanKampus[]
   onAddDosen: (dosen: Dosen) => Promise<any> | void
   onUpdateDosen: (dosen: Dosen) => Promise<any> | void
   onDeleteDosen: (id: string) => Promise<any> | void
-  onAddProdi?: (name: string) => Promise<void> | void
-  onUpdateProdi?: (oldName: string, newName: string) => Promise<void> | void
-  onDeleteProdi?: (name: string) => Promise<void> | void
+  onAddProdi?: (data: Partial<ProgramStudi> | string) => Promise<void> | void
+  onUpdateProdi?: (id: string, data: Partial<ProgramStudi> | string) => Promise<void> | void
+  onDeleteProdi?: (id: string) => Promise<void> | void
+  onAddFakultas?: (data: Partial<Fakultas>) => Promise<void> | void
+  onUpdateFakultas?: (id: string, data: Partial<Fakultas>) => Promise<void> | void
+  onDeleteFakultas?: (id: string) => Promise<void> | void
+  onAddPsdku?: (data: Partial<Psdku>) => Promise<void> | void
+  onUpdatePsdku?: (id: string, data: Partial<Psdku>) => Promise<void> | void
+  onDeletePsdku?: (id: string) => Promise<void> | void
   onAddJabatan?: (data: Partial<JabatanKampus>) => Promise<void> | void
   onUpdateJabatan?: (id: string, data: Partial<JabatanKampus>) => Promise<void> | void
   onDeleteJabatan?: (id: string) => Promise<void> | void
@@ -41,6 +54,9 @@ interface KelolaDataDosenProps {
 export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   dosenList,
   prodiList: prodiListProp,
+  prodiObjects = [],
+  fakultasList: fakultasListProp = [],
+  psdkuList: psdkuListProp = [],
   jabatanList: jabatanListProp,
   onAddDosen,
   onUpdateDosen,
@@ -48,6 +64,12 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   onAddProdi,
   onUpdateProdi,
   onDeleteProdi,
+  onAddFakultas,
+  onUpdateFakultas,
+  onDeleteFakultas,
+  onAddPsdku,
+  onUpdatePsdku,
+  onDeletePsdku,
   onAddJabatan,
   onUpdateJabatan,
   onDeleteJabatan,
@@ -66,9 +88,36 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const baseProdis = (prodiListProp && prodiListProp.length > 0) ? prodiListProp : (fallbackProdi.length > 0 ? fallbackProdi : ['S1 Keperawatan'])
   const prodiList = Array.from(new Set([...baseProdis, ...customAddedProdis]))
   const [isManageProdiOpen, setIsManageProdiOpen] = useState(false)
-  const [newProdiInput, setNewProdiInput] = useState('')
-  const [editingProdiIdx, setEditingProdiIdx] = useState<number | null>(null)
-  const [editingProdiValue, setEditingProdiValue] = useState('')
+  const [newProdiJenjang, setNewProdiJenjang] = useState<'S1' | 'D3' | 'D4' | 'Profesi' | 'S2'>('S1')
+  const [newProdiNama, setNewProdiNama] = useState('')
+  const [newProdiTipeUnit, setNewProdiTipeUnit] = useState<'Pusat' | 'PSDKU'>('Pusat')
+  const [newProdiFakultasId, setNewProdiFakultasId] = useState('')
+  const [newProdiPsdkuId, setNewProdiPsdkuId] = useState('')
+  const [prodiSearchFilter, setProdiSearchFilter] = useState('')
+  const [editingProdiId, setEditingProdiId] = useState<string | null>(null)
+  const [editingProdiJenjang, setEditingProdiJenjang] = useState<'S1' | 'D3' | 'D4' | 'Profesi' | 'S2'>('S1')
+  const [editingProdiNama, setEditingProdiNama] = useState('')
+  const [editingProdiTipeUnit, setEditingProdiTipeUnit] = useState<'Pusat' | 'PSDKU'>('Pusat')
+  const [editingProdiFakultasId, setEditingProdiFakultasId] = useState('')
+  const [editingProdiPsdkuId, setEditingProdiPsdkuId] = useState('')
+
+  // Manage Fakultas state
+  const [isManageFakultasOpen, setIsManageFakultasOpen] = useState(false)
+  const [newFakultasNama, setNewFakultasNama] = useState('')
+  const [newFakultasKode, setNewFakultasKode] = useState('')
+  const [editingFakultasId, setEditingFakultasId] = useState<string | null>(null)
+  const [editingFakultasNama, setEditingFakultasNama] = useState('')
+  const [editingFakultasKode, setEditingFakultasKode] = useState('')
+
+  // Manage PSDKU state
+  const [isManagePsdkuOpen, setIsManagePsdkuOpen] = useState(false)
+  const [newPsdkuNama, setNewPsdkuNama] = useState('')
+  const [newPsdkuLokasi, setNewPsdkuLokasi] = useState('')
+  const [newPsdkuKode, setNewPsdkuKode] = useState('')
+  const [editingPsdkuId, setEditingPsdkuId] = useState<string | null>(null)
+  const [editingPsdkuNama, setEditingPsdkuNama] = useState('')
+  const [editingPsdkuLokasi, setEditingPsdkuLokasi] = useState('')
+  const [editingPsdkuKode, setEditingPsdkuKode] = useState('')
 
   // Derive jabatan kampus list dynamically from database / props
   const defaultJabatanList: JabatanKampus[] = [
@@ -77,6 +126,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     { id: 'jab-warek1', kode: 'WAREK_1', nama: 'Wakil Rektor I (Bidang Akademik)', kategori: 'Pimpinan', level: 2, is_struktural: true },
     { id: 'jab-warek2', kode: 'WAREK_2', nama: 'Wakil Rektor II (Bidang Non-Akademik)', kategori: 'Pimpinan', level: 2, is_struktural: true },
     { id: 'jab-dekan', kode: 'DEKAN', nama: 'Dekan Fakultas', kategori: 'Struktural', level: 3, is_struktural: true },
+    { id: 'jab-kecab', kode: 'KECAB', nama: 'Kepala Cabang (KeCab)', kategori: 'Pimpinan PSDKU', level: 2, is_struktural: true, role_akses: 'dekan' },
     { id: 'jab-kaprodi', kode: 'KAPRODI', nama: 'Ketua Program Studi (Kaprodi)', kategori: 'Struktural', level: 4, is_struktural: true },
     { id: 'jab-sekprodi', kode: 'SEKPRODI', nama: 'Sekretaris Program Studi', kategori: 'Struktural', level: 5, is_struktural: true },
   ]
@@ -159,60 +209,128 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
   }
 
-  const handleAddProdi = async () => {
-    const val = newProdiInput.trim()
-    if (!val) return
-    if (prodiList.includes(val)) {
-      onShowToast('Program Studi tersebut sudah ada!')
+  // Fakultas Handlers
+  const handleAddFakultasAction = async () => {
+    const nama = newFakultasNama.trim()
+    if (!nama) {
+      onShowToast('Nama fakultas tidak boleh kosong!')
+      return
+    }
+    const kode = (newFakultasKode.trim() || nama.split(' ').map((w) => w[0]).join('').toUpperCase()).slice(0, 20)
+    if (onAddFakultas) {
+      await onAddFakultas({ nama, kode })
+    }
+    setNewFakultasNama('')
+    setNewFakultasKode('')
+  }
+
+  const handleSaveEditFakultasAction = async (id: string) => {
+    const nama = editingFakultasNama.trim()
+    if (!nama) return
+    if (onUpdateFakultas) {
+      await onUpdateFakultas(id, { nama, kode: editingFakultasKode.trim() || undefined })
+    }
+    setEditingFakultasId(null)
+    setEditingFakultasNama('')
+    setEditingFakultasKode('')
+  }
+
+  const handleDeleteFakultasAction = async (id: string) => {
+    if (fakultasListProp.length <= 1) {
+      onShowToast('Minimal harus ada 1 fakultas!')
+      return
+    }
+    if (onDeleteFakultas) {
+      await onDeleteFakultas(id)
+    }
+  }
+
+  // PSDKU Handlers
+  const handleAddPsdkuAction = async () => {
+    const nama = newPsdkuNama.trim()
+    if (!nama) {
+      onShowToast('Nama PSDKU tidak boleh kosong!')
+      return
+    }
+    const kode = (newPsdkuKode.trim() || nama.toUpperCase().replace(/[^A-Z0-9]/g, '_')).slice(0, 30)
+    if (onAddPsdku) {
+      await onAddPsdku({ nama, lokasi: newPsdkuLokasi.trim(), kode })
+    }
+    setNewPsdkuNama('')
+    setNewPsdkuLokasi('')
+    setNewPsdkuKode('')
+  }
+
+  const handleSaveEditPsdkuAction = async (id: string) => {
+    const nama = editingPsdkuNama.trim()
+    if (!nama) return
+    if (onUpdatePsdku) {
+      await onUpdatePsdku(id, { nama, lokasi: editingPsdkuLokasi.trim(), kode: editingPsdkuKode.trim() || undefined })
+    }
+    setEditingPsdkuId(null)
+    setEditingPsdkuNama('')
+    setEditingPsdkuLokasi('')
+    setEditingPsdkuKode('')
+  }
+
+  const handleDeletePsdkuAction = async (id: string) => {
+    if (psdkuListProp.length <= 1) {
+      onShowToast('Minimal harus ada 1 PSDKU!')
+      return
+    }
+    if (onDeletePsdku) {
+      await onDeletePsdku(id)
+    }
+  }
+
+  // Prodi Handlers
+  const handleAddProdiAction = async () => {
+    const val = newProdiNama.trim()
+    if (!val) {
+      onShowToast('Nama program studi tidak boleh kosong!')
       return
     }
     if (onAddProdi) {
-      await onAddProdi(val)
+      await onAddProdi({
+        jenjang: newProdiJenjang,
+        nama: val,
+        tipe_unit: newProdiTipeUnit,
+        fakultas_id: newProdiTipeUnit === 'Pusat' ? (newProdiFakultasId || fakultasListProp[0]?.id) : undefined,
+        psdku_id: newProdiTipeUnit === 'PSDKU' ? (newProdiPsdkuId || psdkuListProp[0]?.id) : undefined,
+      })
     } else {
-      setCustomAddedProdis((prev) => [...prev, val])
-      onShowToast(`Program Studi "${val}" berhasil ditambahkan!`)
+      const full = `${newProdiJenjang} ${val}`
+      setCustomAddedProdis((prev) => [...prev, full])
+      onShowToast(`Program Studi "${full}" berhasil ditambahkan!`)
     }
-    setFormData((prev) => ({ ...prev, prodi: val }))
-    setNewProdiInput('')
+    const full = `${newProdiJenjang} ${val}`
+    setFormData((prev) => ({ ...prev, prodi: full }))
+    setNewProdiNama('')
   }
 
-  const handleSaveEditProdi = async (index: number) => {
-    const val = editingProdiValue.trim()
+  const handleSaveEditProdiAction = async (idOrName: string) => {
+    const val = editingProdiNama.trim()
     if (!val) return
-    const oldVal = prodiList[index]
     if (onUpdateProdi) {
-      await onUpdateProdi(oldVal, val)
+      await onUpdateProdi(idOrName, {
+        jenjang: editingProdiJenjang,
+        nama: val,
+        tipe_unit: editingProdiTipeUnit,
+        fakultas_id: editingProdiTipeUnit === 'Pusat' ? (editingProdiFakultasId || fakultasListProp[0]?.id) : undefined,
+        psdku_id: editingProdiTipeUnit === 'PSDKU' ? (editingProdiPsdkuId || psdkuListProp[0]?.id) : undefined,
+      })
     } else {
-      setCustomAddedProdis((prev) => prev.map((p) => (p === oldVal ? val : p)))
-      onShowToast('Nama Program Studi berhasil diperbarui!')
+      setCustomAddedProdis((prev) => prev.map((p) => (p === idOrName ? `${editingProdiJenjang} ${val}` : p)))
     }
-    if (formData.prodi === oldVal) {
-      setFormData((prev) => ({ ...prev, prodi: val }))
-    }
-    if (selectedProdi === oldVal) {
-      setSelectedProdi(val)
-    }
-    setEditingProdiIdx(null)
-    setEditingProdiValue('')
+    setEditingProdiId(null)
+    setEditingProdiNama('')
   }
 
-  const handleDeleteProdi = async (index: number) => {
-    if (prodiList.length <= 1) {
-      onShowToast('Minimal harus ada 1 program studi!')
-      return
-    }
-    const removed = prodiList[index]
+  const handleDeleteProdiAction = async (idOrName: string) => {
     if (onDeleteProdi) {
-      await onDeleteProdi(removed)
+      await onDeleteProdi(idOrName)
     } else {
-      setCustomAddedProdis((prev) => prev.filter((p) => p !== removed))
-      onShowToast(`Program Studi "${removed}" telah dihapus.`)
-    }
-    if (formData.prodi === removed) {
-      setFormData((prev) => ({ ...prev, prodi: prodiList[0] || '' }))
-    }
-    if (selectedProdi === removed) {
-      setSelectedProdi('Semua Program Studi')
+      setCustomAddedProdis((prev) => prev.filter((p) => p !== idOrName))
     }
   }
 
@@ -226,6 +344,12 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     nama: '',
     nip: '',
     nuptk: '',
+    tipeLokasi: 'Pusat' as 'Pusat' | 'PSDKU',
+    fakultasId: '',
+    fakultas: '',
+    psdkuId: '',
+    kampus: 'Pusat',
+    programStudiId: '',
     prodi: defaultProdi,
     jabatanStruktural: 'Dosen',
     jabatanKampusId: 'jab-dosen',
@@ -241,6 +365,24 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     email: '',
     phone: '',
   })
+
+  // Options for active prodis depending on placement (Pusat vs PSDKU)
+  const activeProdiOptions = useMemo(() => {
+    if (prodiObjects && prodiObjects.length > 0) {
+      if (formData.tipeLokasi === 'Pusat') {
+        const matchFak = prodiObjects.filter(
+          (p) => (p.tipe_unit || 'Pusat') === 'Pusat' && (!formData.fakultasId || p.fakultas_id === formData.fakultasId)
+        )
+        return matchFak.length > 0 ? matchFak : prodiObjects.filter((p) => (p.tipe_unit || 'Pusat') === 'Pusat')
+      } else {
+        const matchPsdku = prodiObjects.filter(
+          (p) => p.tipe_unit === 'PSDKU' && (!formData.psdkuId || p.psdku_id === formData.psdkuId)
+        )
+        return matchPsdku.length > 0 ? matchPsdku : prodiObjects.filter((p) => p.tipe_unit === 'PSDKU')
+      }
+    }
+    return []
+  }, [prodiObjects, formData.tipeLokasi, formData.fakultasId, formData.psdkuId])
 
   const filteredDosen = dosenList.filter((d) => {
     const q = (searchQuery || '').trim().toLowerCase()
@@ -270,11 +412,22 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
   const handleOpenCreate = () => {
     const defaultJab = jabatanList.find((j) => j.kode === 'DOSEN' || j.nama.toLowerCase() === 'dosen')
+    const firstFak = fakultasListProp[0]
+    const pList = prodiObjects.filter((p) => (p.tipe_unit || 'Pusat') === 'Pusat' && (!firstFak || p.fakultas_id === firstFak.id))
+    const firstP = pList[0] || prodiObjects.find((p) => (p.tipe_unit || 'Pusat') === 'Pusat') || prodiObjects[0]
+    const firstProdiName = firstP ? (firstP.nama_lengkap || `${firstP.jenjang ? firstP.jenjang + ' ' : ''}${firstP.nama}`) : (prodiList[0] || 'S1 Keperawatan')
+
     setFormData({
       nama: '',
       nip: '',
       nuptk: '',
-      prodi: defaultProdi,
+      tipeLokasi: 'Pusat',
+      fakultasId: firstFak?.id || '',
+      fakultas: firstFak?.nama || '',
+      psdkuId: '',
+      kampus: 'Pusat',
+      programStudiId: firstP?.id || '',
+      prodi: firstProdiName,
       jabatanStruktural: defaultJab?.nama || 'Dosen',
       jabatanKampusId: defaultJab?.id || 'jab-dosen',
       roleLogin: (defaultJab?.role_akses || defaultJab?.default_role || 'dosen') as Role,
@@ -295,11 +448,21 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const handleAutoFillDummyDosen = () => {
     const randomNipSuffix = Math.floor(1000 + Math.random() * 9000)
     const kaprodiJab = jabatanList.find((j) => j.kode === 'KAPRODI' || j.nama.toLowerCase().includes('kaprodi'))
+    const farmasiFak = fakultasListProp.find((f) => f.nama.toLowerCase().includes('farmasi')) || fakultasListProp[0]
+    const farmasiProdi = prodiObjects.find((p) => p.nama.toLowerCase().includes('farmasi') && (p.tipe_unit || 'Pusat') === 'Pusat') || prodiObjects[0]
+    const prodiDisplay = farmasiProdi ? (farmasiProdi.nama_lengkap || `${farmasiProdi.jenjang ? farmasiProdi.jenjang + ' ' : ''}${farmasiProdi.nama}`) : (prodiList[0] || 'S1 Farmasi')
+
     setFormData({
       nama: 'Dr. apt. Farhan Prasetyo, M.Farm.',
       nip: `19850720201201${randomNipSuffix}`,
       nuptk: `987654321098${randomNipSuffix}`,
-      prodi: prodiList[0] || 'S1 Keperawatan',
+      tipeLokasi: 'Pusat',
+      fakultasId: farmasiFak?.id || '',
+      fakultas: farmasiFak?.nama || '',
+      psdkuId: '',
+      kampus: 'Pusat',
+      programStudiId: farmasiProdi?.id || '',
+      prodi: prodiDisplay,
       jabatanStruktural: kaprodiJab?.nama || 'Ketua Program Studi (Kaprodi)',
       jabatanKampusId: kaprodiJab?.id || 'jab-kaprodi',
       roleLogin: 'kaprodi',
@@ -326,10 +489,52 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     else if (dosen.isDekan) derivedRole = 'dekan'
     else if (currentJabName.toLowerCase().includes('sdm')) derivedRole = 'sdm'
 
+    const isPsdku = Boolean(dosen.tipeLokasi === 'PSDKU' || dosen.psdkuId || (dosen.kampus && dosen.kampus !== 'Pusat'))
+    const locType: 'Pusat' | 'PSDKU' = isPsdku ? 'PSDKU' : 'Pusat'
+
+    let resolvedFakId = dosen.fakultasId || ''
+    let resolvedFakNama = dosen.fakultas || ''
+    let resolvedPsdkuId = dosen.psdkuId || ''
+    let resolvedKampus = dosen.kampus || (isPsdku ? 'PSDKU' : 'Pusat')
+
+    if (locType === 'Pusat') {
+      if (!resolvedFakId && resolvedFakNama) {
+        const f = fakultasListProp.find((item) => item.nama === resolvedFakNama)
+        if (f) resolvedFakId = f.id
+      }
+      if (!resolvedFakNama && resolvedFakId) {
+        const f = fakultasListProp.find((item) => item.id === resolvedFakId)
+        if (f) resolvedFakNama = f.nama
+      }
+    } else {
+      if (!resolvedPsdkuId && resolvedKampus) {
+        const p = psdkuListProp.find((item) => item.nama === resolvedKampus)
+        if (p) resolvedPsdkuId = p.id
+      }
+      if (!resolvedKampus && resolvedPsdkuId) {
+        const p = psdkuListProp.find((item) => item.id === resolvedPsdkuId)
+        if (p) resolvedKampus = p.nama
+      }
+    }
+
+    const matchedProdi = prodiObjects.find(
+      (p) =>
+        p.id === dosen.programStudiId ||
+        p.nama_lengkap === dosen.prodi ||
+        `${p.jenjang} ${p.nama}` === dosen.prodi ||
+        p.nama === dosen.prodi
+    )
+
     setFormData({
       nama: dosen.nama,
       nip: dosen.nip,
       nuptk: dosen.nuptk || '',
+      tipeLokasi: locType,
+      fakultasId: resolvedFakId,
+      fakultas: resolvedFakNama,
+      psdkuId: resolvedPsdkuId,
+      kampus: resolvedKampus,
+      programStudiId: matchedProdi?.id || dosen.programStudiId || '',
       prodi: dosen.prodi,
       jabatanStruktural: currentJabName,
       jabatanKampusId: matchedJab?.id || dosen.jabatanKampusId || 'jab-dosen',
@@ -366,13 +571,29 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
     setIsSavingDosen(true)
     try {
+      const payloadPlacement = {
+        tipeLokasi: formData.tipeLokasi,
+        tipe_lokasi: formData.tipeLokasi,
+        fakultasId: formData.tipeLokasi === 'Pusat' ? (formData.fakultasId || undefined) : undefined,
+        fakultas_id: formData.tipeLokasi === 'Pusat' ? (formData.fakultasId || null) : null,
+        fakultas: formData.tipeLokasi === 'Pusat' ? (formData.fakultas || undefined) : undefined,
+        psdkuId: formData.tipeLokasi === 'PSDKU' ? (formData.psdkuId || undefined) : undefined,
+        psdku_id: formData.tipeLokasi === 'PSDKU' ? (formData.psdkuId || null) : null,
+        kampus: formData.tipeLokasi === 'PSDKU' ? (formData.kampus || 'PSDKU') : 'Pusat',
+        programStudiId: formData.programStudiId || undefined,
+        program_studi_id: formData.programStudiId || null,
+        prodi: formData.prodi,
+        role: formData.roleLogin,
+        roleLogin: formData.roleLogin,
+      }
+
       if (viewMode === 'edit' && selectedDosen) {
         const updated: Dosen = {
           ...selectedDosen,
+          ...payloadPlacement,
           nama: formData.nama,
           nip: formData.nip,
           nuptk: formData.nuptk,
-          prodi: formData.prodi,
           jabatanStruktural: formData.jabatanStruktural || 'Dosen',
           jabatanKampusId: formData.jabatanKampusId,
           isKaprodi: formData.roleLogin === 'kaprodi',
@@ -395,7 +616,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           nip: formData.nip || '0000000000000000',
           nuptk: formData.nuptk || '',
           nama: formData.nama,
-          prodi: formData.prodi,
+          ...payloadPlacement,
           jabatanStruktural: formData.jabatanStruktural || 'Dosen',
           jabatanKampusId: formData.jabatanKampusId,
           isKaprodi: formData.roleLogin === 'kaprodi',
@@ -478,27 +699,54 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
   const renderManageProdiModal = () => {
     if (!isManageProdiOpen) return null
+
+    const displayProdis: ProgramStudi[] = (prodiObjects && prodiObjects.length > 0)
+      ? prodiObjects
+      : prodiList.map((p, idx) => ({
+          id: `p-${idx}`,
+          nama: p.replace(/^(S1|D3|D4|Profesi|S2)\s+/, ''),
+          jenjang: (p.match(/^(S1|D3|D4|Profesi|S2)/)?.[0] || 'S1'),
+          nama_lengkap: p,
+          tipe_unit: 'Pusat' as const,
+          fakultas: '',
+          psdku_nama: '',
+        }))
+
+    const filteredProdis = displayProdis.filter((p) => {
+      const q = (prodiSearchFilter || '').trim().toLowerCase()
+      if (!q) return true
+      const full = (p.nama_lengkap || `${p.jenjang || ''} ${p.nama}`).toLowerCase()
+      return (
+        full.includes(q) ||
+        (p.tipe_unit || '').toLowerCase().includes(q) ||
+        (p.fakultas || '').toLowerCase().includes(q) ||
+        (p.psdku_nama || '').toLowerCase().includes(q)
+      )
+    })
+
     return (
       <div
+        onClick={() => setIsManageProdiOpen(false)}
         style={{
           position: 'fixed',
           inset: 0,
           background: 'rgba(15, 23, 42, 0.55)',
           backdropFilter: 'blur(4px)',
-          zIndex: 1000,
+          zIndex: 9999,
           display: 'grid',
           placeItems: 'center',
           padding: '16px',
         }}
       >
         <div
+          onClick={(e) => e.stopPropagation()}
           style={{
             background: '#ffffff',
             borderRadius: 'var(--r-xl)',
             boxShadow: 'var(--shadow-xl)',
             width: '100%',
-            maxWidth: 480,
-            maxHeight: '90vh',
+            maxWidth: 620,
+            maxHeight: '92vh',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -517,10 +765,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           >
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                Kelola Homebase Program Studi
+                Kelola Master Program Studi
               </h3>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                Tambah, edit, atau hapus pilihan program studi homebase dosen di lingkungan UBK.
+                Penyimpanan database: nama murni (misal: "Informatika Kesehatan"), tampilan portal: Jenjang + Nama ("S1 Informatika Kesehatan").
               </div>
             </div>
             <button
@@ -533,119 +781,289 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             </button>
           </div>
 
-          {/* Add Input */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--hair)' }}>
-            <label className="form-label" style={{ fontSize: '12px' }}>
+          {/* Add Form */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--hair)', background: '#fafafa' }}>
+            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>
               Tambah Program Studi Baru
-            </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                className="custom-input"
-                placeholder="Contoh: S1 Fisioterapi..."
-                value={newProdiInput}
-                onChange={(e) => setNewProdiInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleAddProdi()
-                  }
-                }}
-                style={{ height: 36, fontSize: '13px' }}
-              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8, marginBottom: 8 }}>
+              <div>
+                <label className="form-label" style={{ fontSize: '11px', marginBottom: 2 }}>Jenjang</label>
+                <select
+                  className="custom-select"
+                  value={newProdiJenjang}
+                  onChange={(e) => setNewProdiJenjang(e.target.value as any)}
+                  style={{ height: 34, fontSize: '12.5px' }}
+                >
+                  <option value="D3">D3</option>
+                  <option value="D4">D4</option>
+                  <option value="S1">S1</option>
+                  <option value="Profesi">Profesi</option>
+                  <option value="S2">S2</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label" style={{ fontSize: '11px', marginBottom: 2 }}>Nama Program Studi (Murni)</label>
+                <input
+                  type="text"
+                  className="custom-input"
+                  placeholder="Contoh: Informatika Kesehatan (tanpa jenjang)"
+                  value={newProdiNama}
+                  onChange={(e) => setNewProdiNama(e.target.value)}
+                  style={{ height: 34, fontSize: '12.5px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 8, alignItems: 'flex-end' }}>
+              <div>
+                <label className="form-label" style={{ fontSize: '11px', marginBottom: 2 }}>Lokasi Kampus</label>
+                <select
+                  className="custom-select"
+                  value={newProdiTipeUnit}
+                  onChange={(e) => setNewProdiTipeUnit(e.target.value as any)}
+                  style={{ height: 34, fontSize: '12px' }}
+                >
+                  <option value="Pusat">Pusat (Utama)</option>
+                  <option value="PSDKU">Kampus PSDKU</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label" style={{ fontSize: '11px', marginBottom: 2 }}>
+                  {newProdiTipeUnit === 'Pusat' ? 'Fakultas Naungan' : 'Wilayah Kampus PSDKU'}
+                </label>
+                {newProdiTipeUnit === 'Pusat' ? (
+                  <select
+                    className="custom-select"
+                    value={newProdiFakultasId || (fakultasListProp[0]?.id || '')}
+                    onChange={(e) => setNewProdiFakultasId(e.target.value)}
+                    style={{ height: 34, fontSize: '12px' }}
+                  >
+                    {fakultasListProp.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.nama}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    className="custom-select"
+                    value={newProdiPsdkuId || (psdkuListProp[0]?.id || '')}
+                    onChange={(e) => setNewProdiPsdkuId(e.target.value)}
+                    style={{ height: 34, fontSize: '12px' }}
+                  >
+                    {psdkuListProp.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nama} ({p.lokasi})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={handleAddProdi}
+                onClick={handleAddProdiAction}
                 className="brand-btn btn-action-add"
-                style={{ padding: '6px 14px', height: 36, flexShrink: 0 }}
+                style={{ padding: '6px 14px', height: 34, flexShrink: 0 }}
               >
                 <Plus size={14} />
-                <span>Tambah</span>
+                <span>Simpan</span>
               </button>
             </div>
           </div>
 
+          {/* Search & Filter */}
+          <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--hair)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Search size={14} color="var(--muted)" />
+            <input
+              type="text"
+              placeholder="Cari program studi..."
+              value={prodiSearchFilter}
+              onChange={(e) => setProdiSearchFilter(e.target.value)}
+              style={{ border: 'none', outline: 'none', fontSize: '12px', width: '100%', background: 'transparent' }}
+            />
+          </div>
+
           {/* Prodi List */}
-          <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 340 }}>
+          <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 320 }}>
             <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Daftar Program Studi ({prodiList.length})
+              Daftar Program Studi ({filteredProdis.length})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {prodiList.map((p, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--r-md)',
-                    background: 'var(--panel-hover)',
-                    border: '1px solid var(--hair)',
-                    gap: 8,
-                  }}
-                >
-                  {editingProdiIdx === idx ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                      <input
-                        type="text"
-                        className="custom-input"
-                        value={editingProdiValue}
-                        onChange={(e) => setEditingProdiValue(e.target.value)}
-                        style={{ height: 32, fontSize: '12.5px', flex: 1 }}
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSaveEditProdi(idx)}
-                        className="brand-btn btn-action-edit"
-                        style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
-                        title="Simpan"
-                      >
-                        <Check size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingProdiIdx(null)}
-                        className="brand-btn brand-btn--outline"
-                        style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
-                        title="Batal"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>
-                        {p}
-                      </span>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingProdiIdx(idx)
-                            setEditingProdiValue(p)
-                          }}
-                          className="btn-table-action btn-table-action--edit"
-                          title="Edit Prodi"
-                          aria-label={`Edit ${p}`}
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProdi(idx)}
-                          className="btn-table-action btn-table-action--delete"
-                          title="Hapus Prodi"
-                          aria-label={`Hapus ${p}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+              {filteredProdis.map((p) => {
+                const label = p.nama_lengkap || `${p.jenjang || ''} ${p.nama}`.trim()
+                const isEditing = editingProdiId === p.id
+
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--r-md)',
+                      background: 'var(--panel-hover)',
+                      border: '1px solid var(--hair)',
+                      gap: 8,
+                    }}
+                  >
+                    {isEditing ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', padding: '4px 0' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 6 }}>
+                          <div>
+                            <label style={{ fontSize: '10.5px', color: 'var(--muted)', fontWeight: 600 }}>Jenjang</label>
+                            <select
+                              className="custom-select"
+                              value={editingProdiJenjang}
+                              onChange={(e) => setEditingProdiJenjang(e.target.value as any)}
+                              style={{ height: 32, fontSize: '12px' }}
+                            >
+                              <option value="D3">D3</option>
+                              <option value="D4">D4</option>
+                              <option value="S1">S1</option>
+                              <option value="Profesi">Profesi</option>
+                              <option value="S2">S2</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '10.5px', color: 'var(--muted)', fontWeight: 600 }}>Nama Program Studi</label>
+                            <input
+                              type="text"
+                              className="custom-input"
+                              value={editingProdiNama}
+                              onChange={(e) => setEditingProdiNama(e.target.value)}
+                              style={{ height: 32, fontSize: '12px' }}
+                              placeholder="Nama prodi murni..."
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr auto', gap: 6, alignItems: 'flex-end' }}>
+                          <div>
+                            <label style={{ fontSize: '10.5px', color: 'var(--muted)', fontWeight: 600 }}>Lokasi Unit</label>
+                            <select
+                              className="custom-select"
+                              value={editingProdiTipeUnit}
+                              onChange={(e) => setEditingProdiTipeUnit(e.target.value as any)}
+                              style={{ height: 32, fontSize: '11.5px' }}
+                            >
+                              <option value="Pusat">Pusat</option>
+                              <option value="PSDKU">PSDKU</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '10.5px', color: 'var(--muted)', fontWeight: 600 }}>
+                              {editingProdiTipeUnit === 'Pusat' ? 'Fakultas Naungan' : 'Wilayah Kampus PSDKU'}
+                            </label>
+                            {editingProdiTipeUnit === 'Pusat' ? (
+                              <select
+                                className="custom-select"
+                                value={editingProdiFakultasId || (fakultasListProp[0]?.id || '')}
+                                onChange={(e) => setEditingProdiFakultasId(e.target.value)}
+                                style={{ height: 32, fontSize: '11.5px' }}
+                              >
+                                {fakultasListProp.map((f) => (
+                                  <option key={f.id} value={f.id}>
+                                    {f.nama}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <select
+                                className="custom-select"
+                                value={editingProdiPsdkuId || (psdkuListProp[0]?.id || '')}
+                                onChange={(e) => setEditingProdiPsdkuId(e.target.value)}
+                                style={{ height: 32, fontSize: '11.5px' }}
+                              >
+                                {psdkuListProp.map((psd) => (
+                                  <option key={psd.id} value={psd.id}>
+                                    {psd.nama} ({psd.lokasi})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditProdiAction(p.id)}
+                              className="brand-btn btn-action-edit"
+                              style={{ padding: '5px 10px', height: 32, fontSize: '11px', display: 'flex', alignItems: 'center', gap: 4 }}
+                              title="Simpan Perubahan"
+                            >
+                              <Check size={13} />
+                              <span>Simpan</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProdiId(null)}
+                              className="brand-btn brand-btn--outline"
+                              style={{ padding: '5px 8px', height: 32, fontSize: '11px' }}
+                              title="Batal"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </>
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {label}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: p.tipe_unit === 'PSDKU' ? '#e0f2fe' : '#dcfce7',
+                                color: p.tipe_unit === 'PSDKU' ? '#0369a1' : '#15803d',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {p.tipe_unit === 'PSDKU' ? `📍 ${p.psdku_nama || 'PSDKU'}` : `🏛️ ${p.fakultas || 'Pusat'}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProdiId(p.id)
+                              setEditingProdiJenjang((p.jenjang || 'S1') as any)
+                              setEditingProdiNama(p.nama)
+                              setEditingProdiTipeUnit((p.tipe_unit || 'Pusat') as any)
+                              setEditingProdiFakultasId(p.fakultas_id || (fakultasListProp[0]?.id || ''))
+                              setEditingProdiPsdkuId(p.psdku_id || (psdkuListProp[0]?.id || ''))
+                            }}
+                            className="btn-table-action btn-table-action--edit"
+                            title="Edit Prodi & Fakultas"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProdiAction(p.id)}
+                            className="btn-table-action btn-table-action--delete"
+                            title="Hapus Prodi"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -673,22 +1091,489 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     )
   }
 
-  const renderManageJabatanModal = () => {
-    if (!isManageJabatanOpen) return null
+  const renderManageFakultasModal = () => {
+    if (!isManageFakultasOpen) return null
     return (
       <div
+        onClick={() => setIsManageFakultasOpen(false)}
         style={{
           position: 'fixed',
           inset: 0,
           background: 'rgba(15, 23, 42, 0.55)',
           backdropFilter: 'blur(4px)',
-          zIndex: 1000,
+          zIndex: 9999,
           display: 'grid',
           placeItems: 'center',
           padding: '16px',
         }}
       >
         <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: '#ffffff',
+            borderRadius: 'var(--r-xl)',
+            boxShadow: 'var(--shadow-xl)',
+            width: '100%',
+            maxWidth: 540,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--hair)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--panel-hover)',
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
+                Kelola Master Fakultas (Kampus Utama)
+              </h3>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
+                Fakultas di Kampus Pusat yang menaungi Program Studi dan Dekan penilai SKP.
+              </div>
+            </div>
+            <button
+              onClick={() => setIsManageFakultasOpen(false)}
+              className="icon-btn"
+              style={{ width: 30, height: 30 }}
+              aria-label="Tutup modal"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Add Form */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--hair)' }}>
+            <label className="form-label" style={{ fontSize: '12px' }}>
+              Tambah Fakultas Baru
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: 8 }}>
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Nama Fakultas (misal: Fakultas Kedokteran)"
+                value={newFakultasNama}
+                onChange={(e) => setNewFakultasNama(e.target.value)}
+                style={{ height: 36, fontSize: '12.5px' }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Kode (FKED)"
+                value={newFakultasKode}
+                onChange={(e) => setNewFakultasKode(e.target.value)}
+                style={{ height: 36, fontSize: '12.5px' }}
+              />
+              <button
+                type="button"
+                onClick={handleAddFakultasAction}
+                className="brand-btn btn-action-add"
+                style={{ padding: '6px 14px', height: 36, flexShrink: 0 }}
+              >
+                <Plus size={14} />
+                <span>Tambah</span>
+              </button>
+            </div>
+          </div>
+
+          {/* List */}
+          <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 340 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
+              Daftar Fakultas ({fakultasListProp.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {fakultasListProp.map((f) => {
+                const isEditing = editingFakultasId === f.id
+                return (
+                  <div
+                    key={f.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--r-md)',
+                      background: 'var(--panel-hover)',
+                      border: '1px solid var(--hair)',
+                      gap: 8,
+                    }}
+                  >
+                    {isEditing ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                        <input
+                          type="text"
+                          className="custom-input"
+                          value={editingFakultasNama}
+                          onChange={(e) => setEditingFakultasNama(e.target.value)}
+                          style={{ height: 32, fontSize: '12.5px', flex: 1 }}
+                          autoFocus
+                        />
+                        <input
+                          type="text"
+                          className="custom-input"
+                          value={editingFakultasKode}
+                          onChange={(e) => setEditingFakultasKode(e.target.value)}
+                          style={{ height: 32, fontSize: '12px', width: 80 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEditFakultasAction(f.id)}
+                          className="brand-btn btn-action-edit"
+                          style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
+                        >
+                          <Check size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingFakultasId(null)}
+                          className="brand-btn brand-btn--outline"
+                          style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {f.nama}
+                          </span>
+                          {f.kode && (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: '#f1f5f9',
+                                color: 'var(--muted)',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {f.kode}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingFakultasId(f.id)
+                              setEditingFakultasNama(f.nama)
+                              setEditingFakultasKode(f.kode || '')
+                            }}
+                            className="btn-table-action btn-table-action--edit"
+                            title="Edit Fakultas"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFakultasAction(f.id)}
+                            className="btn-table-action btn-table-action--delete"
+                            title="Hapus Fakultas"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '12px 20px',
+              borderTop: '1px solid var(--hair)',
+              background: 'var(--panel-hover)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsManageFakultasOpen(false)}
+              className="brand-btn brand-btn--outline"
+              style={{ padding: '6px 16px', fontSize: '12.5px' }}
+            >
+              Selesai
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderManagePsdkuModal = () => {
+    if (!isManagePsdkuOpen) return null
+    return (
+      <div
+        onClick={() => setIsManagePsdkuOpen(false)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 9999,
+          display: 'grid',
+          placeItems: 'center',
+          padding: '16px',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: '#ffffff',
+            borderRadius: 'var(--r-xl)',
+            boxShadow: 'var(--shadow-xl)',
+            width: '100%',
+            maxWidth: 580,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--hair)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--panel-hover)',
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
+                Kelola Master Kampus PSDKU
+              </h3>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
+                Program Studi di Luar Kampus Utama (PSDKU) yang dipimpin oleh Kepala Cabang (KeCab).
+              </div>
+            </div>
+            <button
+              onClick={() => setIsManagePsdkuOpen(false)}
+              className="icon-btn"
+              style={{ width: 30, height: 30 }}
+              aria-label="Tutup modal"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Add Form */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--hair)' }}>
+            <label className="form-label" style={{ fontSize: '12px' }}>
+              Tambah Kampus PSDKU Baru
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px auto', gap: 8 }}>
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Nama PSDKU (misal: PSDKU Cianjur)"
+                value={newPsdkuNama}
+                onChange={(e) => setNewPsdkuNama(e.target.value)}
+                style={{ height: 36, fontSize: '12.5px' }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Lokasi / Kota (Cianjur)"
+                value={newPsdkuLokasi}
+                onChange={(e) => setNewPsdkuLokasi(e.target.value)}
+                style={{ height: 36, fontSize: '12.5px' }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Kode"
+                value={newPsdkuKode}
+                onChange={(e) => setNewPsdkuKode(e.target.value)}
+                style={{ height: 36, fontSize: '12px' }}
+              />
+              <button
+                type="button"
+                onClick={handleAddPsdkuAction}
+                className="brand-btn btn-action-add"
+                style={{ padding: '6px 14px', height: 36, flexShrink: 0 }}
+              >
+                <Plus size={14} />
+                <span>Tambah</span>
+              </button>
+            </div>
+          </div>
+
+          {/* List */}
+          <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 340 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
+              Daftar Kampus PSDKU ({psdkuListProp.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {psdkuListProp.map((p) => {
+                const isEditing = editingPsdkuId === p.id
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--r-md)',
+                      background: 'var(--panel-hover)',
+                      border: '1px solid var(--hair)',
+                      gap: 8,
+                    }}
+                  >
+                    {isEditing ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                        <input
+                          type="text"
+                          className="custom-input"
+                          value={editingPsdkuNama}
+                          onChange={(e) => setEditingPsdkuNama(e.target.value)}
+                          style={{ height: 32, fontSize: '12.5px', flex: 1 }}
+                          autoFocus
+                        />
+                        <input
+                          type="text"
+                          className="custom-input"
+                          value={editingPsdkuLokasi}
+                          onChange={(e) => setEditingPsdkuLokasi(e.target.value)}
+                          style={{ height: 32, fontSize: '12px', flex: 1 }}
+                          placeholder="Lokasi"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEditPsdkuAction(p.id)}
+                          className="brand-btn btn-action-edit"
+                          style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
+                        >
+                          <Check size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPsdkuId(null)}
+                          className="brand-btn brand-btn--outline"
+                          style={{ padding: '4px 8px', height: 32, fontSize: '11px' }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                            {p.nama}
+                          </span>
+                          {p.lokasi && (
+                            <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                              ({p.lokasi})
+                            </span>
+                          )}
+                          {p.kode && (
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: '#e0f2fe',
+                                color: '#0369a1',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {p.kode}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPsdkuId(p.id)
+                              setEditingPsdkuNama(p.nama)
+                              setEditingPsdkuLokasi(p.lokasi || '')
+                              setEditingPsdkuKode(p.kode || '')
+                            }}
+                            className="btn-table-action btn-table-action--edit"
+                            title="Edit PSDKU"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePsdkuAction(p.id)}
+                            className="btn-table-action btn-table-action--delete"
+                            title="Hapus PSDKU"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '12px 20px',
+              borderTop: '1px solid var(--hair)',
+              background: 'var(--panel-hover)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsManagePsdkuOpen(false)}
+              className="brand-btn brand-btn--outline"
+              style={{ padding: '6px 16px', fontSize: '12.5px' }}
+            >
+              Selesai
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderManageJabatanModal = () => {
+    if (!isManageJabatanOpen) return null
+    return (
+      <div
+        onClick={() => setIsManageJabatanOpen(false)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 9999,
+          display: 'grid',
+          placeItems: 'center',
+          padding: '16px',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
           style={{
             background: '#ffffff',
             borderRadius: 'var(--r-xl)',
@@ -1107,53 +1992,267 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               </div>
             </div>
 
-            <div className="form-grid-2">
-              <div className="form-field">
-                <div className="form-field-label-row">
-                  <label className="form-label">Homebase Program Studi *</label>
+            {/* Lokasi Penugasan: Pusat vs PSDKU */}
+            <div style={{ marginTop: 14, padding: '14px 18px', background: '#f8fafc', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700, margin: 0 }}>
+                    Lokasi Kampus Penugasan Dosen *
+                  </label>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 2 }}>
+                    Tentukan penempatan dosen di Kampus Utama (Pusat) atau Kampus Cabang (PSDKU).
+                  </div>
+                </div>
+
+                <div style={{ display: 'inline-flex', background: '#e2e8f0', padding: 3, borderRadius: 8, gap: 4 }}>
                   <button
                     type="button"
-                    onClick={() => setIsManageProdiOpen(true)}
-                    className="btn-manage-pill"
-                    title="Kelola Opsi Program Studi"
+                    onClick={() => {
+                      const firstFak = fakultasListProp[0]
+                      const matchProdis = prodiObjects.filter((p) => (p.tipe_unit || 'Pusat') === 'Pusat' && (!firstFak || p.fakultas_id === firstFak.id))
+                      const targetProdi = matchProdis[0] || prodiObjects.find((p) => (p.tipe_unit || 'Pusat') === 'Pusat')
+                      const label = targetProdi ? (targetProdi.nama_lengkap || `${targetProdi.jenjang ? targetProdi.jenjang + ' ' : ''}${targetProdi.nama}`) : (prodiList[0] || '')
+                      setFormData((prev) => ({
+                        ...prev,
+                        tipeLokasi: 'Pusat',
+                        fakultasId: firstFak?.id || '',
+                        fakultas: firstFak?.nama || '',
+                        psdkuId: '',
+                        kampus: 'Pusat',
+                        programStudiId: targetProdi?.id || '',
+                        prodi: label || prev.prodi,
+                      }))
+                    }}
+                    style={{
+                      padding: '5px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: 6,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: formData.tipeLokasi === 'Pusat' ? '#ffffff' : 'transparent',
+                      color: formData.tipeLokasi === 'Pusat' ? 'var(--brand)' : 'var(--muted)',
+                      boxShadow: formData.tipeLokasi === 'Pusat' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
                   >
-                    <Settings size={12} />
-                    <span>Kelola Prodi</span>
+                    <Building2 size={13} />
+                    <span>Kampus Utama (Pusat)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstPsdku = psdkuListProp[0]
+                      const matchProdis = prodiObjects.filter((p) => p.tipe_unit === 'PSDKU' && (!firstPsdku || p.psdku_id === firstPsdku.id))
+                      const targetProdi = matchProdis[0] || prodiObjects.find((p) => p.tipe_unit === 'PSDKU')
+                      const label = targetProdi ? (targetProdi.nama_lengkap || `${targetProdi.jenjang ? targetProdi.jenjang + ' ' : ''}${targetProdi.nama}`) : ''
+                      setFormData((prev) => ({
+                        ...prev,
+                        tipeLokasi: 'PSDKU',
+                        fakultasId: '',
+                        fakultas: '',
+                        psdkuId: firstPsdku?.id || '',
+                        kampus: firstPsdku?.nama || 'PSDKU',
+                        programStudiId: targetProdi?.id || '',
+                        prodi: label || prev.prodi,
+                      }))
+                    }}
+                    style={{
+                      padding: '5px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: 6,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: formData.tipeLokasi === 'PSDKU' ? '#ffffff' : 'transparent',
+                      color: formData.tipeLokasi === 'PSDKU' ? 'var(--brand)' : 'var(--muted)',
+                      boxShadow: formData.tipeLokasi === 'PSDKU' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <MapPin size={13} />
+                    <span>Kampus Cabang (PSDKU)</span>
                   </button>
                 </div>
-                <select
-                  className="custom-select"
-                  value={formData.prodi}
-                  onChange={(e) => setFormData({ ...formData, prodi: e.target.value })}
-                >
-                  {prodiList.map((p, idx) => (
-                    <option key={idx} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                <span className="form-help">
-                  SDM dapat menambah, mengubah, atau menghapus pilihan program studi homebase.
-                </span>
               </div>
 
-              <div className="form-field">
-                <div className="form-field-label-row">
-                  <label className="form-label">Status Kepegawaian *</label>
+              {/* Conditional placement fields */}
+              <div className="form-grid-2">
+                {formData.tipeLokasi === 'Pusat' ? (
+                  <div className="form-field">
+                    <div className="form-field-label-row">
+                      <label className="form-label">Fakultas (Kampus Pusat) *</label>
+                      <button
+                        type="button"
+                        onClick={() => setIsManageFakultasOpen(true)}
+                        className="btn-manage-pill"
+                        title="Kelola Opsi Fakultas"
+                      >
+                        <Settings size={12} />
+                        <span>Kelola Fakultas</span>
+                      </button>
+                    </div>
+                    <select
+                      className="custom-select"
+                      value={formData.fakultasId}
+                      onChange={(e) => {
+                        const fid = e.target.value
+                        const fObj = fakultasListProp.find((f) => f.id === fid)
+                        const filtered = prodiObjects.filter((p) => (p.tipe_unit || 'Pusat') === 'Pusat' && p.fakultas_id === fid)
+                        const firstMatch = filtered[0]
+                        const label = firstMatch ? (firstMatch.nama_lengkap || `${firstMatch.jenjang ? firstMatch.jenjang + ' ' : ''}${firstMatch.nama}`) : ''
+                        setFormData((prev) => ({
+                          ...prev,
+                          fakultasId: fid,
+                          fakultas: fObj?.nama || '',
+                          programStudiId: firstMatch?.id || '',
+                          prodi: label || prev.prodi,
+                        }))
+                      }}
+                    >
+                      {fakultasListProp.map((fak) => (
+                        <option key={fak.id} value={fak.id}>
+                          {fak.nama} ({fak.kode})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="form-help">
+                      Fakultas naungan program studi di Kampus Utama Bandung.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="form-field">
+                    <div className="form-field-label-row">
+                      <label className="form-label">Kampus PSDKU *</label>
+                      <button
+                        type="button"
+                        onClick={() => setIsManagePsdkuOpen(true)}
+                        className="btn-manage-pill"
+                        title="Kelola Opsi PSDKU"
+                      >
+                        <Settings size={12} />
+                        <span>Kelola PSDKU</span>
+                      </button>
+                    </div>
+                    <select
+                      className="custom-select"
+                      value={formData.psdkuId}
+                      onChange={(e) => {
+                        const pid = e.target.value
+                        const pObj = psdkuListProp.find((p) => p.id === pid)
+                        const filtered = prodiObjects.filter((p) => p.tipe_unit === 'PSDKU' && p.psdku_id === pid)
+                        const firstMatch = filtered[0]
+                        const label = firstMatch ? (firstMatch.nama_lengkap || `${firstMatch.jenjang ? firstMatch.jenjang + ' ' : ''}${firstMatch.nama}`) : ''
+                        setFormData((prev) => ({
+                          ...prev,
+                          psdkuId: pid,
+                          kampus: pObj?.nama || 'PSDKU',
+                          programStudiId: firstMatch?.id || '',
+                          prodi: label || prev.prodi,
+                        }))
+                      }}
+                    >
+                      {psdkuListProp.map((psd) => (
+                        <option key={psd.id} value={psd.id}>
+                          {psd.nama} {psd.lokasi ? `- ${psd.lokasi}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="form-help">
+                      Lokasi kampus PSDKU tempat dosen bertugas.
+                    </span>
+                  </div>
+                )}
+
+                <div className="form-field">
+                  <div className="form-field-label-row">
+                    <label className="form-label">Homebase Program Studi *</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsManageProdiOpen(true)}
+                      className="btn-manage-pill"
+                      title="Kelola Opsi Program Studi"
+                    >
+                      <Settings size={12} />
+                      <span>Kelola Prodi</span>
+                    </button>
+                  </div>
+                  <select
+                    className="custom-select"
+                    value={formData.programStudiId || formData.prodi}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const matched = prodiObjects.find(
+                        (p) =>
+                          p.id === val ||
+                          p.nama_lengkap === val ||
+                          `${p.jenjang} ${p.nama}` === val ||
+                          p.nama === val
+                      )
+                      if (matched) {
+                        const label = matched.nama_lengkap || `${matched.jenjang ? matched.jenjang + ' ' : ''}${matched.nama}`
+                        setFormData((prev) => ({
+                          ...prev,
+                          programStudiId: matched.id,
+                          prodi: label,
+                        }))
+                      } else {
+                        setFormData((prev) => ({
+                          ...prev,
+                          prodi: val,
+                        }))
+                      }
+                    }}
+                  >
+                    {activeProdiOptions.length > 0 ? (
+                      activeProdiOptions.map((p) => {
+                        const label = p.nama_lengkap || `${p.jenjang ? p.jenjang + ' ' : ''}${p.nama}`
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {label}
+                          </option>
+                        )
+                      })
+                    ) : (
+                      prodiList.map((p, idx) => (
+                        <option key={idx} value={p}>
+                          {p}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <span className="form-help">
+                    {formData.tipeLokasi === 'Pusat'
+                      ? 'Menampilkan prodi Kampus Utama (Jenjang + Nama murni).'
+                      : 'Menampilkan prodi khusus Kampus PSDKU terpilih.'}
+                  </span>
                 </div>
-                <select
-                  className="custom-select"
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as Dosen['status'] })}
-                >
-                  <option value="Tetap Yayasan">Tetap Yayasan</option>
-                  <option value="PNS DPK">PNS DPK</option>
-                  <option value="Dosen Khusus">Dosen Khusus</option>
-                </select>
-                <span className="form-help">
-                  Status ikatan kerja dosen di lingkungan yayasan / institusi.
-                </span>
               </div>
+            </div>
+
+            <div className="form-field" style={{ marginTop: 14 }}>
+              <div className="form-field-label-row">
+                <label className="form-label">Status Kepegawaian *</label>
+              </div>
+              <select
+                className="custom-select"
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as Dosen['status'] })}
+              >
+                <option value="Tetap Yayasan">Tetap Yayasan</option>
+                <option value="PNS DPK">PNS DPK</option>
+                <option value="Dosen Khusus">Dosen Khusus</option>
+              </select>
+              <span className="form-help">
+                Status ikatan kerja dosen di lingkungan yayasan / institusi.
+              </span>
             </div>
 
             <div className="form-grid-2" style={{ marginTop: 14 }}>
@@ -1382,6 +2481,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
         {renderManageProdiModal()}
         {renderManageJabatanModal()}
+        {renderManageFakultasModal()}
+        {renderManagePsdkuModal()}
       </div>
     )
   }
@@ -1688,7 +2789,17 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                   </td>
                   <td>
                     <div style={{ fontWeight: 500 }}>{dosen.prodi}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--faint)' }}>Universitas Bhakti Kencana</div>
+                    <div style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                      {dosen.kampus && dosen.kampus !== 'Pusat' ? (
+                        <span style={{ color: '#0369a1', fontWeight: 600, background: '#e0f2fe', padding: '1px 6px', borderRadius: 4 }}>
+                          📍 {dosen.kampus}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#047857', fontWeight: 600, background: '#d1fae5', padding: '1px 6px', borderRadius: 4 }}>
+                          🏛️ {dosen.fakultas || 'Pusat'}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1803,6 +2914,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
       {renderManageProdiModal()}
       {renderManageJabatanModal()}
+      {renderManageFakultasModal()}
+      {renderManagePsdkuModal()}
     </div>
   )
 }

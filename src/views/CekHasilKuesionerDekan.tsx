@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   Award,
   Search,
@@ -16,7 +16,7 @@ import {
   CheckSquare,
   Sparkles,
 } from 'lucide-react'
-import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
+import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner, ProgramStudi, Fakultas } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 import { openPrintTranskrip } from '../utils/printTranskrip'
@@ -26,6 +26,8 @@ interface CekHasilKuesionerDekanProps {
   dosenList: Dosen[]
   penilaianList: PenilaianKuesioner[]
   indikatorList?: IndikatorKuesioner[]
+  prodiList?: ProgramStudi[]
+  fakultasList?: Fakultas[]
   onSavePenilaian?: (penilaian: PenilaianKuesioner) => void
   onShowToast: (msg: string) => void
 }
@@ -74,6 +76,8 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   user,
   dosenList,
   penilaianList,
+  prodiList = [],
+  fakultasList = [],
   onSavePenilaian,
   onShowToast,
 }) => {
@@ -89,8 +93,47 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
     penilaian: PenilaianKuesioner
   } | null>(null)
 
-  // Filter kaprodi
-  const kaprodiList = dosenList.filter((d) => d.isKaprodi)
+  // Filter kaprodi khusus dari fakultas yang dekan pimpin
+  const dekanFakultasId = user.fakultasId || (user as any).fakultas_id
+  const dekanFakultasName = (user.fakultas || '').toLowerCase()
+
+  const prodiFakultasSet = useMemo(() => {
+    const set = new Set<string>()
+    if (prodiList && prodiList.length > 0) {
+      prodiList.forEach((p) => {
+        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        if (matchFakId || matchFakName || (!dekanFakultasId && !dekanFakultasName)) {
+          set.add(p.nama.toLowerCase())
+          if (p.nama_lengkap) set.add(p.nama_lengkap.toLowerCase())
+          if (p.namaLengkap) set.add(p.namaLengkap.toLowerCase())
+          if (p.jenjang && p.nama) set.add(`${p.jenjang} ${p.nama}`.toLowerCase())
+        }
+      })
+    }
+    return set
+  }, [prodiList, dekanFakultasId, dekanFakultasName])
+
+  const kaprodiList = useMemo(() => {
+    return dosenList.filter((d) => {
+      if (!d.isKaprodi) return false
+
+      if (dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)) {
+        return true
+      }
+      if (dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)) {
+        return true
+      }
+      const pName = (d.prodi || '').toLowerCase()
+      if (prodiFakultasSet.has(pName)) {
+        return true
+      }
+      if (!dekanFakultasId && !dekanFakultasName) {
+        return true
+      }
+      return false
+    })
+  }, [dosenList, dekanFakultasId, dekanFakultasName, prodiFakultasSet])
 
   // Evaluating Target State (Dekan evaluating Kaprodi)
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null

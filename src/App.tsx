@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Role, UserSession, Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, ProgramStudi, JabatanKampus } from './types'
+import { Role, UserSession, Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, ProgramStudi, JabatanKampus, Fakultas, Psdku } from './types'
 import { useViewTransition } from './utils/animations'
 import { api } from './services/api'
 import { DEMO_USERS } from './data'
@@ -102,6 +102,8 @@ export default function App() {
   const [demoUsers, setDemoUsers] = useState<Record<string, UserSession>>(DEMO_USERS)
   const [dosenList, setDosenList] = useState<Dosen[]>([])
   const [prodiList, setProdiList] = useState<ProgramStudi[]>([])
+  const [fakultasList, setFakultasList] = useState<Fakultas[]>([])
+  const [psdkuList, setPsdkuList] = useState<Psdku[]>([])
   const [jabatanList, setJabatanList] = useState<JabatanKampus[]>([])
   const [komponenList, setKomponenList] = useState<KomponenSKP[]>([])
   const [skpList, setSkpList] = useState<PengajuanSKP[]>([])
@@ -154,7 +156,7 @@ export default function App() {
     let isMounted = true
     const initDataFromApi = async () => {
       try {
-        const [dosenData, komponenData, skpData, indikatorData, penilaianData, notifData, prodiData, demoUsersData, jabatanData] = await Promise.all([
+        const [dosenData, komponenData, skpData, indikatorData, penilaianData, notifData, prodiData, demoUsersData, jabatanData, fakultasData, psdkuData] = await Promise.all([
           api.dosen.list().catch(() => null),
           api.komponen.list().catch(() => null),
           api.skp.list().catch(() => null),
@@ -164,6 +166,8 @@ export default function App() {
           api.prodi.list().catch(() => null),
           api.auth.getDemoUsers().catch(() => null),
           api.jabatan.list().catch(() => null),
+          api.fakultas.list().catch(() => null),
+          api.psdku.list().catch(() => null),
         ])
 
         if (!isMounted) return
@@ -176,6 +180,8 @@ export default function App() {
         }
 
         if (prodiData && Array.isArray(prodiData)) setProdiList(prodiData)
+        if (fakultasData && Array.isArray(fakultasData)) setFakultasList(fakultasData)
+        if (psdkuData && Array.isArray(psdkuData)) setPsdkuList(psdkuData)
         if (jabatanData && Array.isArray(jabatanData)) setJabatanList(jabatanData)
         if (komponenData && Array.isArray(komponenData)) setKomponenList(komponenData)
         if (skpData && Array.isArray(skpData)) setSkpList(skpData)
@@ -440,58 +446,126 @@ export default function App() {
   }
 
   const prodiNames = prodiList.length > 0
-    ? prodiList.map((p) => p.nama)
+    ? prodiList.map((p) => p.nama_lengkap || p.namaLengkap || (p.jenjang ? `${p.jenjang} ${p.nama}` : p.nama))
     : Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
 
-  const handleAddProdi = async (nama: string) => {
+  const handleAddProdi = async (dataOrName: Partial<ProgramStudi> | string) => {
     try {
-      const res = await api.prodi.create({ nama })
+      const payload: Partial<ProgramStudi> = typeof dataOrName === 'string' ? { nama: dataOrName } : dataOrName
+      const res = await api.prodi.create(payload)
       if (res?.data) {
         setProdiList((prev) => [...prev, res.data])
-      } else {
-        setProdiList((prev) => [
-          ...prev,
-          { id: `prodi-${Date.now()}`, nama, jenjang: 'S1', fakultas: 'Fakultas Keperawatan dan Kebidanan', kampus: 'Pusat', akreditasi: 'Baik Sekali' },
-        ])
       }
-      showToast(`Program Studi "${nama}" berhasil disimpan ke basis data!`, 'success')
+      const label = payload.nama_lengkap || payload.namaLengkap || `${payload.jenjang || 'S1'} ${payload.nama}`
+      showToast(`Program Studi "${label}" berhasil disimpan ke basis data!`, 'success')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal menambahkan program studi: ${msg}`, 'error')
     }
   }
 
-  const handleUpdateProdi = async (oldName: string, newName: string) => {
+  const handleUpdateProdi = async (idOrOldName: string, dataOrNewName: Partial<ProgramStudi> | string) => {
     try {
-      const target = prodiList.find((p) => p.nama === oldName)
-      if (target) {
-        await api.prodi.update(target.id, { nama: newName })
-        setProdiList((prev) => prev.map((p) => (p.id === target.id ? { ...p, nama: newName } : p)))
-      } else {
-        await api.prodi.update(oldName, { nama: newName })
-        setProdiList((prev) => prev.map((p) => (p.nama === oldName ? { ...p, nama: newName } : p)))
+      const target = prodiList.find((p) => p.id === idOrOldName || p.nama === idOrOldName || p.nama_lengkap === idOrOldName)
+      const targetId = target ? target.id : idOrOldName
+      const payload: Partial<ProgramStudi> = typeof dataOrNewName === 'string' ? { nama: dataOrNewName } : dataOrNewName
+
+      const res = await api.prodi.update(targetId, payload)
+      const updated = (res as any)?.data || res
+      if (updated && updated.id) {
+        setProdiList((prev) => prev.map((p) => (p.id === targetId ? updated : p)))
       }
-      showToast(`Program Studi berhasil diubah menjadi "${newName}"!`, 'success')
+      showToast('Program Studi berhasil diperbarui!', 'success')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal memperbarui program studi: ${msg}`, 'error')
     }
   }
 
-  const handleDeleteProdi = async (nama: string) => {
+  const handleDeleteProdi = async (idOrName: string) => {
     try {
-      const target = prodiList.find((p) => p.nama === nama)
-      if (target) {
-        await api.prodi.delete(target.id)
-        setProdiList((prev) => prev.filter((p) => p.id !== target.id))
-      } else {
-        await api.prodi.delete(nama)
-        setProdiList((prev) => prev.filter((p) => p.nama !== nama))
-      }
-      showToast(`Program Studi "${nama}" berhasil dihapus dari basis data!`, 'success')
+      const target = prodiList.find((p) => p.id === idOrName || p.nama === idOrName || p.nama_lengkap === idOrName)
+      const targetId = target ? target.id : idOrName
+      await api.prodi.delete(targetId)
+      setProdiList((prev) => prev.filter((p) => p.id !== targetId))
+      showToast('Program Studi berhasil dihapus dari basis data!', 'success')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal menghapus program studi: ${msg}`, 'error')
+    }
+  }
+
+  const handleAddFakultas = async (data: Partial<Fakultas>) => {
+    try {
+      const res = await api.fakultas.create(data)
+      if (res?.data) {
+        setFakultasList((prev) => [...prev, res.data])
+      }
+      showToast(`Fakultas "${data.nama}" berhasil disimpan ke basis data!`, 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal menambahkan fakultas: ${msg}`, 'error')
+    }
+  }
+
+  const handleUpdateFakultas = async (id: string, data: Partial<Fakultas>) => {
+    try {
+      const res = await api.fakultas.update(id, data)
+      if (res?.data) {
+        setFakultasList((prev) => prev.map((f) => (f.id === id ? res.data : f)))
+      }
+      showToast(`Fakultas berhasil diperbarui!`, 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal memperbarui fakultas: ${msg}`, 'error')
+    }
+  }
+
+  const handleDeleteFakultas = async (id: string) => {
+    try {
+      await api.fakultas.delete(id)
+      setFakultasList((prev) => prev.filter((f) => f.id !== id))
+      showToast('Fakultas berhasil dihapus dari basis data!', 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal menghapus fakultas: ${msg}`, 'error')
+    }
+  }
+
+  const handleAddPsdku = async (data: Partial<Psdku>) => {
+    try {
+      const res = await api.psdku.create(data)
+      if (res?.data) {
+        setPsdkuList((prev) => [...prev, res.data])
+      }
+      showToast(`PSDKU "${data.nama}" berhasil disimpan ke basis data!`, 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal menambahkan PSDKU: ${msg}`, 'error')
+    }
+  }
+
+  const handleUpdatePsdku = async (id: string, data: Partial<Psdku>) => {
+    try {
+      const res = await api.psdku.update(id, data)
+      if (res?.data) {
+        setPsdkuList((prev) => prev.map((p) => (p.id === id ? res.data : p)))
+      }
+      showToast(`PSDKU berhasil diperbarui!`, 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal memperbarui PSDKU: ${msg}`, 'error')
+    }
+  }
+
+  const handleDeletePsdku = async (id: string) => {
+    try {
+      await api.psdku.delete(id)
+      setPsdkuList((prev) => prev.filter((p) => p.id !== id))
+      showToast('PSDKU berhasil dihapus dari basis data!', 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      showToast(`Gagal menghapus PSDKU: ${msg}`, 'error')
     }
   }
 
@@ -1006,6 +1080,9 @@ export default function App() {
                 <KelolaDataDosen
                   dosenList={dosenList}
                   prodiList={prodiNames}
+                  prodiObjects={prodiList}
+                  fakultasList={fakultasList}
+                  psdkuList={psdkuList}
                   jabatanList={jabatanList}
                   onAddDosen={handleAddDosen}
                   onUpdateDosen={handleUpdateDosen}
@@ -1013,6 +1090,12 @@ export default function App() {
                   onAddProdi={handleAddProdi}
                   onUpdateProdi={handleUpdateProdi}
                   onDeleteProdi={handleDeleteProdi}
+                  onAddFakultas={handleAddFakultas}
+                  onUpdateFakultas={handleUpdateFakultas}
+                  onDeleteFakultas={handleDeleteFakultas}
+                  onAddPsdku={handleAddPsdku}
+                  onUpdatePsdku={handleUpdatePsdku}
+                  onDeletePsdku={handleDeletePsdku}
                   onAddJabatan={handleAddJabatan}
                   onUpdateJabatan={handleUpdateJabatan}
                   onDeleteJabatan={handleDeleteJabatan}
@@ -1216,6 +1299,8 @@ export default function App() {
                   user={currentUser}
                   skpList={skpList}
                   dosenList={dosenList}
+                  prodiList={prodiList}
+                  fakultasList={fakultasList}
                   onApproveByDekan={handleApproveSKPByDekan}
                   onRejectByDekan={handleRejectSKPByDekan}
                   onShowToast={showToast}
@@ -1225,6 +1310,8 @@ export default function App() {
                 <CekHasilKuesionerDekan
                   user={currentUser}
                   dosenList={dosenList}
+                  prodiList={prodiList}
+                  fakultasList={fakultasList}
                   penilaianList={penilaianList}
                   indikatorList={indikatorList}
                   onSavePenilaian={handleAddPenilaian}
