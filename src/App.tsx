@@ -380,6 +380,13 @@ export default function App() {
       const res = await api.dosen.create(dosen)
       const saved = res?.data || dosen
       setDosenList((prev) => [saved, ...prev.filter((d) => d.id !== saved.id)])
+
+      // Refresh list to immediately sync any auto-demoted holders of single positions
+      const freshList = await api.dosen.list()
+      if (Array.isArray(freshList)) {
+        setDosenList(freshList)
+      }
+
       showToast(`Dosen baru "${saved.nama}" berhasil disimpan ke basis data!`, 'success')
       return saved
     } catch (err: unknown) {
@@ -394,6 +401,12 @@ export default function App() {
       const res = await api.dosen.update(updated.id, updated)
       const saved = res?.data || updated
       setDosenList((prev) => prev.map((d) => (d.id === updated.id ? saved : d)))
+
+      // Refresh list to immediately sync any auto-demoted holders of single positions
+      const freshList = await api.dosen.list()
+      if (Array.isArray(freshList)) {
+        setDosenList(freshList)
+      }
 
       // Jika user yang sedang login adalah dosen ini, update sesi seketika
       if (currentUser && (currentUser.id === saved.id || currentUser.nip === saved.nip || currentUser.email === saved.email)) {
@@ -1241,6 +1254,7 @@ export default function App() {
                 <KelolaKuesionerKaprodi
                   user={currentUser}
                   dosenList={dosenList}
+                  skpList={skpList}
                   penilaianList={penilaianList}
                   indikatorList={indikatorList}
                   onSaveKuesioner={handleAddPenilaian}
@@ -1264,6 +1278,9 @@ export default function App() {
                   user={currentUser}
                   skpList={skpList}
                   dosenList={dosenList}
+                  prodiList={prodiList}
+                  fakultasList={fakultasList}
+                  psdkuList={psdkuList}
                   onNavigateToSKP={() => handleNavigate('skp-dekan-self')}
                   onNavigateToReview={() => handleNavigate('review-skp-dekan')}
                   onNavigateToEvaluasiKaprodi={() => handleNavigate('kuesioner-dekan')}
@@ -1301,6 +1318,7 @@ export default function App() {
                   dosenList={dosenList}
                   prodiList={prodiList}
                   fakultasList={fakultasList}
+                  psdkuList={psdkuList}
                   onApproveByDekan={handleApproveSKPByDekan}
                   onRejectByDekan={handleRejectSKPByDekan}
                   onShowToast={showToast}
@@ -1310,8 +1328,10 @@ export default function App() {
                 <CekHasilKuesionerDekan
                   user={currentUser}
                   dosenList={dosenList}
+                  skpList={skpList}
                   prodiList={prodiList}
                   fakultasList={fakultasList}
+                  psdkuList={psdkuList}
                   penilaianList={penilaianList}
                   indikatorList={indikatorList}
                   onSavePenilaian={handleAddPenilaian}

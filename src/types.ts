@@ -4,6 +4,7 @@ export interface UserSession {
   id: string
   name: string
   nip: string
+  nuptk?: string
   email: string
   role: Role
   prodi: string
@@ -12,10 +13,12 @@ export interface UserSession {
   fakultas?: string
   fakultasId?: string
   psdkuId?: string
+  kampus?: string
   tipeLokasi?: 'Pusat' | 'PSDKU'
   programStudiId?: string
   signatureUrl?: string
   jabatanStruktural?: string
+  jabatan_struktural?: string
   jabatanKampusId?: string
 }
 
@@ -51,6 +54,7 @@ export interface Dosen {
   isDekan?: boolean
   signatureUrl?: string
   jabatanStruktural?: string
+  jabatan_struktural?: string
   jabatanKampusId?: string
 }
 
@@ -139,6 +143,7 @@ export interface PengajuanSKP {
   dosenId: string
   dosenNama: string
   dosenNip: string
+  dosenNuptk?: string
   dosenProdi: string
   dosenPangkat: string
   dosenJabatan: string

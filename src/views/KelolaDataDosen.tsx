@@ -19,12 +19,24 @@ import {
   MapPin,
   School,
   Layers,
+  Lock,
 } from 'lucide-react'
 import { Dosen, JabatanKampus, Role, ProgramStudi, Fakultas, Psdku } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
 import { generateEntityId } from '../utils/security'
 import { TablePagination } from '../components/TablePagination'
+
+const JABATAN_KATEGORI_OPTIONS = [
+  'Pimpinan Universitas',
+  'Pimpinan Fakultas',
+  'Pimpinan PSDKU',
+  'Pimpinan Program Studi',
+  'Tenaga Kependidikan',
+  'Fungsional Dosen',
+  'Struktural',
+  'Lainnya',
+] as const
 
 interface KelolaDataDosenProps {
   dosenList: Dosen[]
@@ -105,6 +117,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [isManageFakultasOpen, setIsManageFakultasOpen] = useState(false)
   const [newFakultasNama, setNewFakultasNama] = useState('')
   const [newFakultasKode, setNewFakultasKode] = useState('')
+  const [fakultasSearchQuery, setFakultasSearchQuery] = useState('')
   const [editingFakultasId, setEditingFakultasId] = useState<string | null>(null)
   const [editingFakultasNama, setEditingFakultasNama] = useState('')
   const [editingFakultasKode, setEditingFakultasKode] = useState('')
@@ -114,10 +127,36 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [newPsdkuNama, setNewPsdkuNama] = useState('')
   const [newPsdkuLokasi, setNewPsdkuLokasi] = useState('')
   const [newPsdkuKode, setNewPsdkuKode] = useState('')
+  const [psdkuSearchQuery, setPsdkuSearchQuery] = useState('')
   const [editingPsdkuId, setEditingPsdkuId] = useState<string | null>(null)
   const [editingPsdkuNama, setEditingPsdkuNama] = useState('')
   const [editingPsdkuLokasi, setEditingPsdkuLokasi] = useState('')
   const [editingPsdkuKode, setEditingPsdkuKode] = useState('')
+
+  // Close handlers that reset search queries automatically
+  const handleCloseManageProdi = () => {
+    setIsManageProdiOpen(false)
+    setProdiSearchFilter('')
+    setEditingProdiId(null)
+  }
+
+  const handleCloseManageFakultas = () => {
+    setIsManageFakultasOpen(false)
+    setFakultasSearchQuery('')
+    setEditingFakultasId(null)
+  }
+
+  const handleCloseManagePsdku = () => {
+    setIsManagePsdkuOpen(false)
+    setPsdkuSearchQuery('')
+    setEditingPsdkuId(null)
+  }
+
+  const handleCloseManageJabatan = () => {
+    setIsManageJabatanOpen(false)
+    setJabatanSearchQuery('')
+    setEditingJabatanId(null)
+  }
 
   // Derive jabatan kampus list dynamically from database / props
   const defaultJabatanList: JabatanKampus[] = [
@@ -134,10 +173,11 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [isManageJabatanOpen, setIsManageJabatanOpen] = useState(false)
   const [newJabatanNama, setNewJabatanNama] = useState('')
   const [newJabatanKode, setNewJabatanKode] = useState('')
-  const [newJabatanKategori, setNewJabatanKategori] = useState<'Pimpinan' | 'Struktural' | 'Fungsional' | 'Tenaga Kependidikan' | 'Lainnya'>('Struktural')
+  const [newJabatanKategori, setNewJabatanKategori] = useState<string>('Pimpinan Universitas')
   const [newJabatanRoleAkses, setNewJabatanRoleAkses] = useState<Role>('dosen')
   const [editingJabatanId, setEditingJabatanId] = useState<string | null>(null)
   const [editingJabatanNama, setEditingJabatanNama] = useState('')
+  const [editingJabatanKategori, setEditingJabatanKategori] = useState<string>('Pimpinan Universitas')
   const [editingJabatanRoleAkses, setEditingJabatanRoleAkses] = useState<Role>('dosen')
   const [jabatanSearchQuery, setJabatanSearchQuery] = useState('')
 
@@ -153,6 +193,29 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     )
   }, [jabatanList, jabatanSearchQuery])
 
+  const filteredFakultasList = useMemo(() => {
+    const q = (fakultasSearchQuery || '').trim().toLowerCase()
+    if (!q) return fakultasListProp
+    return fakultasListProp.filter(
+      (f) =>
+        (f.nama || '').toLowerCase().includes(q) ||
+        (f.kode || '').toLowerCase().includes(q) ||
+        (f.dekan_nama || '').toLowerCase().includes(q)
+    )
+  }, [fakultasListProp, fakultasSearchQuery])
+
+  const filteredPsdkuList = useMemo(() => {
+    const q = (psdkuSearchQuery || '').trim().toLowerCase()
+    if (!q) return psdkuListProp
+    return psdkuListProp.filter(
+      (p) =>
+        (p.nama || '').toLowerCase().includes(q) ||
+        (p.kode || '').toLowerCase().includes(q) ||
+        (p.lokasi || '').toLowerCase().includes(q) ||
+        (p.kecab_nama || '').toLowerCase().includes(q)
+    )
+  }, [psdkuListProp, psdkuSearchQuery])
+
   const handleAddJabatanAction = async () => {
     const val = newJabatanNama.trim()
     if (!val) {
@@ -160,12 +223,13 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       return
     }
     const kode = (newJabatanKode.trim() || val.toUpperCase().replace(/[^A-Z0-9]/g, '_')).slice(0, 30)
+    const isStruktural = !newJabatanKategori.toLowerCase().includes('fungsional')
     if (onAddJabatan) {
       await onAddJabatan({
         nama: val,
         kode: kode,
         kategori: newJabatanKategori,
-        is_struktural: newJabatanKategori !== 'Fungsional',
+        is_struktural: isStruktural,
         role_akses: newJabatanRoleAkses,
       })
     }
@@ -182,9 +246,18 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
   const handleSaveEditJabatanAction = async (id: string) => {
     const val = editingJabatanNama.trim()
-    if (!val) return
+    if (!val) {
+      onShowToast('Nama jabatan kampus tidak boleh kosong!')
+      return
+    }
+    const isStruktural = !editingJabatanKategori.toLowerCase().includes('fungsional')
     if (onUpdateJabatan) {
-      await onUpdateJabatan(id, { nama: val, role_akses: editingJabatanRoleAkses })
+      await onUpdateJabatan(id, {
+        nama: val,
+        kategori: editingJabatanKategori,
+        is_struktural: isStruktural,
+        role_akses: editingJabatanRoleAkses,
+      })
     }
     if (formData.jabatanKampusId === id) {
       setFormData((prev) => ({
@@ -195,7 +268,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
     setEditingJabatanId(null)
     setEditingJabatanNama('')
-    onShowToast('Data jabatan kampus dan role akses berhasil diperbarui!')
+    onShowToast('Data jabatan kampus, kategori struktural, dan role akses berhasil diperbarui!')
   }
 
   const handleDeleteJabatanAction = async (item: JabatanKampus) => {
@@ -558,6 +631,174 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     setViewMode('detail')
   }
 
+  const currentPositionConflict = useMemo(() => {
+    const rawJabatan = (formData.jabatanStruktural || '').toLowerCase()
+    if (!rawJabatan || rawJabatan === 'dosen') return null
+
+    const currentDosenId = viewMode === 'edit' && selectedDosen ? selectedDosen.id : null
+
+    // 1. Kaprodi: Only 1 person per Program Studi
+    if (
+      formData.roleLogin === 'kaprodi' ||
+      rawJabatan.includes('kaprodi') ||
+      rawJabatan.includes('ketua program studi') ||
+      rawJabatan.includes('ka prodi') ||
+      rawJabatan.includes('ka.prodi')
+    ) {
+      const targetProdiId = formData.programStudiId
+      const targetProdiName = (formData.prodi || '').toLowerCase().trim()
+
+      const found = dosenList.find((d) => {
+        if (d.id === currentDosenId) return false
+        const dJab = (d.jabatanStruktural || '').toLowerCase()
+        const isDosenKaprodi =
+          d.isKaprodi ||
+          dJab.includes('kaprodi') ||
+          dJab.includes('ketua program studi') ||
+          dJab.includes('ka prodi') ||
+          dJab.includes('ka.prodi')
+        if (!isDosenKaprodi) return false
+
+        const matchesId = Boolean(targetProdiId && d.programStudiId === targetProdiId)
+        const matchesName = Boolean(targetProdiName && (d.prodi || '').toLowerCase().trim() === targetProdiName)
+        return matchesId || matchesName
+      })
+
+      if (found) {
+        return {
+          type: 'Kaprodi',
+          holder: found,
+          scopeName: formData.prodi || 'Program Studi ini',
+          jabatanTitle: 'Ketua Program Studi (Ka.Prodi)',
+        }
+      }
+    }
+
+    // 2. Dekan: Only 1 person per Fakultas (Pusat)
+    if (
+      (formData.roleLogin === 'dekan' || rawJabatan.includes('dekan')) &&
+      !rawJabatan.includes('wakil') &&
+      !rawJabatan.includes('kecab')
+    ) {
+      const targetFakId = formData.fakultasId
+      const targetFakName = (formData.fakultas || '').toLowerCase().trim()
+
+      const found = dosenList.find((d) => {
+        if (d.id === currentDosenId) return false
+        const dJab = (d.jabatanStruktural || '').toLowerCase()
+        const isDosenDekan =
+          (d.isDekan || dJab.includes('dekan')) &&
+          !dJab.includes('wakil') &&
+          !dJab.includes('kecab')
+        if (!isDosenDekan) return false
+
+        const matchesId = Boolean(targetFakId && d.fakultasId === targetFakId)
+        const matchesName = Boolean(targetFakName && (d.fakultas || '').toLowerCase().trim() === targetFakName)
+        return matchesId || matchesName
+      })
+
+      if (found) {
+        return {
+          type: 'Dekan',
+          holder: found,
+          scopeName: formData.fakultas || 'Fakultas ini',
+          jabatanTitle: 'Dekan Fakultas',
+        }
+      }
+    }
+
+    // 3. KeCab: Only 1 person per PSDKU
+    if (rawJabatan.includes('kecab') || rawJabatan.includes('kepala cabang')) {
+      const targetPsdkuId = formData.psdkuId
+      const targetKampus = (formData.kampus || '').toLowerCase().trim()
+
+      const found = dosenList.find((d) => {
+        if (d.id === currentDosenId) return false
+        const dJab = (d.jabatanStruktural || '').toLowerCase()
+        const isDosenKecab = dJab.includes('kecab') || dJab.includes('kepala cabang')
+        if (!isDosenKecab) return false
+
+        const matchesId = Boolean(targetPsdkuId && d.psdkuId === targetPsdkuId)
+        const matchesName = Boolean(targetKampus && (d.kampus || '').toLowerCase().trim() === targetKampus)
+        return matchesId || matchesName
+      })
+
+      if (found) {
+        return {
+          type: 'KeCab',
+          holder: found,
+          scopeName: formData.kampus || 'Kampus PSDKU ini',
+          jabatanTitle: 'Kepala Cabang (KeCab)',
+        }
+      }
+    }
+
+    // 4. University-wide Executive Positions (Rektor, Warek I, Warek II, Kabag SDM, Direktur)
+    const isRektor = rawJabatan.includes('rektor') && !rawJabatan.includes('wakil')
+    const isWarek1 =
+      rawJabatan.includes('wakil rektor i') ||
+      rawJabatan.includes('warek 1') ||
+      rawJabatan.includes('warek i')
+    const isWarek2 =
+      rawJabatan.includes('wakil rektor ii') ||
+      rawJabatan.includes('warek 2') ||
+      rawJabatan.includes('warek ii')
+    const isKabagSdm =
+      rawJabatan.includes('kepala bagian sdm') || rawJabatan.includes('kabag sdm')
+    const isDirSpmi = rawJabatan.includes('penjaminan mutu')
+    const isDirSekretariat = rawJabatan.includes('sekretariat')
+
+    if (isRektor || isWarek1 || isWarek2 || isKabagSdm || isDirSpmi || isDirSekretariat) {
+      const found = dosenList.find((d) => {
+        if (d.id === currentDosenId) return false
+        const dJab = (d.jabatanStruktural || '').toLowerCase()
+        if (isRektor) return dJab.includes('rektor') && !dJab.includes('wakil')
+        if (isWarek1)
+          return (
+            dJab.includes('wakil rektor i') ||
+            dJab.includes('warek 1') ||
+            dJab.includes('warek i')
+          )
+        if (isWarek2)
+          return (
+            dJab.includes('wakil rektor ii') ||
+            dJab.includes('warek 2') ||
+            dJab.includes('warek ii')
+          )
+        if (isKabagSdm)
+          return (
+            dJab.includes('kepala bagian sdm') || dJab.includes('kabag sdm')
+          )
+        if (isDirSpmi) return dJab.includes('penjaminan mutu')
+        if (isDirSekretariat) return dJab.includes('sekretariat')
+        return false
+      })
+
+      if (found) {
+        return {
+          type: 'Eksekutif',
+          holder: found,
+          scopeName: 'Universitas Bhakti Kencana',
+          jabatanTitle: formData.jabatanStruktural,
+        }
+      }
+    }
+
+    return null
+  }, [
+    formData.jabatanStruktural,
+    formData.roleLogin,
+    formData.programStudiId,
+    formData.prodi,
+    formData.fakultasId,
+    formData.fakultas,
+    formData.psdkuId,
+    formData.kampus,
+    viewMode,
+    selectedDosen,
+    dosenList,
+  ])
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -726,7 +967,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
 
     return (
       <div
-        onClick={() => setIsManageProdiOpen(false)}
+        onClick={handleCloseManageProdi}
         style={{
           position: 'fixed',
           inset: 0,
@@ -772,7 +1013,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setIsManageProdiOpen(false)}
+              onClick={handleCloseManageProdi}
               className="icon-btn"
               style={{ width: 30, height: 30 }}
               aria-label="Tutup modal"
@@ -875,24 +1116,100 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           </div>
 
           {/* Search & Filter */}
-          <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--hair)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Search size={14} color="var(--muted)" />
-            <input
-              type="text"
-              placeholder="Cari program studi..."
-              value={prodiSearchFilter}
-              onChange={(e) => setProdiSearchFilter(e.target.value)}
-              style={{ border: 'none', outline: 'none', fontSize: '12px', width: '100%', background: 'transparent' }}
-            />
+          <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--hair)', background: '#fafbfc' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: 11,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--muted)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Cari program studi (nama, jenjang, fakultas, kampus)..."
+                value={prodiSearchFilter}
+                onChange={(e) => setProdiSearchFilter(e.target.value)}
+                style={{
+                  height: 36,
+                  paddingLeft: 34,
+                  paddingRight: prodiSearchFilter ? 32 : 12,
+                  fontSize: '12.5px',
+                  borderRadius: 'var(--r-md)',
+                  background: '#ffffff',
+                  borderColor: prodiSearchFilter ? 'var(--brand)' : 'var(--hair)',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  width: '100%',
+                }}
+              />
+              {prodiSearchFilter && (
+                <button
+                  type="button"
+                  onClick={() => setProdiSearchFilter('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                    color: 'var(--muted)',
+                    padding: 0,
+                  }}
+                  title="Hapus pencarian"
+                  aria-label="Hapus kata kunci pencarian"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Prodi List */}
           <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 320 }}>
-            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Daftar Program Studi ({filteredProdis.length})
+            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Daftar Program Studi ({filteredProdis.length} dari {displayProdis.length})</span>
+              {prodiSearchFilter && (
+                <span style={{ fontSize: '11px', color: 'var(--brand)', textTransform: 'none', fontWeight: 600 }}>
+                  Filter aktif
+                </span>
+              )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {filteredProdis.map((p) => {
+            {filteredProdis.length === 0 ? (
+              <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '12.5px' }}>
+                Tidak ada program studi yang cocok dengan pencarian "{prodiSearchFilter}".
+                <div style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setProdiSearchFilter('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--brand)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Reset Pencarian
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filteredProdis.map((p) => {
                 const label = p.nama_lengkap || `${p.jenjang || ''} ${p.nama}`.trim()
                 const isEditing = editingProdiId === p.id
 
@@ -1065,6 +1382,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 )
               })}
             </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -1079,7 +1397,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           >
             <button
               type="button"
-              onClick={() => setIsManageProdiOpen(false)}
+              onClick={handleCloseManageProdi}
               className="brand-btn brand-btn--outline"
               style={{ padding: '6px 16px', fontSize: '12.5px' }}
             >
@@ -1095,7 +1413,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     if (!isManageFakultasOpen) return null
     return (
       <div
-        onClick={() => setIsManageFakultasOpen(false)}
+        onClick={handleCloseManageFakultas}
         style={{
           position: 'fixed',
           inset: 0,
@@ -1141,7 +1459,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setIsManageFakultasOpen(false)}
+              onClick={handleCloseManageFakultas}
               className="icon-btn"
               style={{ width: 30, height: 30 }}
               aria-label="Tutup modal"
@@ -1184,13 +1502,84 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             </div>
           </div>
 
+          {/* Search Box */}
+          <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--hair)', background: '#fafbfc' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: 11,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--muted)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Cari fakultas..."
+                value={fakultasSearchQuery}
+                onChange={(e) => setFakultasSearchQuery(e.target.value)}
+                style={{
+                  height: 36,
+                  paddingLeft: 34,
+                  paddingRight: fakultasSearchQuery ? 32 : 12,
+                  fontSize: '12.5px',
+                  borderRadius: 'var(--r-md)',
+                  background: '#ffffff',
+                  borderColor: fakultasSearchQuery ? 'var(--brand)' : 'var(--hair)',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  width: '100%',
+                }}
+              />
+              {fakultasSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setFakultasSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                    color: 'var(--muted)',
+                    padding: 0,
+                  }}
+                  title="Hapus pencarian"
+                  aria-label="Hapus kata kunci pencarian"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* List */}
           <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 340 }}>
-            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Daftar Fakultas ({fakultasListProp.length})
+            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Daftar Fakultas ({filteredFakultasList.length} dari {fakultasListProp.length})</span>
+              {fakultasSearchQuery && (
+                <span style={{ fontSize: '11px', color: 'var(--brand)', textTransform: 'none', fontWeight: 600 }}>
+                  Filter aktif
+                </span>
+              )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {fakultasListProp.map((f) => {
+            {filteredFakultasList.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '12.5px' }}>
+                Tidak ada fakultas yang cocok dengan pencarian "{fakultasSearchQuery}".
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filteredFakultasList.map((f) => {
                 const isEditing = editingFakultasId === f.id
                 return (
                   <div
@@ -1290,6 +1679,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 )
               })}
             </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -1304,7 +1694,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           >
             <button
               type="button"
-              onClick={() => setIsManageFakultasOpen(false)}
+              onClick={handleCloseManageFakultas}
               className="brand-btn brand-btn--outline"
               style={{ padding: '6px 16px', fontSize: '12.5px' }}
             >
@@ -1320,7 +1710,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     if (!isManagePsdkuOpen) return null
     return (
       <div
-        onClick={() => setIsManagePsdkuOpen(false)}
+        onClick={handleCloseManagePsdku}
         style={{
           position: 'fixed',
           inset: 0,
@@ -1366,7 +1756,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setIsManagePsdkuOpen(false)}
+              onClick={handleCloseManagePsdku}
               className="icon-btn"
               style={{ width: 30, height: 30 }}
               aria-label="Tutup modal"
@@ -1417,13 +1807,84 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             </div>
           </div>
 
+          {/* Search Box */}
+          <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--hair)', background: '#fafbfc' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: 11,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--muted)',
+                  pointerEvents: 'none',
+                }}
+              />
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="Cari kampus PSDKU..."
+                value={psdkuSearchQuery}
+                onChange={(e) => setPsdkuSearchQuery(e.target.value)}
+                style={{
+                  height: 36,
+                  paddingLeft: 34,
+                  paddingRight: psdkuSearchQuery ? 32 : 12,
+                  fontSize: '12.5px',
+                  borderRadius: 'var(--r-md)',
+                  background: '#ffffff',
+                  borderColor: psdkuSearchQuery ? 'var(--brand)' : 'var(--hair)',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  width: '100%',
+                }}
+              />
+              {psdkuSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setPsdkuSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: '#f1f5f9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                    color: 'var(--muted)',
+                    padding: 0,
+                  }}
+                  title="Hapus pencarian"
+                  aria-label="Hapus kata kunci pencarian"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* List */}
           <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, maxHeight: 340 }}>
-            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Daftar Kampus PSDKU ({psdkuListProp.length})
+            <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--faint)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Daftar Kampus PSDKU ({filteredPsdkuList.length} dari {psdkuListProp.length})</span>
+              {psdkuSearchQuery && (
+                <span style={{ fontSize: '11px', color: 'var(--brand)', textTransform: 'none', fontWeight: 600 }}>
+                  Filter aktif
+                </span>
+              )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {psdkuListProp.map((p) => {
+            {filteredPsdkuList.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '12.5px' }}>
+                Tidak ada kampus PSDKU yang cocok dengan pencarian "{psdkuSearchQuery}".
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filteredPsdkuList.map((p) => {
                 const isEditing = editingPsdkuId === p.id
                 return (
                   <div
@@ -1530,6 +1991,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 )
               })}
             </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -1544,7 +2006,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           >
             <button
               type="button"
-              onClick={() => setIsManagePsdkuOpen(false)}
+              onClick={handleCloseManagePsdku}
               className="brand-btn brand-btn--outline"
               style={{ padding: '6px 16px', fontSize: '12.5px' }}
             >
@@ -1560,7 +2022,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     if (!isManageJabatanOpen) return null
     return (
       <div
-        onClick={() => setIsManageJabatanOpen(false)}
+        onClick={handleCloseManageJabatan}
         style={{
           position: 'fixed',
           inset: 0,
@@ -1606,7 +2068,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setIsManageJabatanOpen(false)}
+              onClick={handleCloseManageJabatan}
               className="icon-btn"
               style={{ width: 30, height: 30 }}
               aria-label="Tutup modal"
@@ -1640,13 +2102,13 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                   className="custom-select"
                   value={newJabatanKategori}
                   onChange={(e) => setNewJabatanKategori(e.target.value as any)}
-                  style={{ height: 36, fontSize: '12.5px', flex: '1 1 140px' }}
+                  style={{ height: 36, fontSize: '12.5px', flex: '1 1 160px' }}
                 >
-                  <option value="Struktural">Struktural</option>
-                  <option value="Pimpinan">Pimpinan</option>
-                  <option value="Fungsional">Fungsional</option>
-                  <option value="Tenaga Kependidikan">Tenaga Kependidikan</option>
-                  <option value="Lainnya">Lainnya</option>
+                  {JABATAN_KATEGORI_OPTIONS.map((kat) => (
+                    <option key={kat} value={kat}>
+                      {kat}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1682,13 +2144,13 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           </div>
 
           {/* Search Bar inside Modal */}
-          <div style={{ padding: '12px 20px 8px 20px', borderBottom: '1px solid var(--hair)' }}>
-            <div style={{ position: 'relative' }}>
+          <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--hair)', background: '#fafbfc' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Search
                 size={14}
                 style={{
                   position: 'absolute',
-                  left: 10,
+                  left: 11,
                   top: '50%',
                   transform: 'translateY(-50%)',
                   color: 'var(--muted)',
@@ -1701,7 +2163,17 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 placeholder="Cari nama jabatan, kategori, atau role login (sdm, kaprodi, dekan, dosen)..."
                 value={jabatanSearchQuery}
                 onChange={(e) => setJabatanSearchQuery(e.target.value)}
-                style={{ height: 34, paddingLeft: 32, fontSize: '12.5px' }}
+                style={{
+                  height: 36,
+                  paddingLeft: 34,
+                  paddingRight: jabatanSearchQuery ? 32 : 12,
+                  fontSize: '12.5px',
+                  borderRadius: 'var(--r-md)',
+                  background: '#ffffff',
+                  borderColor: jabatanSearchQuery ? 'var(--brand)' : 'var(--hair)',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                  width: '100%',
+                }}
               />
               {jabatanSearchQuery && (
                 <button
@@ -1712,15 +2184,21 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                     right: 8,
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    background: 'none',
+                    background: '#f1f5f9',
                     border: 'none',
+                    borderRadius: '50%',
+                    width: 20,
+                    height: 20,
+                    display: 'grid',
+                    placeItems: 'center',
                     cursor: 'pointer',
                     color: 'var(--muted)',
-                    padding: 4,
+                    padding: 0,
                   }}
                   title="Hapus pencarian"
+                  aria-label="Hapus kata kunci pencarian"
                 >
-                  <X size={13} />
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -1768,15 +2246,32 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                             className="custom-input"
                             value={editingJabatanNama}
                             onChange={(e) => setEditingJabatanNama(e.target.value)}
-                            style={{ height: 32, fontSize: '12.5px', flex: '2 1 180px' }}
+                            style={{ height: 32, fontSize: '12.5px', flex: '2 1 170px' }}
                             placeholder="Nama jabatan..."
                             autoFocus
                           />
                           <select
                             className="custom-select"
+                            value={editingJabatanKategori}
+                            onChange={(e) => setEditingJabatanKategori(e.target.value)}
+                            style={{ height: 32, fontSize: '12px', flex: '1.2 1 150px' }}
+                            title="Kategori / Bagian Struktural"
+                          >
+                            {JABATAN_KATEGORI_OPTIONS.map((kat) => (
+                              <option key={kat} value={kat}>
+                                {kat}
+                              </option>
+                            ))}
+                            {!JABATAN_KATEGORI_OPTIONS.includes(editingJabatanKategori as any) && editingJabatanKategori && (
+                              <option value={editingJabatanKategori}>{editingJabatanKategori}</option>
+                            )}
+                          </select>
+                          <select
+                            className="custom-select"
                             value={editingJabatanRoleAkses}
                             onChange={(e) => setEditingJabatanRoleAkses(e.target.value as Role)}
-                            style={{ height: 32, fontSize: '12px', flex: '1 1 140px' }}
+                            style={{ height: 32, fontSize: '12px', flex: '1 1 110px' }}
+                            title="Role Akses Login"
                           >
                             <option value="dosen">Role: Dosen</option>
                             <option value="kaprodi">Role: Ka.Prodi</option>
@@ -1854,6 +2349,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                               onClick={() => {
                                 setEditingJabatanId(item.id)
                                 setEditingJabatanNama(item.nama)
+                                setEditingJabatanKategori(item.kategori || (item.is_struktural ? 'Struktural' : 'Fungsional Dosen'))
                                 setEditingJabatanRoleAkses(item.role_akses || item.default_role || 'dosen')
                               }}
                               className="btn-table-action btn-table-action--edit"
@@ -1895,7 +2391,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           >
             <button
               type="button"
-              onClick={() => setIsManageJabatanOpen(false)}
+              onClick={handleCloseManageJabatan}
               className="brand-btn brand-btn--outline"
               style={{ padding: '6px 16px', fontSize: '12.5px' }}
             >
@@ -2292,7 +2788,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 >
                   {jabatanList.map((j) => (
                     <option key={j.id} value={j.nama}>
-                      {j.nama} {j.kategori ? `(${j.kategori})` : ''} - [Role: {(j.role_akses || j.default_role || 'dosen').toUpperCase()}]
+                      {j.nama} {j.kategori ? `(${j.kategori})` : ''}
                     </option>
                   ))}
                   {!jabatanList.some((j) => j.nama === formData.jabatanStruktural) && (
@@ -2305,26 +2801,77 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               </div>
 
               <div className="form-field">
-                <label className="form-label">Role Akses Login Portal *</label>
+                <div className="form-field-label-row">
+                  <label className="form-label">Role Akses Login Portal *</label>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--muted)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <Lock size={12} />
+                    <span>Otomatis</span>
+                  </span>
+                </div>
                 <select
                   className="custom-select"
                   value={formData.roleLogin}
-                  onChange={(e) => setFormData({ ...formData, roleLogin: e.target.value as Role })}
+                  disabled
                   style={{
-                    borderColor: formData.roleLogin !== 'dosen' ? 'var(--brand)' : undefined,
+                    backgroundColor: 'var(--panel-hover, #f8fafc)',
+                    cursor: 'not-allowed',
+                    color: 'var(--ink, #1e293b)',
                     fontWeight: 600,
+                    borderColor: 'var(--hair, #e2e8f0)',
+                    opacity: 0.95,
                   }}
+                  title="Role login terisi otomatis berdasarkan Jabatan Kampus yang dipilih."
                 >
                   <option value="dosen">Dosen (Akses Portal Dosen - Default)</option>
                   <option value="kaprodi">Ketua Program Studi (Ka.Prodi - Review SKP Prodi)</option>
-                  <option value="dekan">Dekan (Pengesahan SKP Fakultas)</option>
+                  <option value="dekan">Dekan (Pengesahan SKP Fakultas & PSDKU)</option>
                   <option value="sdm">Bagian SDM (Akses Master Data SDM)</option>
                 </select>
                 <span className="form-help">
-                  Sesuai ketentuan: SDM &rarr; SDM, Ka.Prodi &rarr; Ka.Prodi, Dekan &rarr; Dekan, lainnya (Rektor/Wadek/Dosen) &rarr; Dosen.
+                  Role login terisi otomatis mengikuti Jabatan Kampus terpilih (SDM &rarr; SDM, Ka.Prodi &rarr; Ka.Prodi, Dekan/KeCab &rarr; Dekan, lainnya &rarr; Dosen).
                 </span>
               </div>
             </div>
+
+            {currentPositionConflict && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: '12px 16px',
+                  borderRadius: 'var(--r-md)',
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  color: '#92400e',
+                  fontSize: '12px',
+                  lineHeight: '1.5',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <div style={{ flexShrink: 0, marginTop: 2, fontSize: '16px' }}>⚠️</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#78350f', marginBottom: 2 }}>
+                    Perhatian: Jabatan Tunggal Sudah Terisi
+                  </div>
+                  <div>
+                    Jabatan <strong>{currentPositionConflict.jabatanTitle}</strong> untuk <strong>{currentPositionConflict.scopeName}</strong> saat ini masih diemban oleh <strong>{currentPositionConflict.holder.nama}</strong> (NIP: {currentPositionConflict.holder.nip}).
+                  </div>
+                  <div style={{ marginTop: 4, color: '#b45309', fontSize: '11.5px' }}>
+                    ℹ️ Sesuai ketentuan institusi, jabatan ini hanya boleh dipegang oleh <strong>1 orang</strong>. Jika Anda menyimpan data ini, sistem akan <strong>melakukan pergantian/serah terima jabatan otomatis</strong>: dosen ini menjadi {currentPositionConflict.jabatanTitle}, dan <strong>{currentPositionConflict.holder.nama}</strong> otomatis dikembalikan status jabatannya menjadi Dosen biasa.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="form-section">

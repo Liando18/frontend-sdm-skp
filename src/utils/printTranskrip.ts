@@ -3,7 +3,8 @@ import { PenilaianKuesioner } from '../types'
 export interface TranskripPrintData {
   penilaian: PenilaianKuesioner
   dosenNama: string
-  dosenNip: string
+  dosenNip?: string
+  dosenNuptk?: string
   dosenProdi: string
   dosenJafung?: string
   dosenGolongan?: string

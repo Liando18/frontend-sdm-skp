@@ -104,25 +104,38 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
           </p>
         </div>
 
-        {myEvaluation && (
-          <button
-            onClick={() => {
-              openPrintTranskrip({
-                penilaian: myEvaluation,
-                dosenNama: user.name,
-                dosenNip: user.nip || '',
-                dosenProdi: user.prodi || 'Program Studi',
-                tahunAkademik: selectedTahun,
-              })
-            }}
-            className="brand-btn btn-action-print"
-            style={{ padding: '9px 18px', gap: 6 }}
-            title="Cetak Transkrip Evaluasi BerAKHLAK Resmi di Tab Baru"
-          >
-            <Printer size={15} />
-            <span>Cetak Transkrip</span>
-          </button>
-        )}
+        <button
+          onClick={() => {
+            if (!myEvaluation) {
+              onShowToast?.('Hasil kinerja tahunan belum dapat dicetak karena belum dinilai/disetujui oleh pimpinan.')
+              return
+            }
+            openPrintTranskrip({
+              penilaian: myEvaluation,
+              dosenNama: user.name,
+              dosenNip: user.nip || '',
+              dosenNuptk: user.nuptk || '',
+              dosenProdi: user.prodi || 'Program Studi',
+              tahunAkademik: selectedTahun,
+            })
+          }}
+          className="brand-btn btn-action-print"
+          style={{
+            padding: '9px 18px',
+            gap: 6,
+            opacity: myEvaluation ? 1 : 0.45,
+            cursor: myEvaluation ? 'pointer' : 'not-allowed',
+          }}
+          disabled={!myEvaluation}
+          title={
+            myEvaluation
+              ? 'Cetak Transkrip Evaluasi BerAKHLAK Resmi di Tab Baru'
+              : 'Belum dapat dicetak (Kinerja belum dinilai/disetujui oleh pimpinan)'
+          }
+        >
+          <Printer size={15} />
+          <span>{myEvaluation ? 'Cetak Transkrip' : 'Belum Disetujui'}</span>
+        </button>
       </div>
 
       {/* Filter Toolbar (Tahun Ajaran Saja) */}
@@ -225,22 +238,22 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
               </div>
             </div>
 
-            {/* Card 2: Pejabat Penilai */}
+            {/* Card 2: Disetujui Oleh */}
             <div className="kpi-card evaluation-card">
               <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
-                Pejabat Penilai Kinerja
+                Disetujui Oleh
               </span>
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--navy-900)', lineHeight: 1.2 }}>
                   {myEvaluation.penilaiNama}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 4 }}>
-                  Kapasitas: {myEvaluation.penilaiRole === 'Kaprodi' ? 'Ketua Program Studi S1 Keperawatan' : myEvaluation.penilaiRole === 'Dekan' ? 'Dekan Fakultas Keperawatan' : 'Direktorat SDM'}
+                  Kapasitas: {myEvaluation.penilaiRole === 'Kaprodi' ? 'Ketua Program Studi' : myEvaluation.penilaiRole === 'Dekan' ? 'Dekan / Pimpinan' : 'Direktorat SDM'}
                 </div>
                 <div style={{ marginTop: 10 }}>
                   <span className="kpi-badge">
                     <UserCheck size={12} />
-                    <span>Role Penilai: {myEvaluation.penilaiRole}</span>
+                    <span>Persetujuan: {myEvaluation.penilaiRole}</span>
                   </span>
                 </div>
               </div>
@@ -358,7 +371,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
               }}
             >
               <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--navy-900)', marginBottom: 6 }}>
-                Catatan Pembinaan &amp; Rekomendasi Pejabat Penilai:
+                Catatan Pembinaan &amp; Rekomendasi Pimpinan:
               </div>
               <div
                 style={{

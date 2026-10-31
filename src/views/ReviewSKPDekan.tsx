@@ -12,7 +12,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
-import { PengajuanSKP, Dosen, UserSession, ProgramStudi, Fakultas } from '../types'
+import { PengajuanSKP, Dosen, UserSession, ProgramStudi, Fakultas, Psdku } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { openPrintSKP } from '../utils/printSKP'
@@ -25,6 +25,7 @@ interface ReviewSKPDekanProps {
   dosenList: Dosen[]
   prodiList?: ProgramStudi[]
   fakultasList?: Fakultas[]
+  psdkuList?: Psdku[]
   onApproveByDekan: (skpId: string, catatan: string, ttdUrl?: string) => void
   onRejectByDekan: (skpId: string, catatan: string) => void
   onShowToast: (msg: string) => void
@@ -36,6 +37,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   dosenList,
   prodiList = [],
   fakultasList = [],
+  psdkuList = [],
   onApproveByDekan,
   onRejectByDekan,
   onShowToast,
@@ -53,66 +55,137 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   }, [skpList])
 
   // Filters: Tahun Ajaran, Semester, Search
-  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
+  const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2026/2027')
   const [selectedSemester, setSelectedSemester] = useState<'Semua' | 'Genap' | 'Ganjil'>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Default Digital Signature for Dekan
-  const defaultDekanTTD =
-    `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="70"><path d="M15 50 Q 55 15 100 45 T 165 25" fill="none" stroke="%231e3a5f" stroke-width="3"/><text x="18" y="62" font-family="sans-serif" font-weight="bold" font-size="10.5" fill="%231e3a5f">${encodeURIComponent(user.name || 'Dekan')} - Dekan</text></svg>`
-  const [ttdPreview, setTtdPreview] = useState<string>(defaultDekanTTD)
+  // 1. Identifikasi apakah user adalah Kepala Cabang (KeCab PSDKU) atau Dekan Fakultas (Pusat)
+  const isKacap = Boolean(
+    user.tipeLokasi === 'PSDKU' ||
+    user.psdkuId ||
+    (user as any).psdku_id ||
+    user.jabatanStruktural?.toLowerCase().includes('cabang') ||
+    user.jabatanStruktural?.toLowerCase().includes('kecab') ||
+    user.jabatanKampusId === 'jab-kecab'
+  )
 
-  // Filter kaprodi khusus dari program studi di fakultas yang dekan pimpin
+  const userPsdkuId = user.psdkuId || (user as any).psdku_id
+  const currentPsdku = psdkuList.find((p) => p.id === userPsdkuId)
+  const userKampusName = (user.kampus || currentPsdku?.nama || '').toLowerCase()
+
   const dekanFakultasId = user.fakultasId || (user as any).fakultas_id
   const dekanFakultasName = (user.fakultas || '').toLowerCase()
 
-  const prodiFakultasSet = useMemo(() => {
-    const set = new Set<string>()
-    if (prodiList && prodiList.length > 0) {
+  const roleLabel = isKacap ? 'Kepala Cabang' : 'Dekan'
+  const territoryLabel = isKacap
+    ? (user.kampus || currentPsdku?.nama || 'PSDKU')
+    : (user.fakultas || 'Fakultas')
+  const leaderRoleTitle = `${roleLabel} (${territoryLabel})`
+
+  // Default Digital Signature for Dekan / KeCab
+  const defaultDekanTTD =
+    `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="70"><path d="M15 50 Q 55 15 100 45 T 165 25" fill="none" stroke="%231e3a5f" stroke-width="3"/><text x="18" y="62" font-family="sans-serif" font-weight="bold" font-size="10.5" fill="%231e3a5f">${encodeURIComponent(user.name || roleLabel)} - ${roleLabel}</text></svg>`
+  const [ttdPreview, setTtdPreview] = useState<string>(defaultDekanTTD)
+
+  // 2. Filter ID Program Studi yang sah di bawah ranah wewenang pimpinan ini
+  const psdkuProdiIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (isKacap && prodiList && prodiList.length > 0) {
       prodiList.forEach((p) => {
-        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
-        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
-        if (matchFakId || matchFakName || (!dekanFakultasId && !dekanFakultasName)) {
-          set.add(p.nama.toLowerCase())
-          if (p.nama_lengkap) set.add(p.nama_lengkap.toLowerCase())
-          if (p.namaLengkap) set.add(p.namaLengkap.toLowerCase())
-          if (p.jenjang && p.nama) set.add(`${p.jenjang} ${p.nama}`.toLowerCase())
+        const isPsdkuUnit = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (!isPsdkuUnit) return
+
+        const matchPsdkuId = userPsdkuId && (p.psdku_id === userPsdkuId || p.psdkuId === userPsdkuId)
+        const matchKampus = userKampusName && (p.kampus || '').toLowerCase().includes(userKampusName)
+        if (matchPsdkuId || matchKampus || (!userPsdkuId && !userKampusName)) {
+          ids.add(p.id)
         }
       })
     }
-    return set
-  }, [prodiList, dekanFakultasId, dekanFakultasName])
+    return ids
+  }, [isKacap, prodiList, userPsdkuId, userKampusName])
 
+  const fakultasProdiIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (!isKacap && prodiList && prodiList.length > 0) {
+      prodiList.forEach((p) => {
+        const isPsdkuUnit = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (isPsdkuUnit) return // Dekan Fakultas Pusat tidak membina PSDKU
+
+        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        if (matchFakId || matchFakName) {
+          ids.add(p.id)
+        }
+      })
+    }
+    return ids
+  }, [isKacap, prodiList, dekanFakultasId, dekanFakultasName])
+
+  // 3. Filter daftar Ka.Prodi eksklusif sesuai ranah/wilayah
   const kaprodiList = useMemo(() => {
     return dosenList.filter((d) => {
-      if (!d.isKaprodi) return false
+      // Hanya dosen yang memegang jabatan aktif Ketua Program Studi
+      const isActualKaprodi = Boolean(
+        d.isKaprodi ||
+        d.jabatanStruktural === 'Ketua Program Studi' ||
+        d.jabatan_struktural === 'Ketua Program Studi'
+      )
+      if (!isActualKaprodi) return false
 
-      if (dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)) {
-        return true
+      if (isKacap) {
+        // KECAB HANYA MENILAI KA.PRODI DI PSDKU ASALNYA SAJA (TIDAK BISA PUSAT ATAU PSDKU LAIN)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          d.psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (!isDosenPsdku) return false
+
+        const matchPsdkuId = userPsdkuId && (d.psdkuId === userPsdkuId || d.psdku_id === userPsdkuId)
+        const matchKampus = userKampusName && (d.kampus || '').toLowerCase().includes(userKampusName)
+        const matchProdiId =
+          (d.programStudiId && psdkuProdiIds.has(d.programStudiId)) ||
+          (d.program_studi_id && psdkuProdiIds.has(d.program_studi_id))
+
+        return Boolean(matchPsdkuId || matchKampus || matchProdiId)
+      } else {
+        // DEKAN FAKULTAS PUSAT HANYA MENILAI KA.PRODI DI FAKULTAS PUSAT (TIDAK BISA PSDKU)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          d.psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (isDosenPsdku) return false
+
+        const matchFakId = dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        const matchProdiId =
+          (d.programStudiId && fakultasProdiIds.has(d.programStudiId)) ||
+          (d.program_studi_id && fakultasProdiIds.has(d.program_studi_id))
+
+        return Boolean(matchFakId || matchFakName || matchProdiId)
       }
-      if (dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)) {
-        return true
-      }
-      const pName = (d.prodi || '').toLowerCase()
-      if (prodiFakultasSet.has(pName)) {
-        return true
-      }
-      if (!dekanFakultasId && !dekanFakultasName) {
-        return true
-      }
-      return false
     })
-  }, [dosenList, dekanFakultasId, dekanFakultasName, prodiFakultasSet])
+  }, [dosenList, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
 
   const kaprodiIds = useMemo(() => new Set(kaprodiList.map((d) => d.id)), [kaprodiList])
-  const kaprodiNames = useMemo(() => new Set(kaprodiList.map((d) => d.nama)), [kaprodiList])
+  const kaprodiNips = useMemo(() => new Set(kaprodiList.map((d) => d.nip).filter(Boolean)), [kaprodiList])
+  const kaprodiNames = useMemo(() => new Set(kaprodiList.map((d) => (d.nama || '').trim().toLowerCase())), [kaprodiList])
 
   const filteredRows = skpList.filter((skp) => {
+    // Sembunyikan SKP yang masih Draft dari verifikasi
+    if (!skp.status || skp.status === 'Draft') return false
+
+    // KHUSUS SKP DARI KETUA PROGRAM STUDI AKTIF DI WILAYAH/PSDKU/FAKULTAS INI
     const isKap =
-      kaprodiIds.has(skp.dosenId) ||
-      kaprodiNames.has(skp.dosenNama) ||
-      kaprodiList.some((k) => k.prodi === skp.dosenProdi) ||
-      prodiFakultasSet.has((skp.dosenProdi || '').toLowerCase())
+      (skp.dosenId && kaprodiIds.has(skp.dosenId)) ||
+      (skp.dosenNip && kaprodiNips.has(skp.dosenNip)) ||
+      (skp.dosenNama && kaprodiNames.has(skp.dosenNama.trim().toLowerCase()))
 
     if (!isKap) return false
 
@@ -163,7 +236,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
     const reader = new FileReader()
     reader.onload = () => {
       setTtdPreview(reader.result as string)
-      onShowToast('Tanda tangan digital Dekan berhasil diunggah.')
+      onShowToast(`Tanda tangan digital ${roleLabel} berhasil diunggah.`)
     }
     reader.readAsDataURL(file)
   }
@@ -173,7 +246,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
       onApproveByDekan(activeReviewSKP.id, dekanNotes, ttdPreview)
       setConfirmApprove(false)
       setViewMode('list')
-      onShowToast(`SKP Ka Prodi ${activeReviewSKP.dosenNama} telah disetujui & disahkan Dekan dengan TTD digital!`)
+      onShowToast(`SKP Ka Prodi ${activeReviewSKP.dosenNama} telah disetujui & disahkan ${roleLabel} dengan TTD digital!`)
     }
   }
 
@@ -200,7 +273,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               <span>Kembali ke Daftar SKP Ka Prodi</span>
             </button>
             <h1 className="page-title" style={{ marginTop: 14 }}>
-              Penilaian &amp; Pengesahan SKP Ketua Program Studi
+              Persetujuan &amp; Pengesahan SKP Ketua Program Studi
             </h1>
             <p className="page-desc">
               Periksa ketercapaian beban tugas kepemimpinan dan Tridharma Ka Prodi {activeReviewSKP.dosenNama}, berikan catatan dekanat, dan bubuhkan tanda tangan digital resmi.
@@ -208,15 +281,31 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => openPrintSKP(activeReviewSKP, activeReviewSKP.ttdDosenUrl)}
-              className="brand-btn brand-btn--outline"
-              style={{ padding: '9px 16px' }}
-              title="Buka Cetak SKP Formal di Tab Baru"
-            >
-              <Printer size={15} />
-              <span>Cetak Formulir SKP</span>
-            </button>
+            {(() => {
+              const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(activeReviewSKP.status)
+              return (
+                <button
+                  onClick={() => {
+                    if (!isApproved) {
+                      onShowToast('Berkas SKP belum dapat dicetak karena belum disetujui.')
+                      return
+                    }
+                    openPrintSKP(activeReviewSKP, activeReviewSKP.ttdDosenUrl)
+                  }}
+                  disabled={!isApproved}
+                  className="brand-btn brand-btn--outline"
+                  style={{
+                    padding: '9px 16px',
+                    opacity: isApproved ? 1 : 0.5,
+                    cursor: isApproved ? 'pointer' : 'not-allowed',
+                  }}
+                  title={isApproved ? 'Buka Cetak SKP Formal di Tab Baru' : 'SKP belum dapat dicetak (menunggu persetujuan)'}
+                >
+                  <Printer size={15} />
+                  <span>Cetak Formulir SKP</span>
+                </button>
+              )
+            })()}
           </div>
         </div>
 
@@ -398,7 +487,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '14px', fontWeight: 700, color: 'var(--navy-900)' }}>
                 <FileSignature size={16} color="var(--brand-600)" />
-                <span>Tanda Tangan Digital Dekan Otomatis</span>
+                <span>Tanda Tangan Digital {roleLabel} Otomatis</span>
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2, marginBottom: 12 }}>
                 Tanda tangan Anda dan Ka. Prodi otomatis disematkan dari profil institusi saat disetujui.
@@ -459,7 +548,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                 style={{ flex: 2, padding: '10px 16px' }}
               >
                 <CheckCircle size={15} />
-                <span>Sahkan &amp; TTD Dekan</span>
+                <span>Sahkan &amp; TTD {roleLabel}</span>
               </button>
             </div>
           </div>
@@ -468,7 +557,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         {/* Dialogs */}
         <ConfirmDialog
           isOpen={confirmApprove}
-          title="Pengesahan SKP Ka Prodi oleh Dekan"
+          title={`Pengesahan SKP Ka Prodi oleh ${roleLabel}`}
           message={`Apakah Anda yakin ingin menyetujui dan menandatangani SKP Ka Prodi "${activeReviewSKP.dosenNama}" untuk periode ${activeReviewSKP.semester} ${activeReviewSKP.tahunAkademik}? Berkas SKP akan langsung SAH dan TERBIT secara resmi tanpa perlu menunggu validasi SDM.`}
           confirmText="Ya, Sahkan &amp; Bubuhkan TTD"
           cancelText="Batal"
@@ -506,7 +595,9 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         <div>
           <h1 className="page-title">Verifikasi &amp; Pengesahan SKP Ketua Program Studi</h1>
           <p className="page-desc">
-            Sebagai Dekan {user.fakultas ? `(${user.fakultas})` : ''}, Anda memverifikasi capaian Tridharma dan manajerial Ketua Program Studi di lingkungan fakultas yang Anda pimpin serta mengesahkan dengan tanda tangan digital resmi.
+            {isKacap
+              ? `Sebagai ${leaderRoleTitle}, Anda memverifikasi capaian Tridharma dan manajerial Ketua Program Studi di lingkungan kampus cabang (${territoryLabel}) yang Anda pimpin serta mengesahkan dengan tanda tangan digital resmi.`
+              : `Sebagai ${leaderRoleTitle}, Anda memverifikasi capaian Tridharma dan manajerial Ketua Program Studi di lingkungan ${territoryLabel} yang Anda pimpin serta mengesahkan dengan tanda tangan digital resmi.`}
           </p>
         </div>
       </div>
@@ -642,7 +733,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               <th style={{ textAlign: 'center' }}>Total SKS</th>
               <th style={{ textAlign: 'center' }}>Nilai SKP</th>
               <th style={{ textAlign: 'center' }}>Status Berkas</th>
-              <th style={{ textAlign: 'center' }}>Status TTD Dekan</th>
+              <th style={{ textAlign: 'center' }}>Status TTD {isKacap ? 'KeCab' : 'Dekan'}</th>
               <th style={{ textAlign: 'right' }}>Aksi</th>
             </tr>
           </thead>
@@ -692,7 +783,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {skp.ttdDekanUrl ? (
-                      <span className="badge-pill badge-pill--green" title="TTD Dekan Terverifikasi">
+                      <span className="badge-pill badge-pill--green" title={`TTD ${roleLabel} Terverifikasi`}>
                         Sudah TTD
                       </span>
                     ) : (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Printer, ArrowLeft } from 'lucide-react'
 import { TranskripPrintData } from '../utils/printTranskrip'
+import { api } from '../services/api'
 
 const BERAKHLAK_ITEMS = [
   {
@@ -50,6 +51,46 @@ const BERAKHLAK_ITEMS = [
 export const CetakTranskripStandaloneView: React.FC = () => {
   const [data, setData] = useState<TranskripPrintData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Data Rektor sebagai Pejabat Penilai formal pada transkrip cetak
+  const [rektor, setRektor] = useState<{
+    nama: string
+    nuptk: string
+    pangkat: string
+    jabatan: string
+    unit: string
+    signatureUrl?: string
+  }>({
+    nama: '-',
+    nuptk: '-',
+    pangkat: '-',
+    jabatan: 'Rektor',
+    unit: 'Universitas Bhakti Kencana',
+  })
+
+  useEffect(() => {
+    api.dosen
+      .list()
+      .then((dosens: any) => {
+        if (Array.isArray(dosens)) {
+          const found = dosens.find((d: any) => {
+            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
+            return jab.includes('rektor') && !jab.includes('wakil')
+          })
+          if (found) {
+            setRektor({
+              nama: found.nama || '-',
+              nuptk: found.nuptk || found.nip || '-',
+              pangkat: found.golongan || '-',
+              jabatan: 'Rektor',
+              unit: 'Universitas Bhakti Kencana',
+              signatureUrl: found.signatureUrl,
+            })
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     // Pastikan scrolling window/body aktif secara global saat halaman pratinjau cetak terbuka
@@ -134,7 +175,7 @@ export const CetakTranskripStandaloneView: React.FC = () => {
     )
   }
 
-  const { penilaian, dosenNama, dosenNip, dosenProdi, dosenJafung = 'Dosen Tetap', dosenGolongan = 'Penata Muda / IIIa', tahunAkademik } = data
+  const { penilaian, dosenNama, dosenNip, dosenNuptk, dosenProdi, dosenJafung = 'Dosen Tetap', dosenGolongan = 'Penata Muda / IIIa', tahunAkademik } = data as any
 
   const getScore = (key: string): number => {
     const p = penilaian as unknown as Record<string, unknown>
@@ -427,7 +468,7 @@ export const CetakTranskripStandaloneView: React.FC = () => {
             </div>
             <div style={{ padding: '4px 6px', display: 'grid', gridTemplateColumns: '20px 105px 8px 1fr', gap: '2px 0' }}>
               <span>1.</span><span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{dosenNama}</strong>
-              <span>2.</span><span style={{ fontWeight: 600 }}>NIP</span><span>:</span><span>{dosenNip}</span>
+              <span>2.</span><span style={{ fontWeight: 600 }}>NUPTK</span><span>:</span><span>{dosenNuptk || '-'}</span>
               <span>3.</span><span style={{ fontWeight: 600 }}>Pangkat/Gol.</span><span>:</span><span>{dosenGolongan}</span>
               <span>4.</span><span style={{ fontWeight: 600 }}>Jabatan</span><span>:</span><span>{dosenJafung}</span>
               <span>5.</span><span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{dosenProdi}</span>
@@ -436,14 +477,14 @@ export const CetakTranskripStandaloneView: React.FC = () => {
 
           <div>
             <div style={{ background: '#f1f5f9', fontWeight: 800, padding: '3px 6px', borderBottom: '1px solid #000000', textTransform: 'uppercase' }}>
-              II. PEJABAT PENILAI KINERJA
+              II. PEJABAT PENILAI
             </div>
             <div style={{ padding: '4px 6px', display: 'grid', gridTemplateColumns: '20px 105px 8px 1fr', gap: '2px 0' }}>
-              <span>1.</span><span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{penilaian.penilaiNama || 'Ketua Program Studi'}</strong>
-              <span>2.</span><span style={{ fontWeight: 600 }}>Peran Penilai</span><span>:</span><span>{penilaian.penilaiRole || 'Kaprodi'}</span>
-              <span>3.</span><span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{dosenProdi}</span>
-              <span>4.</span><span style={{ fontWeight: 600 }}>Tgl. Penilaian</span><span>:</span><span>{penilaian.tanggal || '-'}</span>
-              <span>5.</span><span style={{ fontWeight: 600 }}>Status Validasi</span><span>:</span><span style={{ color: '#047857', fontWeight: 700 }}>Terverifikasi Sah</span>
+              <span>1.</span><span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{rektor.nama}</strong>
+              <span>2.</span><span style={{ fontWeight: 600 }}>NUPTK</span><span>:</span><span>{rektor.nuptk || '-'}</span>
+              <span>3.</span><span style={{ fontWeight: 600 }}>Pangkat/Gol.</span><span>:</span><span>{rektor.pangkat}</span>
+              <span>4.</span><span style={{ fontWeight: 600 }}>Jabatan</span><span>:</span><span>{rektor.jabatan}</span>
+              <span>5.</span><span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{rektor.unit}</span>
             </div>
           </div>
         </div>
@@ -532,19 +573,19 @@ export const CetakTranskripStandaloneView: React.FC = () => {
         {/* Tanda Tangan */}
         <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: '8.5pt', marginTop: 10 }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '8pt', color: '#334155' }}>Mengetahui / Mengakui,</div>
-            <div style={{ fontWeight: 700, marginBottom: 40 }}>Pegawai yang Dinilai</div>
+            <div style={{ fontSize: '8pt', visibility: 'hidden' }}>Bandung, -</div>
+            <div style={{ fontWeight: 700, marginBottom: 40 }}>Pegawai Yang Dinilai,</div>
             <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosenNama}</div>
-            <div style={{ fontSize: '8pt', color: '#475569' }}>NIP. {dosenNip}</div>
+            <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {dosenNuptk || '-'}</div>
           </div>
 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '8pt', color: '#334155' }}>
               Bandung, {penilaian.tanggal || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </div>
-            <div style={{ fontWeight: 700, marginBottom: 40 }}>Pejabat Penilai Kinerja</div>
-            <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaian.penilaiNama || 'Ketua Program Studi'}</div>
-            <div style={{ fontSize: '8pt', color: '#475569' }}>Jabatan: {penilaian.penilaiRole || 'Kaprodi'}</div>
+            <div style={{ fontWeight: 700, marginBottom: 40 }}>Pejabat Penilai,</div>
+            <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{rektor.nama}</div>
+            <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {rektor.nuptk || '-'}</div>
           </div>
         </div>
 

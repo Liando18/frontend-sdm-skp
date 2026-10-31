@@ -163,7 +163,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   onShowToast,
 }) => {
   const [selectedTahun, setSelectedTahun] = useState<string>(
-    mySKP?.tahunAkademik || '2025/2026'
+    mySKP?.tahunAkademik || TAHUN_AJARAN_OPTIONS[0]
   )
   const [selectedSemester, setSelectedSemester] = useState<'Genap' | 'Ganjil'>(
     (mySKP?.semester as 'Genap' | 'Ganjil') || 'Genap'
@@ -268,18 +268,74 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
   // Find existing SKP for this lecturer/kaprodi/dekan, semester, and academic year
   const getActiveSKP = (): PengajuanSKP => {
-    // Resolve real Kaprodi for targetDosenProdi
-    const matchedProdi = prodiList.find((p) => p.nama === targetDosenProdi)
-    const kaprodiFromDosen = dosenList.find(
-      (d) => d.isKaprodi && d.prodi === targetDosenProdi
+    // Resolve real Kaprodi for targetDosenProdi with strict territorial isolation
+    const isTargetPsdku = Boolean(
+      user?.tipeLokasi === 'PSDKU' ||
+      user?.psdkuId ||
+      (user as any)?.psdku_id ||
+      (user?.kampus && user.kampus.toLowerCase().includes('psdku')) ||
+      matchedDosenFromList?.tipeLokasi === 'PSDKU' ||
+      matchedDosenFromList?.psdkuId ||
+      (matchedDosenFromList?.kampus && matchedDosenFromList.kampus.toLowerCase().includes('psdku'))
     )
+    const targetPsdkuId = user?.psdkuId || (user as any)?.psdku_id || matchedDosenFromList?.psdkuId || (matchedDosenFromList as any)?.psdku_id
+    const targetKampus = (user?.kampus || matchedDosenFromList?.kampus || '').toLowerCase()
+
+    const kaprodiFromDosen = dosenList.find((d) => {
+      const matchProdi = d.prodi === targetDosenProdi
+      if (!matchProdi || !d.isKaprodi) return false
+
+      if (isTargetPsdku) {
+        const dIsPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          (d as any).tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          (d as any).psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (!dIsPsdku) return false
+        if (targetPsdkuId && (d.psdkuId || (d as any).psdku_id)) {
+          return d.psdkuId === targetPsdkuId || (d as any).psdku_id === targetPsdkuId
+        }
+        if (targetKampus && d.kampus) {
+          return d.kampus.toLowerCase().includes(targetKampus) || targetKampus.includes(d.kampus.toLowerCase())
+        }
+        return true
+      } else {
+        const dIsPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          (d as any).tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          (d as any).psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        return !dIsPsdku
+      }
+    })
+
+    const matchedProdi = prodiList.find((p) => {
+      const matchProdi = p.nama === targetDosenProdi
+      if (!matchProdi) return false
+      if (isTargetPsdku) {
+        const pIsPsdku = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (!pIsPsdku) return false
+        if (targetPsdkuId && (p.psdku_id || p.psdkuId)) {
+          return p.psdku_id === targetPsdkuId || p.psdkuId === targetPsdkuId
+        }
+        return true
+      } else {
+        const pIsPsdku = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        return !pIsPsdku
+      }
+    }) || prodiList.find((p) => p.nama === targetDosenProdi)
+
     const realKaprodiNama =
-      matchedProdi?.kaprodiNama ||
       kaprodiFromDosen?.nama ||
+      matchedProdi?.kaprodiNama ||
       'Ketua Program Studi'
     const realKaprodiNip =
-      matchedProdi?.kaprodiNip ||
       kaprodiFromDosen?.nip ||
+      matchedProdi?.kaprodiNip ||
       '-'
     const currentDosenSignature = user?.signatureUrl || matchedDosenFromList?.signatureUrl
 
@@ -291,12 +347,11 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
     )
     if (found) {
       const cloned = { ...found }
-      // Self-healing: if penilai is Kaprodi and either empty or defaulted to Ade Iwan for another prodi
+      // Self-healing: if penilai is Kaprodi and either empty or defaulted to Ade Iwan for another prodi or wrong campus
       if (
         (!cloned.penilaiRole || cloned.penilaiRole === 'Kaprodi') &&
         targetDosenProdi &&
-        targetDosenProdi !== 'S1 Keperawatan' &&
-        (cloned.penilaiNama === 'Ade Iwan Mutiudin, M.Kep' || !cloned.penilaiNama)
+        (cloned.penilaiNama === 'Ade Iwan Mutiudin, M.Kep' || !cloned.penilaiNama || (realKaprodiNama !== 'Ketua Program Studi' && cloned.penilaiNama !== realKaprodiNama))
       ) {
         cloned.penilaiNama = realKaprodiNama
         cloned.penilaiNip = realKaprodiNip
@@ -317,8 +372,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       if (
         (!cloned.penilaiRole || cloned.penilaiRole === 'Kaprodi') &&
         targetDosenProdi &&
-        targetDosenProdi !== 'S1 Keperawatan' &&
-        (cloned.penilaiNama === 'Ade Iwan Mutiudin, M.Kep' || !cloned.penilaiNama)
+        (cloned.penilaiNama === 'Ade Iwan Mutiudin, M.Kep' || !cloned.penilaiNama || (realKaprodiNama !== 'Ketua Program Studi' && cloned.penilaiNama !== realKaprodiNama))
       ) {
         cloned.penilaiNama = realKaprodiNama
         cloned.penilaiNip = realKaprodiNip
@@ -373,12 +427,45 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       defaultPenilaiJabatan = `Ketua Program Studi ${targetDosenProdi || ''}`
       defaultPenilaiRole = 'Kaprodi'
     } else if (isKaprodi) {
-      // Kaprodi dinilai oleh Dekan Fakultas
-      const dekan = dosenList.find((d) => d.isDekan)
-      defaultPenilaiNama = dekan?.nama || 'Dr. Hj. Ratna Dian Saraswati, M.Kes'
-      defaultPenilaiNip = dekan?.nip || '197506122005012001'
-      defaultPenilaiJabatan = `Dekan ${user?.fakultas || 'Fakultas Keperawatan dan Kebidanan'}`
-      defaultPenilaiRole = 'Dekan'
+      const isUserPsdku = Boolean(
+        user?.tipeLokasi === 'PSDKU' ||
+        user?.psdkuId ||
+        (user as any)?.psdku_id ||
+        (user?.kampus && user.kampus.toLowerCase().includes('psdku'))
+      )
+
+      if (isUserPsdku) {
+        // Kaprodi di PSDKU dinilai oleh Kepala Cabang (KeCab) PSDKU tersebut
+        const myPsdkuId = user?.psdkuId || (user as any)?.psdku_id
+        const userKampus = (user?.kampus || '').toLowerCase()
+        const kecab = dosenList.find((d) =>
+          (d.jabatanStruktural === 'Kepala Cabang (KeCab)' || d.jabatan_struktural === 'Kepala Cabang (KeCab)' || d.isDekan) &&
+          (d.tipeLokasi === 'PSDKU' || d.tipe_lokasi === 'PSDKU') &&
+          ((myPsdkuId && (d.psdkuId === myPsdkuId || d.psdku_id === myPsdkuId)) || (userKampus && (d.kampus || '').toLowerCase().includes(userKampus)))
+        ) || dosenList.find((d) => d.jabatanStruktural === 'Kepala Cabang (KeCab)' || d.jabatan_struktural === 'Kepala Cabang (KeCab)')
+
+        defaultPenilaiNama = kecab?.nama || 'Kepala Cabang PSDKU'
+        defaultPenilaiNip = kecab?.nip || '-'
+        defaultPenilaiJabatan = `Kepala Cabang ${user?.kampus || kecab?.kampus || 'PSDKU'}`
+        defaultPenilaiRole = 'Dekan'
+      } else {
+        // Kaprodi di Kampus Pusat dinilai oleh Dekan Fakultas tempat prodi bernaung
+        const myFakId = user?.fakultasId || (user as any)?.fakultas_id
+        const myFakName = (user?.fakultas || '').toLowerCase()
+        const dekan = dosenList.find((d) =>
+          d.isDekan &&
+          (d.tipeLokasi === 'Pusat' || !d.psdkuId) &&
+          (
+            (myFakId && (d.fakultasId === myFakId || d.fakultas_id === myFakId)) ||
+            (myFakName && (d.fakultas || '').toLowerCase().includes(myFakName))
+          )
+        ) || dosenList.find((d) => d.isDekan && (d.tipeLokasi === 'Pusat' || !d.psdkuId)) || dosenList.find((d) => d.isDekan)
+
+        defaultPenilaiNama = dekan?.nama || 'Dekan Fakultas'
+        defaultPenilaiNip = dekan?.nip || '-'
+        defaultPenilaiJabatan = `Dekan ${user?.fakultas || dekan?.fakultas || 'Fakultas'}`
+        defaultPenilaiRole = 'Dekan'
+      }
     } else {
       // Dosen reguler dinilai oleh Kaprodi
       defaultPenilaiNama = realKaprodiNama
@@ -868,17 +955,36 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             <span>{isSaving ? 'Menyimpan...' : 'Simpan Draft'}</span>
           </button>
 
-          {/* Action: Cetak Formulir SKP (Membuka tab baru _blank dengan layout formal) */}
-          <button
-            type="button"
-            onClick={() => openPrintSKP(activeSKP, user?.signatureUrl || matchedDosenFromList?.signatureUrl)}
-            className="brand-btn brand-btn--outline"
-            style={{ padding: '7px 14px', fontSize: '12px', borderRadius: 'var(--r-md)', background: '#ffffff' }}
-            title="Cetak Formulir Standar SKP Resmi di Tab Baru"
-          >
-            <Printer size={13} />
-            <span>Cetak SKP</span>
-          </button>
+          {/* Action: Cetak Formulir SKP (Membuka tab baru _blank dengan layout formal - Hanya jika sudah disetujui) */}
+          {(() => {
+            const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(activeSKP.status)
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isApproved) {
+                    onShowToast?.('Formulir SKP belum dapat dicetak karena belum diverifikasi & disetujui oleh pimpinan.')
+                    return
+                  }
+                  openPrintSKP(activeSKP, user?.signatureUrl || matchedDosenFromList?.signatureUrl)
+                }}
+                disabled={!isApproved}
+                className="brand-btn brand-btn--outline"
+                style={{
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  borderRadius: 'var(--r-md)',
+                  background: '#ffffff',
+                  opacity: isApproved ? 1 : 0.5,
+                  cursor: isApproved ? 'pointer' : 'not-allowed',
+                }}
+                title={isApproved ? 'Cetak Formulir Standar SKP Resmi di Tab Baru' : 'SKP belum dapat dicetak (menunggu persetujuan pimpinan)'}
+              >
+                <Printer size={13} />
+                <span>Cetak SKP</span>
+              </button>
+            )
+          })()}
 
           {/* Action: Submit / Ajukan SKP ke Atasan */}
           {(activeSKP.status === 'Draft' || activeSKP.status === 'Perlu Revisi' || !activeSKP.status) && (
@@ -963,7 +1069,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
         {/* Card 4: Status Approval & Penilai */}
         <div style={{ background: 'var(--card)', borderRadius: 'var(--r-lg)', padding: '16px 18px', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-xs)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>Status &amp; Penilai</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>Status &amp; Persetujuan</span>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f1f5f9', color: '#475569', display: 'grid', placeItems: 'center' }}>
               <FileCheck size={16} />
             </div>
@@ -988,7 +1094,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             })()}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Penilai: <strong>{activeSKP.penilaiNama || activeSKP.penilaiJabatan || 'Pejabat Penilai'}</strong>
+            Disetujui Oleh: <strong>{activeSKP.penilaiNama || activeSKP.penilaiJabatan || 'Pimpinan'}</strong>
           </div>
         </div>
       </div>

@@ -15,17 +15,6 @@ interface KelolaKomponenSKPProps {
   onShowToast: (msg: string) => void
 }
 
-const TARGET_JABATAN_OPTIONS: TargetJabatanSKP[] = [
-  'Semua Jabatan',
-  'Rektor',
-  'Wakil Rektor',
-  'Dekan',
-  'Wakil Dekan',
-  'Ketua Program Studi',
-  'Dosen Tetap',
-  'Tenaga Kependidikan / Staf',
-]
-
 const KATEGORI_OPTIONS: KategoriKomponenSKP[] = [
   'Pendidikan',
   'Penelitian',
@@ -78,14 +67,15 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
     return Array.from(new Set([...fromDb, ...customKategori, ...KATEGORI_OPTIONS]))
   }, [komponenList, customKategori])
 
-  // Derive target jabatan dynamically from campus database positions
+  // Derive target jabatan dynamically from campus database positions (jabatan_kampuses)
   const availableTargetJabatan = useMemo(() => {
     const dbJabatanNames = (jabatanList || []).map((j) => j.nama).filter(Boolean)
     const fromKomponen = komponenList.map((k) => k.targetJabatan).filter(Boolean)
-    const defaults = [
+    const fallbackDefaults = [
       'Dosen',
       'Ketua Program Studi',
       'Dekan Fakultas',
+      'Kepala Cabang (KeCab)',
       'Wakil Dekan',
       'Rektor',
       'Wakil Rektor I (Bidang Akademik & Riset)',
@@ -93,12 +83,12 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
       'Sekretaris Program Studi',
       'Kepala Bagian SDM',
     ]
+    const primaryJabatan = dbJabatanNames.length > 0 ? dbJabatanNames : fallbackDefaults
     return Array.from(
       new Set([
         'Semua Jabatan',
-        ...dbJabatanNames,
+        ...primaryJabatan,
         ...fromKomponen,
-        ...defaults,
       ])
     )
   }, [jabatanList, komponenList])
@@ -905,12 +895,14 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                       className={`badge-pill ${
                         komp.targetJabatan === 'Ketua Program Studi'
                           ? 'badge-pill--blue'
-                          : komp.targetJabatan === 'Dekan'
+                          : komp.targetJabatan === 'Dekan Fakultas' || komp.targetJabatan === 'Dekan' || komp.targetJabatan === 'Kepala Cabang (KeCab)'
                           ? 'badge-pill--green'
-                          : komp.targetJabatan === 'Tenaga Kependidikan / Staf'
+                          : komp.targetJabatan === 'Kepala Bagian SDM' || komp.targetJabatan === 'Tenaga Kependidikan / Staf'
                           ? 'badge-pill--orange'
-                          : komp.targetJabatan === 'Rektor' || komp.targetJabatan === 'Wakil Rektor'
-                          ? 'badge-pill--blue'
+                          : komp.targetJabatan?.includes('Rektor') || komp.targetJabatan?.includes('Direktur')
+                          ? 'badge-pill--purple'
+                          : komp.targetJabatan === 'Semua Jabatan'
+                          ? 'badge-pill--green'
                           : 'badge-pill--gray'
                       }`}
                       style={{ fontSize: '11px', whiteSpace: 'nowrap' }}

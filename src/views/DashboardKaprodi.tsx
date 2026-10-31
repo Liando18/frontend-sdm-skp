@@ -44,8 +44,88 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
-  const prodiDosen = dosenList.filter((d) => d.prodi === user.prodi)
+  // Identifikasi ranah wilayah Ka.Prodi (PSDKU vs Pusat)
+  const isKaprodiPsdku = Boolean(
+    user.tipeLokasi === 'PSDKU' ||
+    user.psdkuId ||
+    (user as any).psdku_id ||
+    (user.kampus && user.kampus.toLowerCase().includes('psdku'))
+  )
+  const userPsdkuId = user.psdkuId || (user as any).psdku_id
+  const userKampusName = (user.kampus || '').toLowerCase()
+  const userFakultasId = user.fakultasId || (user as any).fakultas_id
+  const userFakultasName = (user.fakultas || '').toLowerCase()
+
+  // Dosen homebase prodi yang dibimbing (termasuk Dekan/Kacap di prodi & wilayah ini,
+  // mengecualikan Ka.Prodi itu sendiri yang dinilai oleh Dekan/Kacap)
+  const prodiDosen = useMemo(() => {
+    return dosenList.filter((d) => {
+      // 1. Wajib sama prodi
+      const matchProdi =
+        (user.programStudiId && (d.programStudiId === user.programStudiId || (d as any).program_studi_id === user.programStudiId)) ||
+        (d.prodi === user.prodi)
+      if (!matchProdi) return false
+
+      // 2. Dilarang menilai diri sendiri
+      const isSelf =
+        d.id === user.id ||
+        (user.nip && d.nip === user.nip) ||
+        (user.name && d.nama.trim().toLowerCase() === user.name.trim().toLowerCase())
+      if (isSelf) return false
+
+      // 3. Ka.Prodi lain tidak dinilai oleh Ka.Prodi (dinilai oleh Dekan/Kacap)
+      if (
+        d.isKaprodi ||
+        d.jabatanStruktural === 'Ketua Program Studi' ||
+        d.jabatan_struktural === 'Ketua Program Studi'
+      ) {
+        return false
+      }
+
+      // 4. Strict Territorial Isolation
+      if (isKaprodiPsdku) {
+        // Wajib dari PSDKU yang sama
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          (d as any).psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (!isDosenPsdku) return false
+
+        const matchPsdkuId = userPsdkuId && (d.psdkuId === userPsdkuId || (d as any).psdku_id === userPsdkuId)
+        const matchKampus = userKampusName && (d.kampus || '').toLowerCase().includes(userKampusName)
+        if (userPsdkuId || userKampusName) {
+          return Boolean(matchPsdkuId || matchKampus)
+        }
+        return true
+      } else {
+        // Wajib dari Kampus Pusat (Bukan dari PSDKU mana pun)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          (d as any).psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (isDosenPsdku) return false
+
+        if (userFakultasId && (d.fakultasId || (d as any).fakultas_id)) {
+          return d.fakultasId === userFakultasId || (d as any).fakultas_id === userFakultasId
+        }
+        if (userFakultasName && d.fakultas) {
+          return (d.fakultas || '').toLowerCase().includes(userFakultasName)
+        }
+        return true
+      }
+    })
+  }, [dosenList, user, isKaprodiPsdku, userPsdkuId, userKampusName, userFakultasId, userFakultasName])
+
   const totalProdiDosen = prodiDosen.length
+  const prodiDosenIds = useMemo(() => new Set(prodiDosen.map((d) => d.id)), [prodiDosen])
+  const prodiDosenNips = useMemo(() => new Set(prodiDosen.map((d) => d.nip).filter(Boolean)), [prodiDosen])
+  const prodiDosenNames = useMemo(() => new Set(prodiDosen.map((d) => (d.nama || '').trim().toLowerCase())), [prodiDosen])
 
   const filteredProdiDosen = useMemo(() => {
     return prodiDosen.filter((d) => {
@@ -65,18 +145,31 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
     return filteredProdiDosen.slice(start, start + pageSize)
   }, [filteredProdiDosen, page, pageSize])
 
-  const prodiSKP = skpList.filter(
-    (s) => s.dosenProdi === user.prodi
-  )
+  const prodiSKP = useMemo(() => {
+    return skpList.filter((s) => {
+      const isSelf =
+        (user.id && s.dosenId === user.id) ||
+        (user.nip && s.dosenNip === user.nip) ||
+        (user.name && (s.dosenNama || '').trim().toLowerCase() === user.name.trim().toLowerCase())
+      if (isSelf) return false
+
+      const isProdiDosen =
+        (s.dosenId && prodiDosenIds.has(s.dosenId)) ||
+        (s.dosenNip && prodiDosenNips.has(s.dosenNip)) ||
+        (s.dosenNama && prodiDosenNames.has((s.dosenNama || '').trim().toLowerCase()))
+
+      return isProdiDosen
+    })
+  }, [skpList, user, prodiDosenIds, prodiDosenNips, prodiDosenNames])
+
   const pendingReview = prodiSKP.filter((s) => s.status === 'Diajukan').length
   const approvedReview = prodiSKP.filter(
     (s) => ['Disahkan', 'Terbit', 'Dinilai Kaprodi', 'Disetujui SDM'].includes(s.status)
   ).length
 
-  const prodiDosenIds = prodiDosen.map((d) => d.id)
-  const prodiPenilaianCount = penilaianList.filter(
-    (p) => prodiDosenIds.includes(p.dosenId) || p.dosenProdi === user.prodi
-  ).length
+  const prodiPenilaianCount = useMemo(() => {
+    return penilaianList.filter((p) => prodiDosenIds.has(p.dosenId)).length
+  }, [penilaianList, prodiDosenIds])
   const kuisPersen = totalProdiDosen > 0 ? ((prodiPenilaianCount / totalProdiDosen) * 100).toFixed(1) : '0'
 
   const containerRef = useRef<HTMLDivElement>(null)

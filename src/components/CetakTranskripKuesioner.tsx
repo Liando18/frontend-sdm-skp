@@ -1,13 +1,15 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { Printer, X } from 'lucide-react'
 import { PenilaianKuesioner } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { printDocument } from '../utils/printDocument'
+import { api } from '../services/api'
 
 interface CetakTranskripKuesionerProps {
   penilaian: PenilaianKuesioner | any
   dosenNama: string
-  dosenNip: string
+  dosenNip?: string
+  dosenNuptk?: string
   dosenProdi: string
   dosenJafung?: string
   dosenGolongan?: string
@@ -65,6 +67,7 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
   penilaian,
   dosenNama,
   dosenNip,
+  dosenNuptk,
   dosenProdi,
   dosenJafung = 'Dosen',
   dosenGolongan = 'Penata Muda / IIIb',
@@ -74,6 +77,46 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
 }) => {
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+
+  // Data Rektor sebagai Pejabat Penilai formal pada formulir cetak
+  const [rektor, setRektor] = useState<{
+    nama: string
+    nuptk: string
+    pangkat: string
+    jabatan: string
+    unit: string
+    signatureUrl?: string
+  }>({
+    nama: '-',
+    nuptk: '-',
+    pangkat: '-',
+    jabatan: 'Rektor',
+    unit: 'Universitas Bhakti Kencana',
+  })
+
+  useEffect(() => {
+    api.dosen
+      .list()
+      .then((dosens: any) => {
+        if (Array.isArray(dosens)) {
+          const found = dosens.find((d: any) => {
+            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
+            return jab.includes('rektor') && !jab.includes('wakil')
+          })
+          if (found) {
+            setRektor({
+              nama: found.nama || '-',
+              nuptk: found.nuptk || found.nip || '-',
+              pangkat: found.golongan || '-',
+              jabatan: 'Rektor',
+              unit: 'Universitas Bhakti Kencana',
+              signatureUrl: found.signatureUrl,
+            })
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useGSAP(
     () => {
@@ -154,7 +197,7 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
               Pratinjau Cetak: Transkrip Evaluasi Perilaku Kerja (BerAKHLAK)
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Tahun Akademik {tahunAkademik} &bull; Pegawai: <strong>{dosenNama}</strong> ({dosenNip})
+              Tahun Akademik {tahunAkademik} &bull; Pegawai: <strong>{dosenNama}</strong> (NUPTK: {dosenNuptk || '-'})
             </div>
           </div>
 
@@ -217,24 +260,24 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
                 </div>
                 <div style={{ padding: '6px 8px', display: 'grid', gridTemplateColumns: '100px 8px 1fr', gap: '3px 0' }}>
                   <span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{dosenNama}</strong>
-                  <span style={{ fontWeight: 600 }}>NIP</span><span>:</span><span>{dosenNip}</span>
+                  <span style={{ fontWeight: 600 }}>NUPTK</span><span>:</span><span>{dosenNuptk || '-'}</span>
                   <span style={{ fontWeight: 600 }}>Pangkat/Gol.</span><span>:</span><span>{dosenGolongan}</span>
                   <span style={{ fontWeight: 600 }}>Jabatan</span><span>:</span><span>{dosenJafung}</span>
                   <span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{dosenProdi}</span>
                 </div>
               </div>
 
-              {/* Kolom Kanan: Pejabat Penilai */}
+              {/* Kolom Kanan: Pejabat Penilai (Rektor) */}
               <div>
                 <div style={{ background: '#f8fafc', padding: '4px 8px', fontWeight: 800, borderBottom: '1px solid #000000' }}>
-                  II. PEJABAT PENILAI KINERJA
+                  II. PEJABAT PENILAI
                 </div>
                 <div style={{ padding: '6px 8px', display: 'grid', gridTemplateColumns: '100px 8px 1fr', gap: '3px 0' }}>
-                  <span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{penilaian.penilaiNama || 'Ketua Program Studi'}</strong>
-                  <span style={{ fontWeight: 600 }}>Peran / Kapasitas</span><span>:</span><span>{penilaian.penilaiRole || 'Kaprodi'}</span>
-                  <span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{dosenProdi}</span>
-                  <span style={{ fontWeight: 600 }}>Tanggal Penilaian</span><span>:</span><span>{penilaian.tanggal || '-'}</span>
-                  <span style={{ fontWeight: 600 }}>Status Validasi</span><span>:</span><span style={{ color: '#059669', fontWeight: 700 }}>Terverifikasi Sah</span>
+                  <span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{rektor.nama}</strong>
+                  <span style={{ fontWeight: 600 }}>NUPTK</span><span>:</span><span>{rektor.nuptk || '-'}</span>
+                  <span style={{ fontWeight: 600 }}>Pangkat/Gol.</span><span>:</span><span>{rektor.pangkat}</span>
+                  <span style={{ fontWeight: 600 }}>Jabatan</span><span>:</span><span>{rektor.jabatan}</span>
+                  <span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{rektor.unit}</span>
                 </div>
               </div>
             </div>
@@ -332,17 +375,17 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
             {/* Tanda Tangan Resmi Berdampingan */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 10px' }}>
               <div style={{ textAlign: 'center', width: 220 }}>
-                <div style={{ fontSize: '11px', color: '#334155' }}>Mengetahui / Mengakui,</div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, marginBottom: 40 }}>Pegawai yang Dinilai</div>
+                <div style={{ fontSize: '11px', visibility: 'hidden' }}>Bandung, -</div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, marginBottom: 40 }}>Pegawai Yang Dinilai,</div>
                 <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosenNama}</div>
-                <div style={{ fontSize: '11px', color: '#475569' }}>NIP. {dosenNip}</div>
+                <div style={{ fontSize: '11px', color: '#475569' }}>NUPTK: {dosenNuptk || '-'}</div>
               </div>
 
               <div style={{ textAlign: 'center', width: 220 }}>
                 <div style={{ fontSize: '11px', color: '#334155' }}>Bandung, {penilaian.tanggal || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, marginBottom: 40 }}>Pejabat Penilai Kinerja</div>
-                <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{penilaian.penilaiNama || 'Ketua Program Studi'}</div>
-                <div style={{ fontSize: '11px', color: '#475569' }}>Jabatan: {penilaian.penilaiRole || 'Kaprodi'}</div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700, marginBottom: 40 }}>Pejabat Penilai,</div>
+                <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{rektor.nama}</div>
+                <div style={{ fontSize: '11px', color: '#475569' }}>NUPTK: {rektor.nuptk || '-'}</div>
               </div>
             </div>
 

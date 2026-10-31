@@ -951,7 +951,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 <span>Alur Otomatisasi Tanda Tangan:</span>
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: '#475569' }}>
-                <li><strong>Untuk Penilai (Kaprodi / Dekan):</strong> Pada saat menyetujui (ACC) SKP dosen, tanda tangan ini akan langsung tersemat otomatis tanpa perlu unggah berkas lagi.</li>
+                <li><strong>Untuk Pimpinan yang Menyetujui (Kaprodi / Dekan / KeCab):</strong> Pada saat memverifikasi dan menyetujui (ACC) SKP dosen, tanda tangan persetujuan ini akan langsung tersemat otomatis tanpa perlu unggah berkas lagi.</li>
                 <li><strong>Untuk Dosen yang Dinilai:</strong> Tanda tangan ini otomatis tersemat berdampingan di formulir cetak SKP saat pengajuan Anda disetujui pimpinan.</li>
                 <li><strong>Keperluan Kedinasan:</strong> Dapat dipakai untuk transkrip kinerja BerAKHLAK dan formulir tahunan.</li>
               </ul>

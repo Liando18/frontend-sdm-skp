@@ -314,7 +314,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
             const steps = [
               { step: '1', title: 'Penyusunan Rencana', desc: 'Input beban SKS Tridharma', active: true, completed: skpStatus !== 'Draft' },
               { step: '2', title: 'Pengajuan Berkas', desc: 'Kirim SKP & tautan dokumen', active: skpStatus !== 'Draft', completed: isSubmitted && skpStatus !== 'Draft' },
-              { step: '3', title: 'Penilaian & TTD Penilai', desc: 'Verifikasi atasan (Ka.Prodi/Dekan)', active: isSubmitted, completed: isSah },
+              { step: '3', title: 'Verifikasi & Persetujuan', desc: 'Disetujui Ka.Prodi / Dekan / KeCab', active: isSubmitted, completed: isSah },
               { step: '4', title: 'Sah & Terbit Resmi', desc: 'Dokumen terbit (Monitoring SDM)', active: isSah, completed: isSah },
             ]
             return steps.map((s, idx) => (

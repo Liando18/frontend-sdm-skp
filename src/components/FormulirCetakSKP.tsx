@@ -1,10 +1,11 @@
-import React, { useRef, useState, useMemo } from 'react'
+import React, { useRef, useState, useMemo, useEffect } from 'react'
 import { Printer, X, ExternalLink, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { PengajuanSKP } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 import { exportSKPToExcel } from '../utils/skpExcelExport'
 import { printDocument } from '../utils/printDocument'
+import { api } from '../services/api'
 
 interface FormulirCetakSKPProps {
   skp: PengajuanSKP
@@ -22,6 +23,46 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
+
+  // Data Rektor sebagai Pejabat Penilai formal pada formulir cetak
+  const [rektor, setRektor] = useState<{
+    nama: string
+    nuptk: string
+    pangkat: string
+    jabatan: string
+    unit: string
+    signatureUrl?: string
+  }>({
+    nama: '-',
+    nuptk: '-',
+    pangkat: '-',
+    jabatan: 'Rektor',
+    unit: 'Universitas Bhakti Kencana',
+  })
+
+  useEffect(() => {
+    api.dosen
+      .list()
+      .then((dosens) => {
+        if (Array.isArray(dosens)) {
+          const found = dosens.find((d: any) => {
+            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
+            return jab.includes('rektor') && !jab.includes('wakil')
+          })
+          if (found) {
+            setRektor({
+              nama: found.nama || '-',
+              nuptk: found.nuptk || found.nip || '-',
+              pangkat: found.golongan || '-',
+              jabatan: 'Rektor',
+              unit: 'Universitas Bhakti Kencana',
+              signatureUrl: found.signatureUrl,
+            })
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const activeDosenSignature =
     skp.ttdDosenUrl && !skp.ttdDosenUrl.startsWith('data:image/svg')
@@ -192,7 +233,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
             </div>
           </div>
 
-          {/* Pejabat Penilai & Dosen yang Dinilai Grid */}
+          {/* Identitas Pegawai yang Dinilai (Kiri) & Pejabat Penilai (Kanan) Grid */}
           <div
             style={{
               display: 'grid',
@@ -202,7 +243,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
               fontSize: '11.5px',
             }}
           >
-            {/* Kolom Kiri: Pejabat Penilai */}
+            {/* Kolom Kiri: Pegawai Yang Dinilai */}
             <div style={{ borderRight: '1.5px solid #000000' }}>
               <div
                 style={{
@@ -215,52 +256,13 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                 }}
               >
                 <span>NO</span>
-                <span>I. PEJABAT PENILAI</span>
-              </div>
-              {[
-                { no: '1', label: 'Nama', val: skp.penilaiNama },
-                { no: '2', label: 'NIP', val: skp.penilaiNip },
-                { no: '3', label: 'Pangkat/Gol.Ruang', val: skp.penilaiPangkat || 'Penata Tk I / IIId' },
-                { no: '4', label: 'Jabatan', val: skp.penilaiJabatan },
-                { no: '5', label: 'Unit Kerja', val: skp.penilaiUnit || skp.dosenProdi },
-              ].map((row, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '32px 110px 8px 1fr',
-                    padding: '3px 6px',
-                    borderBottom: idx < 4 ? '1px solid #e2e8f0' : 'none',
-                  }}
-                >
-                  <span style={{ color: '#64748b' }}>{row.no}</span>
-                  <span style={{ fontWeight: 600 }}>{row.label}</span>
-                  <span>:</span>
-                  <span style={{ fontWeight: 500 }}>{row.val}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Kolom Kanan: Dosen yang Dinilai */}
-            <div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '32px 1fr',
-                  background: '#f1f5f9',
-                  borderBottom: '1px solid #000000',
-                  fontWeight: 800,
-                  padding: '4px 6px',
-                }}
-              >
-                <span>NO</span>
-                <span>II. DOSEN YANG DINILAI</span>
+                <span>I. PEGAWAI YANG DINILAI</span>
               </div>
               {[
                 { no: '1', label: 'Nama', val: skp.dosenNama },
-                { no: '2', label: 'NIP', val: skp.dosenNip },
-                { no: '3', label: 'Pangkat/Gol.Ruang', val: skp.dosenPangkat },
-                { no: '4', label: 'Jabatan', val: skp.dosenJabatan },
+                { no: '2', label: 'NUPTK', val: skp.dosenNuptk || (skp as any).dosen_nuptk || '-' },
+                { no: '3', label: 'Pangkat/Gol.Ruang', val: skp.dosenPangkat || 'Penata Muda / IIIa' },
+                { no: '4', label: 'Jabatan', val: skp.dosenJabatan || 'Dosen Tetap' },
                 { no: '5', label: 'Unit Kerja', val: skp.dosenProdi },
               ].map((row, idx) => (
                 <div
@@ -275,7 +277,46 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                   <span style={{ color: '#64748b' }}>{row.no}</span>
                   <span style={{ fontWeight: 600 }}>{row.label}</span>
                   <span>:</span>
-                  <span style={{ fontWeight: 500 }}>{row.val}</span>
+                  <span style={{ fontWeight: 500 }}>{row.val || '-'}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Kolom Kanan: Pejabat Penilai (Rektor) */}
+            <div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '32px 1fr',
+                  background: '#f1f5f9',
+                  borderBottom: '1px solid #000000',
+                  fontWeight: 800,
+                  padding: '4px 6px',
+                }}
+              >
+                <span>NO</span>
+                <span>II. PEJABAT PENILAI</span>
+              </div>
+              {[
+                { no: '1', label: 'Nama', val: rektor.nama },
+                { no: '2', label: 'NUPTK', val: rektor.nuptk || '-' },
+                { no: '3', label: 'Pangkat/Gol.Ruang', val: rektor.pangkat },
+                { no: '4', label: 'Jabatan', val: rektor.jabatan },
+                { no: '5', label: 'Unit Kerja', val: rektor.unit },
+              ].map((row, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '32px 110px 8px 1fr',
+                    padding: '3px 6px',
+                    borderBottom: idx < 4 ? '1px solid #e2e8f0' : 'none',
+                  }}
+                >
+                  <span style={{ color: '#64748b' }}>{row.no}</span>
+                  <span style={{ fontWeight: 600 }}>{row.label}</span>
+                  <span>:</span>
+                  <span style={{ fontWeight: 500 }}>{row.val || '-'}</span>
                 </div>
               ))}
             </div>
@@ -379,10 +420,6 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
           {/* Bagian Tanda Tangan & Pengesahan (Jika muat 1 halaman) */}
           {!hasPage2 && (
             <div className="avoid-break" style={{ marginTop: 24, fontSize: '11.5px' }}>
-              <div style={{ textAlign: 'right', marginBottom: 12, paddingRight: 40, fontWeight: 500 }}>
-                Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </div>
-
               <div
                 style={{
                   display: 'grid',
@@ -391,61 +428,10 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                   gap: 40,
                 }}
               >
-                {/* Pejabat Penilai */}
+                {/* Sisi Kiri: Pegawai Yang Dinilai */}
                 <div>
-                  <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
-                    {skp.penilaiJabatan}
-                  </div>
-
-                  <div
-                    style={{
-                      height: 64,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {(skp.ttdDekanUrl || skp.ttdKaprodiUrl) ? (
-                      <img
-                        src={resolveStorageUrl(skp.ttdDekanUrl || skp.ttdKaprodiUrl)}
-                        alt="Tanda Tangan Pejabat Penilai"
-                        onError={(e) => {
-                          const target = e.currentTarget
-                          target.onerror = null
-                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
-                        }}
-                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          padding: '4px 12px',
-                          border: '1px dashed #94a3b8',
-                          borderRadius: 4,
-                          fontSize: '10.5px',
-                          color: '#64748b',
-                        }}
-                      >
-                        (Tanda Tangan Digital Terverifikasi)
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
-                    {skp.penilaiNama}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#334155' }}>
-                    NIP. {skp.penilaiNip}
-                  </div>
-                </div>
-
-                {/* Dosen Yang Dinilai */}
-                <div>
-                  <div style={{ fontWeight: 700 }}>Dosen Yang Dinilai,</div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
-                    {skp.dosenJabatan}
-                  </div>
+                  <div style={{ marginBottom: 6, visibility: 'hidden' }}>Bandung, -</div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Pegawai Yang Dinilai,</div>
 
                   <div
                     style={{
@@ -481,11 +467,60 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                     )}
                   </div>
 
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
+                  <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 4 }}>
                     {skp.dosenNama}
                   </div>
                   <div style={{ fontSize: '11px', color: '#334155' }}>
-                    NIP. {skp.dosenNip}
+                    NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'}
+                  </div>
+                </div>
+
+                {/* Sisi Kanan: Pejabat Penilai (Rektor) */}
+                <div>
+                  <div style={{ marginBottom: 6, fontWeight: 500 }}>
+                    Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Pejabat Penilai,</div>
+
+                  <div
+                    style={{
+                      height: 64,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {rektor.signatureUrl && !rektor.signatureUrl.startsWith('data:image/svg') ? (
+                      <img
+                        src={resolveStorageUrl(rektor.signatureUrl)}
+                        alt="Tanda Tangan Pejabat Penilai"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                        }}
+                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: '4px 12px',
+                          border: '1px dashed #94a3b8',
+                          borderRadius: 4,
+                          fontSize: '10.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        (Tanda Tangan Digital Rektor)
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 4 }}>
+                    {rektor.nama}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#334155' }}>
+                    NUPTK: {rektor.nuptk || '-'}
                   </div>
                 </div>
               </div>
@@ -514,7 +549,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
 
           {/* Footer Hal. 1 */}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-            <span>Dokumen milik {skp.dosenNama} ({skp.dosenNip})</span>
+            <span>Dokumen milik {skp.dosenNama} (NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'})</span>
             <span style={{ fontStyle: 'italic' }}>Hal. 1 {hasPage2 ? 'dari 2' : 'dari 1'}</span>
           </div>
         </div>
@@ -527,7 +562,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                 FORMULIR SASARAN KINERJA DOSEN (LEMBAR LANJUTAN)
               </div>
               <div style={{ fontSize: '11px', color: '#475569', marginTop: 2 }}>
-                Semester {skp.semester} &bull; Tahun Akademik {skp.tahunAkademik} &bull; {skp.dosenNama} ({skp.dosenNip})
+                Semester {skp.semester} &bull; Tahun Akademik {skp.tahunAkademik} &bull; {skp.dosenNama} (NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'})
               </div>
             </div>
 
@@ -626,10 +661,6 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
 
             {/* Bagian Tanda Tangan & Pengesahan di Lembar Lanjutan */}
             <div className="avoid-break" style={{ marginTop: 24, fontSize: '11.5px' }}>
-              <div style={{ textAlign: 'right', marginBottom: 12, paddingRight: 40, fontWeight: 500 }}>
-                Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </div>
-
               <div
                 style={{
                   display: 'grid',
@@ -638,61 +669,10 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                   gap: 40,
                 }}
               >
-                {/* Pejabat Penilai */}
+                {/* Sisi Kiri: Pegawai Yang Dinilai */}
                 <div>
-                  <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
-                    {skp.penilaiJabatan}
-                  </div>
-
-                  <div
-                    style={{
-                      height: 64,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {(skp.ttdDekanUrl || skp.ttdKaprodiUrl) ? (
-                      <img
-                        src={resolveStorageUrl(skp.ttdDekanUrl || skp.ttdKaprodiUrl)}
-                        alt="Tanda Tangan Pejabat Penilai"
-                        onError={(e) => {
-                          const target = e.currentTarget
-                          target.onerror = null
-                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
-                        }}
-                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          padding: '4px 12px',
-                          border: '1px dashed #94a3b8',
-                          borderRadius: 4,
-                          fontSize: '10.5px',
-                          color: '#64748b',
-                        }}
-                      >
-                        (Tanda Tangan Digital Terverifikasi)
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
-                    {skp.penilaiNama}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#334155' }}>
-                    NIP. {skp.penilaiNip}
-                  </div>
-                </div>
-
-                {/* Dosen Yang Dinilai */}
-                <div>
-                  <div style={{ fontWeight: 700 }}>Dosen Yang Dinilai,</div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: 8 }}>
-                    {skp.dosenJabatan}
-                  </div>
+                  <div style={{ marginBottom: 6, visibility: 'hidden' }}>Bandung, -</div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Pegawai Yang Dinilai,</div>
 
                   <div
                     style={{
@@ -728,11 +708,60 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                     )}
                   </div>
 
-                  <div style={{ fontWeight: 800, textDecoration: 'underline' }}>
+                  <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 4 }}>
                     {skp.dosenNama}
                   </div>
                   <div style={{ fontSize: '11px', color: '#334155' }}>
-                    NIP. {skp.dosenNip}
+                    NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'}
+                  </div>
+                </div>
+
+                {/* Sisi Kanan: Pejabat Penilai (Rektor) */}
+                <div>
+                  <div style={{ marginBottom: 6, fontWeight: 500 }}>
+                    Bandung, {skp.tanggalPenilaianDekan || skp.tanggalPenilaianKaprodi || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Pejabat Penilai,</div>
+
+                  <div
+                    style={{
+                      height: 64,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {rektor.signatureUrl && !rektor.signatureUrl.startsWith('data:image/svg') ? (
+                      <img
+                        src={resolveStorageUrl(rektor.signatureUrl)}
+                        alt="Tanda Tangan Pejabat Penilai"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.onerror = null
+                          target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60"><path d="M10 40 Q 50 10 90 40 T 150 20" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="15" y="55" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23059669">TTD Terverifikasi</text></svg>'
+                        }}
+                        style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: '4px 12px',
+                          border: '1px dashed #94a3b8',
+                          borderRadius: 4,
+                          fontSize: '10.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        (Tanda Tangan Digital Rektor)
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 4 }}>
+                    {rektor.nama}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#334155' }}>
+                    NUPTK: {rektor.nuptk || '-'}
                   </div>
                 </div>
               </div>
@@ -760,7 +789,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
 
             {/* Footer Hal. 2 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-              <span>Dokumen milik {skp.dosenNama} ({skp.dosenNip})</span>
+              <span>Dokumen milik {skp.dosenNama} (NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'})</span>
               <span style={{ fontStyle: 'italic' }}>Hal. 2 dari 2</span>
             </div>
           </div>

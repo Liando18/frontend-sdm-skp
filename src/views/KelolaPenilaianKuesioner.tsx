@@ -156,7 +156,7 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
             <tr>
               <th style={{ minWidth: 220 }}>Nama Pegawai / Dosen</th>
               <th>Posisi / Homebase</th>
-              <th>Pejabat Penilai</th>
+              <th>Disetujui / Dinilai Oleh</th>
               <th>Tahun Ajaran</th>
               <th>Rata-rata Skor</th>
               <th>Predikat Mutu</th>
@@ -281,7 +281,7 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
                 <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>{selectedDetail.dosenProdi}</div>
               </div>
               <div style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Pejabat Penilai</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Disetujui / Dinilai Oleh</div>
                 <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', marginTop: 3 }}>
                   {selectedDetail.penilaiNama}
                 </div>

@@ -1,9 +1,10 @@
-import React, { useState, useRef, useMemo } from 'react'
+import React, { useState, useRef, useMemo, useEffect } from 'react'
 import { Printer, X, ExternalLink, ArrowLeft } from 'lucide-react'
 import { Dosen, PengajuanSKP, PenilaianKuesioner, SKPItem } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 import { printDocument } from '../utils/printDocument'
+import { api } from '../services/api'
 
 export interface OutputFinalData {
   dosen: Dosen
@@ -37,17 +38,20 @@ export interface CetakOutputFinalTahunanProps {
 const SignatureBox: React.FC<{
   title: string
   name: string
-  nip: string
+  nuptk?: string
   jabatan?: string
-  date: string
+  date?: string
   signatureUrl?: string
-}> = ({ title, name, nip, jabatan, date, signatureUrl }) => {
+}> = ({ title, name, nuptk, date, signatureUrl }) => {
   return (
     <div style={{ width: 230, textAlign: 'center' }}>
       <div style={{ marginBottom: 6 }}>
-        <div>Bandung, {date}</div>
-        <div style={{ fontWeight: 700 }}>{title},</div>
-        {jabatan && <div style={{ fontSize: '10.5px', color: '#475569' }}>{jabatan}</div>}
+        {date ? (
+          <div>Bandung, {date}</div>
+        ) : (
+          <div style={{ visibility: 'hidden' }}>Bandung, -</div>
+        )}
+        <div style={{ fontWeight: 700 }}>{title}</div>
       </div>
 
       <div
@@ -91,7 +95,7 @@ const SignatureBox: React.FC<{
       </div>
 
       <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{name}</div>
-      <div style={{ fontSize: '11px', color: '#334155' }}>NIP. {nip || '-'}</div>
+      <div style={{ fontSize: '11px', color: '#334155' }}>NUPTK: {nuptk || '-'}</div>
     </div>
   )
 }
@@ -353,6 +357,46 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
+  // Data Rektor sebagai Pejabat Penilai formal pada semua formulir cetak resmi
+  const [rektor, setRektor] = useState<{
+    nama: string
+    nuptk: string
+    pangkat: string
+    jabatan: string
+    unit: string
+    signatureUrl?: string
+  }>({
+    nama: '-',
+    nuptk: '-',
+    pangkat: '-',
+    jabatan: 'Rektor',
+    unit: 'Universitas Bhakti Kencana',
+  })
+
+  useEffect(() => {
+    api.dosen
+      .list()
+      .then((dosens: any) => {
+        if (Array.isArray(dosens)) {
+          const found = dosens.find((d: any) => {
+            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
+            return jab.includes('rektor') && !jab.includes('wakil')
+          })
+          if (found) {
+            setRektor({
+              nama: found.nama || '-',
+              nuptk: found.nuptk || found.nip || '-',
+              pangkat: found.golongan || '-',
+              jabatan: 'Rektor',
+              unit: 'Universitas Bhakti Kencana',
+              signatureUrl: found.signatureUrl,
+            })
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useGSAP(
     () => {
       if (!isOpen || !data || !modalRef.current) return
@@ -453,26 +497,14 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
   const { dosen, tahunAkademik, predikat } = data
 
-  const penilaiNama =
-    data.skpGenap?.penilaiNama ||
-    data.skpGanjil?.penilaiNama ||
-    (dosen.isKaprodi ? 'Dr. Hj. Ratna Dian Saraswati, M.Kes' : 'Ketua Program Studi')
-  const penilaiNip =
-    data.skpGenap?.penilaiNip ||
-    data.skpGanjil?.penilaiNip ||
-    (dosen.isKaprodi ? '197506122005012001' : '-')
-  const penilaiPangkat =
-    data.skpGenap?.penilaiPangkat ||
-    data.skpGanjil?.penilaiPangkat ||
-    'Penata Tk I / IIId'
-  const penilaiJabatan =
-    data.skpGenap?.penilaiJabatan ||
-    data.skpGanjil?.penilaiJabatan ||
-    (dosen.isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi')
-  const penilaiUnit =
-    data.skpGenap?.penilaiUnit ||
-    data.skpGanjil?.penilaiUnit ||
-    (dosen.isKaprodi ? 'Fakultas Keperawatan dan Kebidanan' : dosen.prodi)
+  // Data Pejabat Penilai formal pada cetak: Selalu data Rektor (atau '-' jika belum ada)
+  const penilaiNama = rektor.nama
+  const penilaiNuptk = rektor.nuptk || '-'
+  const penilaiPangkat = rektor.pangkat
+  const penilaiJabatan = rektor.jabatan
+  const penilaiUnit = rektor.unit
+
+  const dosenNuptk = dosen.nuptk || (data.skpGenap as any)?.dosenNuptk || (data.skpGanjil as any)?.dosenNuptk || '-'
 
   const tanggalCetak =
     data.skpGenap?.tanggalPenilaianDekan ||
@@ -488,11 +520,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
     data.skpGanjil?.ttdDosenUrl ||
     dosen.signatureUrl
 
-  const penilaiTtdUrl =
-    data.skpGenap?.ttdDekanUrl ||
-    data.skpGenap?.ttdKaprodiUrl ||
-    data.skpGanjil?.ttdDekanUrl ||
-    data.skpGanjil?.ttdKaprodiUrl
+  const penilaiTtdUrl = rektor.signatureUrl
 
   // Questionnaire / Perilaku 7 BerAKHLAK dynamic evaluation
   const kuesionerData = data.kuesioner
@@ -630,7 +658,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   </div>
                   {[
                     { no: '1.', label: 'Nama', val: dosen.nama },
-                    { no: '2.', label: 'NIP', val: dosen.nip },
+                    { no: '2.', label: 'NUPTK', val: dosenNuptk },
                     { no: '3.', label: 'Pangkat / Gol.', val: dosen.golongan || '-' },
                     { no: '4.', label: 'Jabatan', val: dosen.jafung || 'Dosen' },
                     { no: '5.', label: 'Unit Kerja', val: dosen.prodi },
@@ -652,7 +680,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   </div>
                   {[
                     { no: '1.', label: 'Nama', val: penilaiNama },
-                    { no: '2.', label: 'NIP', val: penilaiNip },
+                    { no: '2.', label: 'NUPTK', val: penilaiNuptk },
                     { no: '3.', label: 'Pangkat / Gol.', val: penilaiPangkat },
                     { no: '4.', label: 'Jabatan', val: penilaiJabatan },
                     { no: '5.', label: 'Unit Kerja', val: penilaiUnit },
@@ -768,7 +796,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
               {/* Footer Hal. 1 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
                 <span style={{ fontStyle: 'italic' }}>Hal. 1</span>
               </div>
             </div>
@@ -827,18 +855,15 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               {/* Tanda Tangan Hal. 2 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 10px' }}>
                 <SignatureBox
-                  title="Pegawai yang Dinilai"
+                  title="Pegawai Yang Dinilai,"
                   name={dosen.nama}
-                  nip={dosen.nip}
-                  jabatan={dosen.jafung}
-                  date={tanggalCetak}
+                  nuptk={dosenNuptk}
                   signatureUrl={dosenTtdUrl}
                 />
                 <SignatureBox
-                  title="Pejabat Penilai Kinerja"
+                  title="Pejabat Penilai,"
                   name={penilaiNama}
-                  nip={penilaiNip}
-                  jabatan={penilaiJabatan}
+                  nuptk={penilaiNuptk}
                   date={tanggalCetak}
                   signatureUrl={penilaiTtdUrl}
                 />
@@ -846,7 +871,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
               {/* Footer Hal. 2 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
                 <span style={{ fontStyle: 'italic' }}>Hal. 2</span>
               </div>
             </div>
@@ -896,18 +921,15 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               {/* Tanda Tangan Hal. 3 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 10px' }}>
                 <SignatureBox
-                  title="Pegawai yang Dinilai"
+                  title="Pegawai Yang Dinilai,"
                   name={dosen.nama}
-                  nip={dosen.nip}
-                  jabatan={dosen.jafung}
-                  date={tanggalCetak}
+                  nuptk={dosenNuptk}
                   signatureUrl={dosenTtdUrl}
                 />
                 <SignatureBox
-                  title="Pejabat Penilai Kinerja"
+                  title="Pejabat Penilai,"
                   name={penilaiNama}
-                  nip={penilaiNip}
-                  jabatan={penilaiJabatan}
+                  nuptk={penilaiNuptk}
                   date={tanggalCetak}
                   signatureUrl={penilaiTtdUrl}
                 />
@@ -915,7 +937,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
               {/* Footer Hal. 3 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
                 <span style={{ fontStyle: 'italic' }}>Hal. 3</span>
               </div>
             </div>
@@ -948,12 +970,12 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1.5px solid #000000', marginBottom: 14 }}>
                   <div style={{ borderRight: '1.5px solid #000000', padding: '4px 6px' }}>
                     <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 2 }}>Pegawai yang Dinilai:</div>
-                    <div>Nama: <strong>{dosen.nama}</strong> &bull; NIP: {dosen.nip}</div>
+                    <div>Nama: <strong>{dosen.nama}</strong> &bull; NUPTK: {dosenNuptk}</div>
                     <div>Jabatan: {dosen.jafung} &bull; Unit: {dosen.prodi}</div>
                   </div>
                   <div style={{ padding: '4px 6px' }}>
                     <div style={{ fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 2 }}>Pejabat Penilai Kinerja:</div>
-                    <div>Nama: <strong>{penilaiNama}</strong> &bull; NIP: {penilaiNip}</div>
+                    <div>Nama: <strong>{penilaiNama}</strong> &bull; NUPTK: {penilaiNuptk}</div>
                     <div>Jabatan: {penilaiJabatan} &bull; Unit: {penilaiUnit}</div>
                   </div>
                 </div>
@@ -1183,7 +1205,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
                 {/* Footer Hal. 4 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
                   <span style={{ fontStyle: 'italic' }}>Hal. 4</span>
                 </div>
               </div>
@@ -1200,8 +1222,8 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', padding: '4px 8px', border: '1px solid #000000', background: '#f8fafc', marginBottom: 12 }}>
-                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> ({dosen.nip})</span>
-                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> ({penilaiNip})</span>
+                  <span>Pegawai yang Dinilai: <strong>{dosen.nama}</strong> (NUPTK: {dosenNuptk})</span>
+                  <span>Pejabat Penilai: <strong>{penilaiNama}</strong> (NUPTK: {penilaiNuptk})</span>
                 </div>
 
                 {/* TABEL PERILAKU KERJA EVALUASI (3 KOLOM GABUNG LENGKAP) */}
@@ -1256,10 +1278,9 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 {/* Tanda Tangan Hal. 5 */}
                 <div className="avoid-break" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20, paddingRight: 10 }}>
                   <SignatureBox
-                    title="Pejabat Penilai Kinerja"
+                    title="Pejabat Penilai,"
                     name={penilaiNama}
-                    nip={penilaiNip}
-                    jabatan={penilaiJabatan}
+                    nuptk={penilaiNuptk}
                     date={tanggalCetak}
                     signatureUrl={penilaiTtdUrl}
                   />
@@ -1267,7 +1288,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
                 {/* Footer Hal. 5 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                  <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
                   <span style={{ fontStyle: 'italic' }}>Hal. 5</span>
                 </div>
               </div>
@@ -1299,7 +1320,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   <div style={{ fontWeight: 800, marginBottom: 4 }}>1. PEGAWAI YANG DINILAI</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '170px 8px 1fr', gap: 2, paddingLeft: 12 }}>
                     <span>NAMA</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{dosen.nama}</strong>
-                    <span>NIP</span><span>:</span><span>{dosen.nip}</span>
+                    <span>NUPTK</span><span>:</span><span>{dosenNuptk}</span>
                     <span>PANGKAT/GOL. RUANG</span><span>:</span><span>{dosen.golongan || '-'}</span>
                     <span>JABATAN</span><span>:</span><span>{dosen.jafung || 'Dosen'}</span>
                     <span>UNIT KERJA</span><span>:</span><span>{dosen.prodi}</span>
@@ -1311,7 +1332,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                   <div style={{ fontWeight: 800, marginBottom: 4 }}>2. PEJABAT PENILAI KINERJA</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '170px 8px 1fr', gap: 2, paddingLeft: 12 }}>
                     <span>NAMA</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{penilaiNama}</strong>
-                    <span>NIP</span><span>:</span><span>{penilaiNip}</span>
+                    <span>NUPTK</span><span>:</span><span>{penilaiNuptk}</span>
                     <span>PANGKAT/GOL. RUANG</span><span>:</span><span>{penilaiPangkat}</span>
                     <span>JABATAN</span><span>:</span><span>{penilaiJabatan}</span>
                     <span>UNIT KERJA</span><span>:</span><span>{penilaiUnit}</span>
@@ -1375,18 +1396,15 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               {/* Tanda Tangan Pengesahan Akhir (100% DINAMIS) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, padding: '0 10px' }}>
                 <SignatureBox
-                  title="Pegawai yang Dinilai"
+                  title="Pegawai Yang Dinilai,"
                   name={dosen.nama}
-                  nip={dosen.nip}
-                  jabatan={dosen.jafung}
-                  date={tanggalCetak}
+                  nuptk={dosenNuptk}
                   signatureUrl={dosenTtdUrl}
                 />
                 <SignatureBox
-                  title="Pejabat Penilai Kinerja"
+                  title="Pejabat Penilai,"
                   name={penilaiNama}
-                  nip={penilaiNip}
-                  jabatan={penilaiJabatan}
+                  nuptk={penilaiNuptk}
                   date={tanggalCetak}
                   signatureUrl={penilaiTtdUrl}
                 />
@@ -1394,7 +1412,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
 
               {/* Footer Hal. 6 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} ({dosen.nip})</span>
+                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
                 <span style={{ fontStyle: 'italic' }}>Hal. 6</span>
               </div>
             </div>
@@ -1699,7 +1717,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               Pratinjau Cetak: Output Final Laporan Prestasi Kerja Tahunan
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Sesuai Format Resmi Ouput Final.pdf &bull; Dosen: <strong>{dosen.nama}</strong> (NIP: {dosen.nip})
+              Sesuai Format Resmi Ouput Final.pdf &bull; Dosen: <strong>{dosen.nama}</strong> (NUPTK: {dosenNuptk})
             </div>
           </div>
 

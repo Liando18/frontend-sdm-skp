@@ -12,7 +12,46 @@ export const CetakSKPStandaloneView: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
 
+  // Data Rektor sebagai Pejabat Penilai formal pada dokumen cetak
+  const [rektor, setRektor] = useState<{
+    nama: string
+    nuptk: string
+    pangkat: string
+    jabatan: string
+    unit: string
+    signatureUrl?: string
+  }>({
+    nama: '-',
+    nuptk: '-',
+    pangkat: '-',
+    jabatan: 'Rektor',
+    unit: 'Universitas Bhakti Kencana',
+  })
+
   useEffect(() => {
+    // Cari data Rektor dari database dosen jika tersedia
+    api.dosen
+      .list()
+      .then((dosens) => {
+        if (Array.isArray(dosens)) {
+          const found = dosens.find((d: any) => {
+            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
+            return jab.includes('rektor') && !jab.includes('wakil')
+          })
+          if (found) {
+            setRektor({
+              nama: found.nama || '-',
+              nuptk: found.nuptk || found.nip || '-',
+              pangkat: found.golongan || '-',
+              jabatan: 'Rektor',
+              unit: 'Universitas Bhakti Kencana',
+              signatureUrl: found.signatureUrl,
+            })
+          }
+        }
+      })
+      .catch(() => {})
+
     // 1. Ambil ID dari URL query param ?id=...
     const urlParams = new URLSearchParams(window.location.search)
     const skpId = urlParams.get('id')
@@ -475,19 +514,19 @@ export const CetakSKPStandaloneView: React.FC = () => {
           </div>
         </div>
 
-        {/* TABEL IDENTITAS: PEJABAT PENILAI & PEGAWAI YANG DINILAI */}
+        {/* TABEL IDENTITAS: PEGAWAI YANG DINILAI (KIRI) & PEJABAT PENILAI (KANAN) */}
         <div style={{ border: '1.5px solid #000000', display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '8.5pt', marginBottom: 8 }}>
-          {/* Sisi Kiri: I. Pejabat Penilai */}
+          {/* Sisi Kiri: I. Pegawai Yang Dinilai */}
           <div style={{ borderRight: '1.5px solid #000000' }}>
             <div style={{ background: '#f1f5f9', fontWeight: 800, padding: '3px 6px', borderBottom: '1px solid #000000', textTransform: 'uppercase' }}>
-              I. PEJABAT PENILAI
+              I. PEGAWAI YANG DINILAI
             </div>
             {[
-              { no: '1', label: 'Nama', val: skp.penilaiNama },
-              { no: '2', label: 'NIP', val: skp.penilaiNip },
-              { no: '3', label: 'Pangkat / Gol.Ruang', val: skp.penilaiPangkat || 'Penata Tk I / IIId' },
-              { no: '4', label: 'Jabatan', val: skp.penilaiJabatan },
-              { no: '5', label: 'Unit Kerja', val: skp.penilaiUnit || skp.dosenProdi },
+              { no: '1', label: 'Nama', val: skp.dosenNama },
+              { no: '2', label: 'NUPTK', val: skp.dosenNuptk || (skp as any).dosen_nuptk || '-' },
+              { no: '3', label: 'Pangkat / Gol.Ruang', val: skp.dosenPangkat || 'Penata Muda / IIIa' },
+              { no: '4', label: 'Jabatan', val: skp.dosenJabatan || 'Dosen Tetap' },
+              { no: '5', label: 'Unit Kerja', val: skp.dosenProdi },
             ].map((row, idx) => (
               <div
                 key={idx}
@@ -506,17 +545,17 @@ export const CetakSKPStandaloneView: React.FC = () => {
             ))}
           </div>
 
-          {/* Sisi Kanan: II. Pegawai Yang Dinilai */}
+          {/* Sisi Kanan: II. Pejabat Penilai (Rektor) */}
           <div>
             <div style={{ background: '#f1f5f9', fontWeight: 800, padding: '3px 6px', borderBottom: '1px solid #000000', textTransform: 'uppercase' }}>
-              II. PEGAWAI YANG DINILAI
+              II. PEJABAT PENILAI
             </div>
             {[
-              { no: '1', label: 'Nama', val: skp.dosenNama },
-              { no: '2', label: 'NIP', val: skp.dosenNip },
-              { no: '3', label: 'Pangkat / Gol.Ruang', val: skp.dosenPangkat || 'Penata Muda / IIIa' },
-              { no: '4', label: 'Jabatan', val: skp.dosenJabatan || 'Dosen Tetap' },
-              { no: '5', label: 'Unit Kerja', val: skp.dosenProdi },
+              { no: '1', label: 'Nama', val: rektor.nama },
+              { no: '2', label: 'NUPTK', val: rektor.nuptk || '-' },
+              { no: '3', label: 'Pangkat / Gol.Ruang', val: rektor.pangkat },
+              { no: '4', label: 'Jabatan', val: rektor.jabatan },
+              { no: '5', label: 'Unit Kerja', val: rektor.unit },
             ].map((row, idx) => (
               <div
                 key={idx}
@@ -693,10 +732,8 @@ export const CetakSKPStandaloneView: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: '9pt' }}>
             {/* Sisi Kiri: Pegawai Yang Dinilai */}
             <div style={{ textAlign: 'center' }}>
+              <div style={{ visibility: 'hidden' }}>Bandung, -</div>
               <div style={{ fontWeight: 700 }}>Pegawai Yang Dinilai,</div>
-              <div style={{ fontSize: '8pt', color: '#475569', marginBottom: 4 }}>
-                {skp.dosenJabatan || 'Dosen Tetap'}
-              </div>
 
               {/* Tanda Tangan Dosen */}
               <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -725,26 +762,23 @@ export const CetakSKPStandaloneView: React.FC = () => {
                 {skp.dosenNama}
               </div>
               <div style={{ fontSize: '8.5pt', color: '#334155' }}>
-                NIP. {skp.dosenNip}
+                NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'}
               </div>
             </div>
 
-            {/* Sisi Kanan: Pejabat Penilai */}
+            {/* Sisi Kanan: Pejabat Penilai (Rektor) */}
             <div style={{ textAlign: 'center' }}>
               <div>
                 Bandung, {skp.tanggalPenilaianKaprodi || skp.tanggalPenilaianDekan || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
               <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
-              <div style={{ fontSize: '8pt', color: '#475569', marginBottom: 4 }}>
-                {skp.penilaiJabatan || 'Ketua Program Studi'}
-              </div>
 
-              {/* Tanda Tangan Penilai */}
+              {/* Tanda Tangan Penilai (Rektor) */}
               <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {(skp.ttdKaprodiUrl || skp.ttdDekanUrl) && !(skp.ttdKaprodiUrl || skp.ttdDekanUrl)?.startsWith('data:image/svg') ? (
+                {rektor.signatureUrl && !rektor.signatureUrl.startsWith('data:image/svg') ? (
                   <img
-                    src={resolveStorageUrl((skp.ttdKaprodiUrl || skp.ttdDekanUrl)!)}
-                    alt="Tanda Tangan Penilai"
+                    src={resolveStorageUrl(rektor.signatureUrl)}
+                    alt="Tanda Tangan Pejabat Penilai"
                     style={{ maxHeight: 46, maxWidth: 160, objectFit: 'contain' }}
                   />
                 ) : isSah ? (
@@ -762,16 +796,16 @@ export const CetakSKPStandaloneView: React.FC = () => {
                       color: '#64748b',
                     }}
                   >
-                    (Tanda Tangan Digital Penilai)
+                    (Tanda Tangan Digital Rektor)
                   </div>
                 )}
               </div>
 
               <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 2 }}>
-                {skp.penilaiNama}
+                {rektor.nama}
               </div>
               <div style={{ fontSize: '8.5pt', color: '#334155' }}>
-                NIP. {skp.penilaiNip}
+                NUPTK: {rektor.nuptk || '-'}
               </div>
             </div>
           </div>

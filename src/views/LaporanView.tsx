@@ -421,15 +421,51 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      onClick={() => openPrintOutputFinal(item)}
-                      className="btn-action-print"
-                      style={{ padding: '6px 14px', fontSize: '12px' }}
-                      title={`Cetak Output Final untuk dosen ${item.dosen.nama} di tab baru`}
-                    >
-                      <FileText size={13} />
-                      <span>Cetak Output Final</span>
-                    </button>
+                    {(() => {
+                      const isGanjilApproved = Boolean(
+                        item.skpGanjil &&
+                        ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(item.skpGanjil.status)
+                      )
+                      const isGenapApproved = Boolean(
+                        item.skpGenap &&
+                        ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(item.skpGenap.status)
+                      )
+                      const canPrintFinal = isGanjilApproved && isGenapApproved && Boolean(item.kuesioner)
+
+                      return (
+                        <button
+                          onClick={() => {
+                            if (!canPrintFinal) {
+                              onShowToast('Laporan Final belum dapat dicetak karena SKP Ganjil & Genap harus sudah disetujui serta kuesioner tahunan telah dinilai.')
+                              return
+                            }
+                            openPrintOutputFinal(item)
+                          }}
+                          className="btn-action-print"
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '12px',
+                            opacity: canPrintFinal ? 1 : 0.45,
+                            cursor: canPrintFinal ? 'pointer' : 'not-allowed',
+                          }}
+                          disabled={!canPrintFinal}
+                          title={
+                            !canPrintFinal
+                              ? !isGanjilApproved && !isGenapApproved
+                                ? 'SKP Semester Ganjil & Genap belum disetujui pimpinan'
+                                : !isGanjilApproved
+                                ? 'SKP Semester Ganjil belum disetujui pimpinan'
+                                : !isGenapApproved
+                                ? 'SKP Semester Genap belum disetujui pimpinan'
+                                : 'Kuesioner perilaku tahunan belum dinilai'
+                              : `Cetak Output Final untuk dosen ${item.dosen.nama} di tab baru`
+                          }
+                        >
+                          <FileText size={13} />
+                          <span>{canPrintFinal ? 'Cetak Output Final' : 'Belum Lengkap'}</span>
+                        </button>
+                      )
+                    })()}
                   </td>
                 </tr>
               ))

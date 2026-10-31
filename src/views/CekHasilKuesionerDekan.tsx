@@ -16,7 +16,7 @@ import {
   CheckSquare,
   Sparkles,
 } from 'lucide-react'
-import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner, ProgramStudi, Fakultas } from '../types'
+import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner, ProgramStudi, Fakultas, Psdku, PengajuanSKP } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 import { openPrintTranskrip } from '../utils/printTranskrip'
@@ -24,10 +24,12 @@ import { openPrintTranskrip } from '../utils/printTranskrip'
 interface CekHasilKuesionerDekanProps {
   user: UserSession
   dosenList: Dosen[]
+  skpList?: PengajuanSKP[]
   penilaianList: PenilaianKuesioner[]
   indikatorList?: IndikatorKuesioner[]
   prodiList?: ProgramStudi[]
   fakultasList?: Fakultas[]
+  psdkuList?: Psdku[]
   onSavePenilaian?: (penilaian: PenilaianKuesioner) => void
   onShowToast: (msg: string) => void
 }
@@ -75,9 +77,11 @@ const BERAKHLAK_DIMENSIONS = [
 export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   user,
   dosenList,
+  skpList = [],
   penilaianList,
   prodiList = [],
   fakultasList = [],
+  psdkuList = [],
   onSavePenilaian,
   onShowToast,
 }) => {
@@ -93,47 +97,111 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
     penilaian: PenilaianKuesioner
   } | null>(null)
 
-  // Filter kaprodi khusus dari fakultas yang dekan pimpin
+  // 1. Identifikasi apakah user adalah Kepala Cabang (KeCab PSDKU) atau Dekan Fakultas (Pusat)
+  const isKacap = Boolean(
+    user.tipeLokasi === 'PSDKU' ||
+    user.psdkuId ||
+    (user as any).psdku_id ||
+    user.jabatanStruktural?.toLowerCase().includes('cabang') ||
+    user.jabatanStruktural?.toLowerCase().includes('kecab') ||
+    user.jabatanKampusId === 'jab-kecab'
+  )
+
+  const userPsdkuId = user.psdkuId || (user as any).psdku_id
+  const currentPsdku = psdkuList.find((p) => p.id === userPsdkuId)
+  const userKampusName = (user.kampus || currentPsdku?.nama || '').toLowerCase()
+
   const dekanFakultasId = user.fakultasId || (user as any).fakultas_id
   const dekanFakultasName = (user.fakultas || '').toLowerCase()
 
-  const prodiFakultasSet = useMemo(() => {
-    const set = new Set<string>()
-    if (prodiList && prodiList.length > 0) {
+  const territoryLabel = isKacap
+    ? (user.kampus || currentPsdku?.nama || 'PSDKU')
+    : (user.fakultas || 'Fakultas')
+
+  // 2. Filter ID Program Studi yang sah di bawah ranah wewenang pimpinan ini
+  const psdkuProdiIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (isKacap && prodiList && prodiList.length > 0) {
       prodiList.forEach((p) => {
-        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
-        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
-        if (matchFakId || matchFakName || (!dekanFakultasId && !dekanFakultasName)) {
-          set.add(p.nama.toLowerCase())
-          if (p.nama_lengkap) set.add(p.nama_lengkap.toLowerCase())
-          if (p.namaLengkap) set.add(p.namaLengkap.toLowerCase())
-          if (p.jenjang && p.nama) set.add(`${p.jenjang} ${p.nama}`.toLowerCase())
+        const isPsdkuUnit = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (!isPsdkuUnit) return
+
+        const matchPsdkuId = userPsdkuId && (p.psdku_id === userPsdkuId || p.psdkuId === userPsdkuId)
+        const matchKampus = userKampusName && (p.kampus || '').toLowerCase().includes(userKampusName)
+        if (matchPsdkuId || matchKampus || (!userPsdkuId && !userKampusName)) {
+          ids.add(p.id)
         }
       })
     }
-    return set
-  }, [prodiList, dekanFakultasId, dekanFakultasName])
+    return ids
+  }, [isKacap, prodiList, userPsdkuId, userKampusName])
 
+  const fakultasProdiIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (!isKacap && prodiList && prodiList.length > 0) {
+      prodiList.forEach((p) => {
+        const isPsdkuUnit = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (isPsdkuUnit) return // Dekan Fakultas Pusat tidak membina PSDKU
+
+        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        if (matchFakId || matchFakName) {
+          ids.add(p.id)
+        }
+      })
+    }
+    return ids
+  }, [isKacap, prodiList, dekanFakultasId, dekanFakultasName])
+
+  // 3. Filter daftar Ka.Prodi eksklusif sesuai ranah/wilayah
   const kaprodiList = useMemo(() => {
     return dosenList.filter((d) => {
-      if (!d.isKaprodi) return false
+      const isActualKaprodi = Boolean(
+        d.isKaprodi ||
+        d.jabatanStruktural === 'Ketua Program Studi' ||
+        d.jabatan_struktural === 'Ketua Program Studi'
+      )
+      if (!isActualKaprodi) return false
 
-      if (dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)) {
-        return true
+      if (isKacap) {
+        // KECAB HANYA MENILAI KA.PRODI DI PSDKU ASALNYA SAJA (TIDAK BISA PUSAT ATAU PSDKU LAIN)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          d.psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (!isDosenPsdku) return false
+
+        const matchPsdkuId = userPsdkuId && (d.psdkuId === userPsdkuId || d.psdku_id === userPsdkuId)
+        const matchKampus = userKampusName && (d.kampus || '').toLowerCase().includes(userKampusName)
+        const matchProdiId =
+          (d.programStudiId && psdkuProdiIds.has(d.programStudiId)) ||
+          (d.program_studi_id && psdkuProdiIds.has(d.program_studi_id))
+
+        return Boolean(matchPsdkuId || matchKampus || matchProdiId)
+      } else {
+        // DEKAN FAKULTAS PUSAT HANYA MENILAI KA.PRODI DI FAKULTAS PUSAT (TIDAK BISA PSDKU)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          d.psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (isDosenPsdku) return false
+
+        const matchFakId = dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        const matchProdiId =
+          (d.programStudiId && fakultasProdiIds.has(d.programStudiId)) ||
+          (d.program_studi_id && fakultasProdiIds.has(d.program_studi_id))
+
+        return Boolean(matchFakId || matchFakName || matchProdiId)
       }
-      if (dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)) {
-        return true
-      }
-      const pName = (d.prodi || '').toLowerCase()
-      if (prodiFakultasSet.has(pName)) {
-        return true
-      }
-      if (!dekanFakultasId && !dekanFakultasName) {
-        return true
-      }
-      return false
     })
-  }, [dosenList, dekanFakultasId, dekanFakultasName, prodiFakultasSet])
+  }, [dosenList, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
 
   // Evaluating Target State (Dekan evaluating Kaprodi)
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
@@ -202,6 +270,32 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
       : '0.00'
 
   const handleOpenEvaluate = (dosen: Dosen, existingPenilaian?: PenilaianKuesioner | null) => {
+    // Prerequisite: Ka.Prodi must submit both Ganjil and Genap SKP
+    const dosenSkpList = (skpList || []).filter(
+      (s) =>
+        (s.dosenId === dosen.id || s.dosenNama === dosen.nama) &&
+        s.tahunAkademik === selectedTahun
+    )
+    const hasSubmittedGanjil = dosenSkpList.some(
+      (s) => s.semester === 'Ganjil' && s.status !== 'Draft'
+    )
+    const hasSubmittedGenap = dosenSkpList.some(
+      (s) => s.semester === 'Genap' && s.status !== 'Draft'
+    )
+
+    if (!hasSubmittedGanjil || !hasSubmittedGenap) {
+      const missing =
+        !hasSubmittedGanjil && !hasSubmittedGenap
+          ? 'Ganjil & Genap'
+          : !hasSubmittedGanjil
+          ? 'Ganjil'
+          : 'Genap'
+      onShowToast(
+        `Ketua Program Studi ${dosen.nama} belum mengajukan SKP Semester ${missing} untuk tahun ${selectedTahun}. Evaluasi perilaku baru dapat dilakukan setelah SKP diajukan.`
+      )
+      return
+    }
+
     if (existingPenilaian) {
       setEvalScores({
         nilaiPelayanan: existingPenilaian.nilaiPelayanan || 4,
@@ -317,7 +411,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
         <div>
           <h1 className="page-title">Evaluasi Kinerja Ketua Program Studi</h1>
           <p className="page-desc">
-            Pemeriksaan dan evaluasi capaian perilaku kerja BerAKHLAK tahunan Ketua Program Studi di lingkungan Fakultas Keperawatan. Penilaian diselenggarakan sekali setahun untuk mengukur kepemimpinan, integritas, dan budaya kerja prodi.
+            Pemeriksaan dan evaluasi capaian perilaku kerja BerAKHLAK tahunan Ketua Program Studi di lingkungan {territoryLabel}. Penilaian diselenggarakan sekali setahun untuk mengukur kepemimpinan, integritas, dan budaya kerja prodi.
           </p>
         </div>
 
@@ -464,7 +558,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
             <div style={{ marginTop: 10 }}>
               <span className="kpi-badge">
                 <Building2 size={12} />
-                <span>Homebase {user.fakultas || 'Fakultas Keperawatan'}</span>
+                <span>{isKacap ? `Kampus Cabang ${territoryLabel}` : `Homebase ${territoryLabel}`}</span>
               </span>
             </div>
           </div>
@@ -558,7 +652,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
               <th>Dimensi BerAKHLAK (1-4)</th>
               <th style={{ textAlign: 'center' }}>Rata-rata</th>
               <th style={{ textAlign: 'center' }}>Predikat Mutu</th>
-              <th>Pejabat Penilai</th>
+              <th>Disetujui Oleh</th>
               <th style={{ textAlign: 'center' }}>Status</th>
               <th style={{ textAlign: 'right' }}>Aksi</th>
             </tr>
@@ -573,6 +667,21 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
             ) : (
               rowsData.map(({ dosen, penilaian }) => {
                 const isEvaluated = Boolean(penilaian)
+
+                // Prerequisite: Ka.Prodi must submit both Ganjil and Genap SKP
+                const dosenSkpList = (skpList || []).filter(
+                  (s) =>
+                    (s.dosenId === dosen.id || s.dosenNama === dosen.nama) &&
+                    s.tahunAkademik === selectedTahun
+                )
+                const hasSubmittedGanjil = dosenSkpList.some(
+                  (s) => s.semester === 'Ganjil' && s.status !== 'Draft'
+                )
+                const hasSubmittedGenap = dosenSkpList.some(
+                  (s) => s.semester === 'Genap' && s.status !== 'Draft'
+                )
+                const canEvaluate = hasSubmittedGanjil && hasSubmittedGenap
+
                 return (
                   <tr key={dosen.id}>
                     <td>
@@ -653,49 +762,65 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {isEvaluated ? (
+                      {!canEvaluate ? (
+                        <span className="badge-pill badge-pill--orange" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={12} />
+                          <span>Menunggu SKP {!hasSubmittedGanjil && !hasSubmittedGenap ? 'Ganjil & Genap' : !hasSubmittedGanjil ? 'Ganjil' : 'Genap'}</span>
+                        </span>
+                      ) : isEvaluated ? (
                         <span className="badge-pill badge-pill--green">Sudah Dievaluasi</span>
                       ) : (
                         <span className="badge-pill badge-pill--orange">Belum Dinilai</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        {isEvaluated && penilaian ? (
-                          <>
+                      {!canEvaluate ? (
+                        <span
+                          className="badge-pill badge-pill--orange"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'not-allowed', opacity: 0.8 }}
+                          title={`Ka.Prodi belum mengajukan SKP ${!hasSubmittedGanjil && !hasSubmittedGenap ? 'Ganjil & Genap' : !hasSubmittedGanjil ? 'Ganjil' : 'Genap'} untuk tahun akademik ini.`}
+                        >
+                          <Clock size={12} />
+                          <span>Menunggu SKP {!hasSubmittedGanjil && !hasSubmittedGenap ? 'Ganjil & Genap' : !hasSubmittedGanjil ? 'Ganjil' : 'Genap'}</span>
+                        </span>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          {isEvaluated && penilaian ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setActiveDetailItem({ dosen, penilaian })
+                                }}
+                                className="brand-btn btn-action-view"
+                                style={{ padding: '6px 10px', fontSize: '11.5px', gap: 4 }}
+                                title="Lihat Rincian Skor"
+                              >
+                                <Award size={13} />
+                                <span>Rincian</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenEvaluate(dosen, penilaian)}
+                                className="brand-btn btn-action-edit"
+                                style={{ padding: '6px 10px', fontSize: '11.5px', gap: 4 }}
+                                title="Edit Penilaian Ka Prodi"
+                              >
+                                <Edit2 size={13} />
+                                <span>Edit Nilai</span>
+                              </button>
+                            </>
+                          ) : (
                             <button
-                              onClick={() => {
-                                setActiveDetailItem({ dosen, penilaian })
-                              }}
-                              className="brand-btn btn-action-view"
-                              style={{ padding: '6px 10px', fontSize: '11.5px', gap: 4 }}
-                              title="Lihat Rincian Skor"
+                              onClick={() => handleOpenEvaluate(dosen, null)}
+                              className="brand-btn btn-action-add"
+                              style={{ padding: '6px 12px', fontSize: '11.5px', gap: 4 }}
+                              title="Beri Nilai Ketua Program Studi"
                             >
-                              <Award size={13} />
-                              <span>Rincian</span>
+                              <Plus size={13} />
+                              <span>Nilai Ka Prodi</span>
                             </button>
-                            <button
-                              onClick={() => handleOpenEvaluate(dosen, penilaian)}
-                              className="brand-btn btn-action-edit"
-                              style={{ padding: '6px 10px', fontSize: '11.5px', gap: 4 }}
-                              title="Edit Penilaian Ka Prodi"
-                            >
-                              <Edit2 size={13} />
-                              <span>Edit Nilai</span>
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => handleOpenEvaluate(dosen, null)}
-                            className="brand-btn btn-action-add"
-                            style={{ padding: '6px 12px', fontSize: '11.5px', gap: 4 }}
-                            title="Beri Nilai Ketua Program Studi"
-                          >
-                            <Plus size={13} />
-                            <span>Nilai Ka Prodi</span>
-                          </button>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
@@ -786,7 +911,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                 </div>
               </div>
               <div>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Pejabat Penilai</span>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Disetujui Oleh</span>
                 <div style={{ fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700, marginTop: 2 }}>
                   {user.name} (Dekan)
                 </div>
@@ -1156,7 +1281,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: '11px', color: 'var(--muted)' }}>
-                    <span>Pejabat Penilai: <strong>{activeDetailItem.penilaian.penilaiNama}</strong> ({activeDetailItem.penilaian.penilaiRole})</span>
+                    <span>Disetujui Oleh: <strong>{activeDetailItem.penilaian.penilaiNama}</strong> ({activeDetailItem.penilaian.penilaiRole})</span>
                     <span>Tanggal Penilaian: <strong>{activeDetailItem.penilaian.tanggal}</strong></span>
                   </div>
                 </div>
@@ -1182,6 +1307,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                       penilaian: activeDetailItem.penilaian!,
                       dosenNama: activeDetailItem.dosen.nama,
                       dosenNip: activeDetailItem.dosen.nip,
+                      dosenNuptk: activeDetailItem.dosen.nuptk,
                       dosenProdi: activeDetailItem.dosen.prodi,
                       dosenJafung: activeDetailItem.dosen.jafung,
                       dosenGolongan: activeDetailItem.dosen.golongan,

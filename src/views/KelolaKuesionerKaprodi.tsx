@@ -8,12 +8,13 @@ import {
   Filter,
   Sparkles,
 } from 'lucide-react'
-import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
+import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner, PengajuanSKP } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 
 interface KelolaKuesionerKaprodiProps {
   user: UserSession
   dosenList: Dosen[]
+  skpList?: PengajuanSKP[]
   penilaianList: PenilaianKuesioner[]
   indikatorList?: IndikatorKuesioner[]
   onSaveKuesioner: (penilaian: PenilaianKuesioner) => void
@@ -63,6 +64,7 @@ const BERAKHLAK_DIMENSIONS = [
 export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   user,
   dosenList,
+  skpList = [],
   penilaianList,
   indikatorList = [],
   onSaveKuesioner,
@@ -84,10 +86,81 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
     catatan: '',
   })
 
-  // Dosen homebase prodi (excluding Kaprodi himself)
-  const prodiDosen = dosenList.filter(
-    (d) => d.prodi === user.prodi && !d.isKaprodi
+  // Identifikasi ranah wilayah Ka.Prodi (PSDKU vs Pusat)
+  const isKaprodiPsdku = Boolean(
+    user.tipeLokasi === 'PSDKU' ||
+    user.psdkuId ||
+    (user as any).psdku_id ||
+    (user.kampus && user.kampus.toLowerCase().includes('psdku'))
   )
+  const userPsdkuId = user.psdkuId || (user as any).psdku_id
+  const userKampusName = (user.kampus || '').toLowerCase()
+  const userFakultasId = user.fakultasId || (user as any).fakultas_id
+  const userFakultasName = (user.fakultas || '').toLowerCase()
+
+  // Dosen homebase prodi (termasuk Dekan/Kacap di prodi & wilayah ini,
+  // mengecualikan Ka.Prodi itu sendiri yang dinilai oleh Dekan/Kacap)
+  const prodiDosen = dosenList.filter((d) => {
+    // 1. Wajib sama prodi
+    const matchProdi =
+      (user.programStudiId && (d.programStudiId === user.programStudiId || (d as any).program_studi_id === user.programStudiId)) ||
+      (d.prodi === user.prodi)
+    if (!matchProdi) return false
+
+    // 2. Dilarang menilai diri sendiri
+    const isSelf =
+      d.id === user.id ||
+      (user.nip && d.nip === user.nip) ||
+      (user.name && d.nama.trim().toLowerCase() === user.name.trim().toLowerCase())
+    if (isSelf) return false
+
+    // 3. Ka.Prodi lain tidak dinilai oleh Ka.Prodi (dinilai oleh Dekan/Kacap)
+    if (
+      d.isKaprodi ||
+      d.jabatanStruktural === 'Ketua Program Studi' ||
+      d.jabatan_struktural === 'Ketua Program Studi'
+    ) {
+      return false
+    }
+
+    // 4. Strict Territorial Isolation
+    if (isKaprodiPsdku) {
+      // Wajib dari PSDKU yang sama
+      const isDosenPsdku = Boolean(
+        d.tipeLokasi === 'PSDKU' ||
+        d.tipe_lokasi === 'PSDKU' ||
+        d.psdkuId ||
+        (d as any).psdku_id ||
+        (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+      )
+      if (!isDosenPsdku) return false
+
+      const matchPsdkuId = userPsdkuId && (d.psdkuId === userPsdkuId || (d as any).psdku_id === userPsdkuId)
+      const matchKampus = userKampusName && (d.kampus || '').toLowerCase().includes(userKampusName)
+      if (userPsdkuId || userKampusName) {
+        return Boolean(matchPsdkuId || matchKampus)
+      }
+      return true
+    } else {
+      // Wajib dari Kampus Pusat (Bukan dari PSDKU mana pun)
+      const isDosenPsdku = Boolean(
+        d.tipeLokasi === 'PSDKU' ||
+        d.tipe_lokasi === 'PSDKU' ||
+        d.psdkuId ||
+        (d as any).psdku_id ||
+        (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+      )
+      if (isDosenPsdku) return false
+
+      if (userFakultasId && (d.fakultasId || (d as any).fakultas_id)) {
+        return d.fakultasId === userFakultasId || (d as any).fakultas_id === userFakultasId
+      }
+      if (userFakultasName && d.fakultas) {
+        return (d.fakultas || '').toLowerCase().includes(userFakultasName)
+      }
+      return true
+    }
+  })
 
   const filteredDosen = prodiDosen.filter((d) => {
     if (!searchQuery) return true
@@ -108,6 +181,32 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
 
   // Open evaluation form
   const handleOpenEvaluate = (dosen: Dosen) => {
+    // Prerequisite: SKP Ganjil and Genap must both be submitted
+    const dosenSkpList = (skpList || []).filter(
+      (s) =>
+        (s.dosenId === dosen.id || s.dosenNama === dosen.nama) &&
+        s.tahunAkademik === selectedTahun
+    )
+    const hasSubmittedGanjil = dosenSkpList.some(
+      (s) => s.semester === 'Ganjil' && s.status !== 'Draft'
+    )
+    const hasSubmittedGenap = dosenSkpList.some(
+      (s) => s.semester === 'Genap' && s.status !== 'Draft'
+    )
+
+    if (!hasSubmittedGanjil || !hasSubmittedGenap) {
+      const missing =
+        !hasSubmittedGanjil && !hasSubmittedGenap
+          ? 'Ganjil & Genap'
+          : !hasSubmittedGanjil
+          ? 'Ganjil'
+          : 'Genap'
+      onShowToast(
+        `Dosen ${dosen.nama} belum mengajukan SKP Semester ${missing} untuk tahun ${selectedTahun}. Penilaian kuesioner baru dapat dilakukan setelah SKP diajukan.`
+      )
+      return
+    }
+
     setActiveDosen(dosen)
 
     // Check if evaluation already exists for this dosen & academic year
@@ -601,6 +700,20 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
               const avgScore = penilaian ? penilaian.rataRata.toFixed(2) : '-'
               const predikat = penilaian ? penilaian.predikat : '-'
 
+              // Prerequisite: Dosen must submit both Ganjil and Genap SKP (status !== 'Draft')
+              const dosenSkpList = (skpList || []).filter(
+                (s) =>
+                  (s.dosenId === dosen.id || s.dosenNama === dosen.nama) &&
+                  s.tahunAkademik === selectedTahun
+              )
+              const hasSubmittedGanjil = dosenSkpList.some(
+                (s) => s.semester === 'Ganjil' && s.status !== 'Draft'
+              )
+              const hasSubmittedGenap = dosenSkpList.some(
+                (s) => s.semester === 'Genap' && s.status !== 'Draft'
+              )
+              const canEvaluate = hasSubmittedGanjil && hasSubmittedGenap
+
               return (
                 <tr key={dosen.id}>
                   <td>
@@ -620,7 +733,12 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
                     </span>
                   </td>
                   <td>
-                    {hasEvaluated ? (
+                    {!canEvaluate ? (
+                      <span className="badge-pill badge-pill--orange" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={12} />
+                        <span>Menunggu SKP {!hasSubmittedGanjil && !hasSubmittedGenap ? 'Ganjil & Genap' : !hasSubmittedGanjil ? 'Ganjil' : 'Genap'}</span>
+                      </span>
+                    ) : hasEvaluated ? (
                       <span className="badge-pill badge-pill--green" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <CheckCircle2 size={12} />
                         <span>Sudah Dinilai</span>
@@ -662,14 +780,25 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
                     )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      className={hasEvaluated ? 'btn-action-edit' : 'btn-action-add'}
-                      style={{ padding: '6px 14px', fontSize: '12px' }}
-                      onClick={() => handleOpenEvaluate(dosen)}
-                    >
-                      <Award size={13} />
-                      <span>{hasEvaluated ? 'Ubah Penilaian' : 'Nilai Kuesioner'}</span>
-                    </button>
+                    {!canEvaluate ? (
+                      <span
+                        className="badge-pill badge-pill--orange"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'not-allowed', opacity: 0.8 }}
+                        title={`Dosen belum mengajukan SKP ${!hasSubmittedGanjil && !hasSubmittedGenap ? 'Ganjil & Genap' : !hasSubmittedGanjil ? 'Ganjil' : 'Genap'} untuk tahun akademik ini.`}
+                      >
+                        <Clock size={12} />
+                        <span>Menunggu SKP {!hasSubmittedGanjil && !hasSubmittedGenap ? 'Ganjil & Genap' : !hasSubmittedGanjil ? 'Ganjil' : 'Genap'}</span>
+                      </span>
+                    ) : (
+                      <button
+                        className={hasEvaluated ? 'btn-action-edit' : 'btn-action-add'}
+                        style={{ padding: '6px 14px', fontSize: '12px' }}
+                        onClick={() => handleOpenEvaluate(dosen)}
+                      >
+                        <Award size={13} />
+                        <span>{hasEvaluated ? 'Ubah Penilaian' : 'Nilai Kuesioner'}</span>
+                      </button>
+                    )}
                   </td>
                 </tr>
               )

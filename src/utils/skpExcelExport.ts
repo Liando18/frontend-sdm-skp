@@ -81,8 +81,8 @@ export async function exportSKPToExcel(skp: PengajuanSKP) {
   // Spacing
   sheet.getRow(4).height = 8
 
-  // 2. IDENTITAS PEJABAT PENILAI & DOSEN YANG DINILAI
-  // Header Pejabat Penilai (A5:E5)
+  // 2. IDENTITAS PEGAWAI YANG DINILAI & PEJABAT PENILAI
+  // Header Pegawai Yang Dinilai (A5:E5)
   sheet.mergeCells('A5:A5')
   sheet.getCell('A5').value = 'NO'
   sheet.getCell('A5').font = { name: 'Arial', size: 9, bold: true }
@@ -91,14 +91,14 @@ export async function exportSKPToExcel(skp: PengajuanSKP) {
   sheet.getCell('A5').border = thinBorder
 
   sheet.mergeCells('B5:E5')
-  const headPenilai = sheet.getCell('B5')
-  headPenilai.value = 'I. PEJABAT PENILAI'
-  headPenilai.font = { name: 'Arial', size: 9, bold: true }
-  headPenilai.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }
-  headPenilai.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
-  headPenilai.border = thinBorder
+  const headDosen = sheet.getCell('B5')
+  headDosen.value = 'I. PEGAWAI YANG DINILAI'
+  headDosen.font = { name: 'Arial', size: 9, bold: true }
+  headDosen.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }
+  headDosen.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
+  headDosen.border = thinBorder
 
-  // Header Dosen Yang Dinilai (F5:J5)
+  // Header Pejabat Penilai (F5:J5)
   sheet.mergeCells('F5:F5')
   sheet.getCell('F5').value = 'NO'
   sheet.getCell('F5').font = { name: 'Arial', size: 9, bold: true }
@@ -107,66 +107,66 @@ export async function exportSKPToExcel(skp: PengajuanSKP) {
   sheet.getCell('F5').border = thinBorder
 
   sheet.mergeCells('G5:J5')
-  const headDosen = sheet.getCell('G5')
-  headDosen.value = 'II. DOSEN YANG DINILAI'
-  headDosen.font = { name: 'Arial', size: 9, bold: true }
-  headDosen.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }
-  headDosen.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
-  headDosen.border = thinBorder
-
-  const penilaiRows = [
-    { no: 1, label: 'Nama', val: skp.penilaiNama || 'Ketua Program Studi' },
-    { no: 2, label: 'NIP', val: skp.penilaiNip || '-' },
-    { no: 3, label: 'Pangkat/Gol.Ruang', val: skp.penilaiPangkat || 'Penata Tk. I / IIId' },
-    { no: 4, label: 'Jabatan', val: skp.penilaiJabatan || 'Ketua Program Studi' },
-    { no: 5, label: 'Unit Kerja', val: skp.penilaiUnit || skp.dosenProdi || 'Universitas Bhakti Kencana' },
-  ]
+  const headPenilai = sheet.getCell('G5')
+  headPenilai.value = 'II. PEJABAT PENILAI'
+  headPenilai.font = { name: 'Arial', size: 9, bold: true }
+  headPenilai.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }
+  headPenilai.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
+  headPenilai.border = thinBorder
 
   const dosenRows = [
     { no: 1, label: 'Nama', val: skp.dosenNama },
-    { no: 2, label: 'NIP', val: skp.dosenNip },
-    { no: 3, label: 'Pangkat/Gol.Ruang', val: skp.dosenPangkat || 'Penata Muda / IIIb' },
-    { no: 4, label: 'Jabatan', val: skp.dosenJabatan || 'Dosen' },
+    { no: 2, label: 'NUPTK', val: skp.dosenNuptk || (skp as any).dosen_nuptk || '-' },
+    { no: 3, label: 'Pangkat/Gol.Ruang', val: skp.dosenPangkat || 'Penata Muda / IIIa' },
+    { no: 4, label: 'Jabatan', val: skp.dosenJabatan || 'Dosen Tetap' },
     { no: 5, label: 'Unit Kerja', val: skp.dosenProdi || 'Universitas Bhakti Kencana' },
+  ]
+
+  const penilaiRows = [
+    { no: 1, label: 'Nama', val: '-' },
+    { no: 2, label: 'NUPTK', val: '-' },
+    { no: 3, label: 'Pangkat/Gol.Ruang', val: '-' },
+    { no: 4, label: 'Jabatan', val: 'Rektor' },
+    { no: 5, label: 'Unit Kerja', val: 'Universitas Bhakti Kencana' },
   ]
 
   for (let i = 0; i < 5; i++) {
     const rowIdx = 6 + i
-    // Kolom Pejabat Penilai
-    sheet.getCell(`A${rowIdx}`).value = penilaiRows[i].no
+    // Kolom Pegawai Yang Dinilai (Kiri)
+    sheet.getCell(`A${rowIdx}`).value = dosenRows[i].no
     sheet.getCell(`A${rowIdx}`).alignment = { horizontal: 'center', vertical: 'middle' }
     sheet.getCell(`A${rowIdx}`).font = { name: 'Arial', size: 9 }
     sheet.getCell(`A${rowIdx}`).border = thinBorder
 
-    sheet.getCell(`B${rowIdx}`).value = penilaiRows[i].label
+    sheet.getCell(`B${rowIdx}`).value = dosenRows[i].label
     sheet.getCell(`B${rowIdx}`).font = { name: 'Arial', size: 9, bold: true }
     sheet.getCell(`B${rowIdx}`).border = thinBorder
 
     sheet.mergeCells(`C${rowIdx}:E${rowIdx}`)
-    const cellValP = sheet.getCell(`C${rowIdx}`)
-    cellValP.value = penilaiRows[i].val
-    cellValP.font = { name: 'Arial', size: 9 }
-    cellValP.alignment = { horizontal: 'left', vertical: 'middle' }
-    cellValP.border = thinBorder
-    sheet.getCell(`D${rowIdx}`).border = thinBorder
-    sheet.getCell(`E${rowIdx}`).border = thinBorder
-
-    // Kolom Dosen Yang Dinilai
-    sheet.getCell(`F${rowIdx}`).value = dosenRows[i].no
-    sheet.getCell(`F${rowIdx}`).alignment = { horizontal: 'center', vertical: 'middle' }
-    sheet.getCell(`F${rowIdx}`).font = { name: 'Arial', size: 9 }
-    sheet.getCell(`F${rowIdx}`).border = thinBorder
-
-    sheet.getCell(`G${rowIdx}`).value = dosenRows[i].label
-    sheet.getCell(`G${rowIdx}`).font = { name: 'Arial', size: 9, bold: true }
-    sheet.getCell(`G${rowIdx}`).border = thinBorder
-
-    sheet.mergeCells(`H${rowIdx}:J${rowIdx}`)
-    const cellValD = sheet.getCell(`H${rowIdx}`)
+    const cellValD = sheet.getCell(`C${rowIdx}`)
     cellValD.value = dosenRows[i].val
     cellValD.font = { name: 'Arial', size: 9 }
     cellValD.alignment = { horizontal: 'left', vertical: 'middle' }
     cellValD.border = thinBorder
+    sheet.getCell(`D${rowIdx}`).border = thinBorder
+    sheet.getCell(`E${rowIdx}`).border = thinBorder
+
+    // Kolom Pejabat Penilai (Kanan - Rektor)
+    sheet.getCell(`F${rowIdx}`).value = penilaiRows[i].no
+    sheet.getCell(`F${rowIdx}`).alignment = { horizontal: 'center', vertical: 'middle' }
+    sheet.getCell(`F${rowIdx}`).font = { name: 'Arial', size: 9 }
+    sheet.getCell(`F${rowIdx}`).border = thinBorder
+
+    sheet.getCell(`G${rowIdx}`).value = penilaiRows[i].label
+    sheet.getCell(`G${rowIdx}`).font = { name: 'Arial', size: 9, bold: true }
+    sheet.getCell(`G${rowIdx}`).border = thinBorder
+
+    sheet.mergeCells(`H${rowIdx}:J${rowIdx}`)
+    const cellValP = sheet.getCell(`H${rowIdx}`)
+    cellValP.value = penilaiRows[i].val
+    cellValP.font = { name: 'Arial', size: 9 }
+    cellValP.alignment = { horizontal: 'left', vertical: 'middle' }
+    cellValP.border = thinBorder
     sheet.getCell(`I${rowIdx}`).border = thinBorder
     sheet.getCell(`J${rowIdx}`).border = thinBorder
   }
@@ -387,33 +387,31 @@ export async function exportSKPToExcel(skp: PengajuanSKP) {
     ? new Date(approvalDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  sheet.getCell(`B${currentRow}`).value = `Bandung, ${tglFormatted}`
-  sheet.getCell(`B${currentRow}`).font = { name: 'Arial', size: 9, bold: true }
-
+  // Kolom G (Kanan) menampilkan tanggal
   sheet.getCell(`G${currentRow}`).value = `Bandung, ${tglFormatted}`
   sheet.getCell(`G${currentRow}`).font = { name: 'Arial', size: 9, bold: true }
 
   currentRow++
-  sheet.getCell(`B${currentRow}`).value = 'Pejabat Penilai Kinerja,'
+  sheet.getCell(`B${currentRow}`).value = 'Pegawai Yang Dinilai,'
   sheet.getCell(`B${currentRow}`).font = { name: 'Arial', size: 9 }
 
-  sheet.getCell(`G${currentRow}`).value = 'Dosen Yang Dinilai,'
+  sheet.getCell(`G${currentRow}`).value = 'Pejabat Penilai,'
   sheet.getCell(`G${currentRow}`).font = { name: 'Arial', size: 9 }
 
   // Spacing for signature
   currentRow += 4
 
-  sheet.getCell(`B${currentRow}`).value = skp.penilaiNama || '(Ketua Program Studi)'
+  sheet.getCell(`B${currentRow}`).value = skp.dosenNama
   sheet.getCell(`B${currentRow}`).font = { name: 'Arial', size: 9.5, bold: true, underline: true }
 
-  sheet.getCell(`G${currentRow}`).value = skp.dosenNama
+  sheet.getCell(`G${currentRow}`).value = '-'
   sheet.getCell(`G${currentRow}`).font = { name: 'Arial', size: 9.5, bold: true, underline: true }
 
   currentRow++
-  sheet.getCell(`B${currentRow}`).value = `NIP: ${skp.penilaiNip || '-'}`
+  sheet.getCell(`B${currentRow}`).value = `NUPTK: ${skp.dosenNuptk || (skp as any).dosen_nuptk || '-'}`
   sheet.getCell(`B${currentRow}`).font = { name: 'Arial', size: 8.5 }
 
-  sheet.getCell(`G${currentRow}`).value = `NIP: ${skp.dosenNip}`
+  sheet.getCell(`G${currentRow}`).value = `NUPTK: -`
   sheet.getCell(`G${currentRow}`).font = { name: 'Arial', size: 8.5 }
 
   // 7. CATATAN PENGISIAN RESMI

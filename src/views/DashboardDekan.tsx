@@ -11,7 +11,7 @@ import {
   FileText,
   Search,
 } from 'lucide-react'
-import { UserSession, PengajuanSKP, Dosen } from '../types'
+import { UserSession, PengajuanSKP, Dosen, ProgramStudi, Fakultas, Psdku } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
 
@@ -19,6 +19,9 @@ interface DashboardDekanProps {
   user: UserSession
   skpList: PengajuanSKP[]
   dosenList: Dosen[]
+  prodiList?: ProgramStudi[]
+  fakultasList?: Fakultas[]
+  psdkuList?: Psdku[]
   onNavigateToSKP?: () => void
   onNavigateToReview: () => void
   onNavigateToEvaluasiKaprodi?: () => void
@@ -30,6 +33,9 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
   user,
   skpList,
   dosenList,
+  prodiList = [],
+  fakultasList = [],
+  psdkuList = [],
   onNavigateToSKP,
   onNavigateToReview,
   onNavigateToEvaluasiKaprodi,
@@ -43,13 +49,125 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
-  // Find all Kaprodi
-  const kaprodiList = dosenList.filter((d) => d.isKaprodi)
+  // 1. Identifikasi apakah user adalah Kepala Cabang (KeCab PSDKU) atau Dekan Fakultas (Pusat)
+  const isKacap = Boolean(
+    user.tipeLokasi === 'PSDKU' ||
+    user.psdkuId ||
+    (user as any).psdku_id ||
+    user.jabatanStruktural?.toLowerCase().includes('cabang') ||
+    user.jabatanStruktural?.toLowerCase().includes('kecab') ||
+    user.jabatanKampusId === 'jab-kecab'
+  )
+
+  const userPsdkuId = user.psdkuId || (user as any).psdku_id
+  const currentPsdku = psdkuList.find((p) => p.id === userPsdkuId)
+  const userKampusName = (user.kampus || currentPsdku?.nama || '').toLowerCase()
+
+  const dekanFakultasId = user.fakultasId || (user as any).fakultas_id
+  const dekanFakultasName = (user.fakultas || '').toLowerCase()
+
+  const roleLabel = isKacap ? 'Kepala Cabang' : 'Dekan'
+  const territoryLabel = isKacap
+    ? (user.kampus || currentPsdku?.nama || 'PSDKU')
+    : (user.fakultas || 'Fakultas')
+
+  // 2. Filter ID Program Studi yang sah di bawah ranah wewenang pimpinan ini
+  const psdkuProdiIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (isKacap && prodiList && prodiList.length > 0) {
+      prodiList.forEach((p) => {
+        const isPsdkuUnit = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (!isPsdkuUnit) return
+
+        const matchPsdkuId = userPsdkuId && (p.psdku_id === userPsdkuId || p.psdkuId === userPsdkuId)
+        const matchKampus = userKampusName && (p.kampus || '').toLowerCase().includes(userKampusName)
+        if (matchPsdkuId || matchKampus || (!userPsdkuId && !userKampusName)) {
+          ids.add(p.id)
+        }
+      })
+    }
+    return ids
+  }, [isKacap, prodiList, userPsdkuId, userKampusName])
+
+  const fakultasProdiIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (!isKacap && prodiList && prodiList.length > 0) {
+      prodiList.forEach((p) => {
+        const isPsdkuUnit = p.tipe_unit === 'PSDKU' || p.tipeUnit === 'PSDKU' || Boolean(p.psdku_id || p.psdkuId)
+        if (isPsdkuUnit) return // Dekan Fakultas Pusat tidak membina PSDKU
+
+        const matchFakId = dekanFakultasId && (p.fakultas_id === dekanFakultasId || p.fakultasId === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (p.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        if (matchFakId || matchFakName) {
+          ids.add(p.id)
+        }
+      })
+    }
+    return ids
+  }, [isKacap, prodiList, dekanFakultasId, dekanFakultasName])
+
+  // 3. Filter daftar Ka.Prodi eksklusif sesuai ranah/wilayah
+  const kaprodiList = useMemo(() => {
+    return dosenList.filter((d) => {
+      const isActualKaprodi = Boolean(
+        d.isKaprodi ||
+        d.jabatanStruktural === 'Ketua Program Studi' ||
+        d.jabatan_struktural === 'Ketua Program Studi'
+      )
+      if (!isActualKaprodi) return false
+
+      if (isKacap) {
+        // KECAB HANYA MENILAI KA.PRODI DI PSDKU ASALNYA SAJA (TIDAK BISA PUSAT ATAU PSDKU LAIN)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          d.psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (!isDosenPsdku) return false
+
+        const matchPsdkuId = userPsdkuId && (d.psdkuId === userPsdkuId || d.psdku_id === userPsdkuId)
+        const matchKampus = userKampusName && (d.kampus || '').toLowerCase().includes(userKampusName)
+        const matchProdiId =
+          (d.programStudiId && psdkuProdiIds.has(d.programStudiId)) ||
+          (d.program_studi_id && psdkuProdiIds.has(d.program_studi_id))
+
+        return Boolean(matchPsdkuId || matchKampus || matchProdiId)
+      } else {
+        // DEKAN FAKULTAS PUSAT HANYA MENILAI KA.PRODI DI FAKULTAS PUSAT (TIDAK BISA PSDKU)
+        const isDosenPsdku = Boolean(
+          d.tipeLokasi === 'PSDKU' ||
+          d.tipe_lokasi === 'PSDKU' ||
+          d.psdkuId ||
+          d.psdku_id ||
+          (d.kampus && d.kampus.toLowerCase().includes('psdku'))
+        )
+        if (isDosenPsdku) return false
+
+        const matchFakId = dekanFakultasId && (d.fakultasId === dekanFakultasId || d.fakultas_id === dekanFakultasId)
+        const matchFakName = dekanFakultasName && (d.fakultas || '').toLowerCase().includes(dekanFakultasName)
+        const matchProdiId =
+          (d.programStudiId && fakultasProdiIds.has(d.programStudiId)) ||
+          (d.program_studi_id && fakultasProdiIds.has(d.program_studi_id))
+
+        return Boolean(matchFakId || matchFakName || matchProdiId)
+      }
+    })
+  }, [dosenList, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
+
   // Kaprodi SKP list
   const kaprodiSKPs = useMemo(() => {
+    const kIds = new Set(kaprodiList.map((k) => k.id))
+    const kNips = new Set(kaprodiList.map((k) => k.nip).filter(Boolean))
+    const kNames = new Set(kaprodiList.map((k) => (k.nama || '').trim().toLowerCase()))
+
     return skpList.filter((s) => {
-      const isKap = kaprodiList.some((k) => k.id === s.dosenId || k.nama === s.dosenNama)
-      return isKap
+      return (
+        (s.dosenId && kIds.has(s.dosenId)) ||
+        (s.dosenNip && kNips.has(s.dosenNip)) ||
+        (s.dosenNama && kNames.has(s.dosenNama.trim().toLowerCase()))
+      )
     })
   }, [skpList, kaprodiList])
 
@@ -112,13 +230,13 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
             }}
           >
             <Building2 size={14} />
-            <span>Portal Pimpinan Fakultas &bull; {user.fakultas || 'Fakultas Keperawatan'}</span>
+            <span>{isKacap ? `Portal Pimpinan Cabang \u2022 ${territoryLabel}` : `Portal Pimpinan Fakultas \u2022 ${territoryLabel}`}</span>
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
             Selamat Datang, {user.name}
           </h1>
           <p style={{ fontSize: '13.5px', color: '#cbd5e1', marginTop: 6, maxWidth: 640 }}>
-            Anda memiliki wewenang untuk mengevaluasi, memverifikasi dokumen bukti, memberikan skor mutu, dan mengesahkan TTD digital SKP Ketua Program Studi di lingkungan fakultas.
+            Anda memiliki wewenang untuk mengevaluasi, memverifikasi dokumen bukti, memberikan skor mutu, dan mengesahkan TTD digital SKP Ketua Program Studi di lingkungan {isKacap ? `kampus cabang (${territoryLabel})` : `fakultas (${territoryLabel})`}.
           </p>
         </div>
 
@@ -291,14 +409,14 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                 }}
               >
                 <ShieldCheck size={12} />
-                <span>Telah Dibubuhi TTD Digital Dekan</span>
+                <span>Telah Dibubuhi TTD Digital {isKacap ? 'KeCab' : 'Dekan'}</span>
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Daftar SKP Kaprodi Yang Harus Dinilai Dekan */}
+      {/* Daftar SKP Kaprodi Yang Harus Dinilai */}
       <div
         style={{
           background: 'var(--card)',
@@ -311,10 +429,10 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--navy-900)', margin: 0 }}>
-              Daftar Penilaian SKP Ketua Program Studi (Tingkat Fakultas)
+              Daftar Persetujuan &amp; Pengesahan SKP Ketua Program Studi ({territoryLabel})
             </h2>
             <p style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2 }}>
-              Sebagai Dekan, Anda adalah atasan penilai langsung yang menandatangani SKP Ketua Program Studi.
+              Sebagai {roleLabel}, Anda memverifikasi dan menyetujui pengesahan SKP Ketua Program Studi.
             </p>
           </div>
 
