@@ -795,8 +795,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               </div>
 
               {/* Footer Hal. 1 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                 <span style={{ fontStyle: 'italic' }}>Hal. 1</span>
               </div>
             </div>
@@ -870,8 +869,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               </div>
 
               {/* Footer Hal. 2 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                 <span style={{ fontStyle: 'italic' }}>Hal. 2</span>
               </div>
             </div>
@@ -936,8 +934,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               </div>
 
               {/* Footer Hal. 3 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                 <span style={{ fontStyle: 'italic' }}>Hal. 3</span>
               </div>
             </div>
@@ -1204,8 +1201,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 </table>
 
                 {/* Footer Hal. 4 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                   <span style={{ fontStyle: 'italic' }}>Hal. 4</span>
                 </div>
               </div>
@@ -1287,8 +1283,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 </div>
 
                 {/* Footer Hal. 5 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                  <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                   <span style={{ fontStyle: 'italic' }}>Hal. 5</span>
                 </div>
               </div>
@@ -1411,8 +1406,7 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
               </div>
 
               {/* Footer Hal. 6 */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-                <span>Dokumen milik {dosen.nama} (NUPTK: {dosenNuptk})</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
                 <span style={{ fontStyle: 'italic' }}>Hal. 6</span>
               </div>
             </div>

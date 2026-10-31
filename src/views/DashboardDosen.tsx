@@ -13,6 +13,7 @@ import {
   Check,
 } from 'lucide-react'
 import { UserSession, PengajuanSKP, PenilaianKuesioner } from '../types'
+import { getAvatarSrc } from '../utils/security'
 import { useStaggerEntrance, useGSAP, gsap, GSAP_EASE, useCountUp, useInteractiveCards } from '../utils/animations'
 
 interface DashboardDosenProps {
@@ -98,16 +99,25 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
               width: 54,
               height: 54,
               borderRadius: 'var(--r-full)',
-              background: 'var(--navy-900)',
-              color: '#ffffff',
-              fontWeight: 800,
-              fontSize: '20px',
+              overflow: 'hidden',
+              background: '#f1f5f9',
+              border: '2px solid var(--hair)',
               display: 'grid',
               placeItems: 'center',
-              border: '2px solid var(--hair)',
+              flexShrink: 0,
             }}
           >
-            {user.avatar}
+            <img
+              src={getAvatarSrc(user.avatar)}
+              alt={user.name}
+              onError={(e) => {
+                const target = e.currentTarget
+                if (!target.src.endsWith('/user.png')) {
+                  target.src = '/user.png'
+                }
+              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           </div>
           <div>
             <div

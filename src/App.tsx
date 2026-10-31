@@ -34,19 +34,6 @@ import { getNavIdFromPath, getPathFromNavId } from './utils/routes'
 import { deriveRealNotifications } from './utils/notifications'
 
 export default function App() {
-  // Rute Cetak Standalone Resmi (Tab Baru / _blank)
-  if (typeof window !== 'undefined') {
-    if (window.location.pathname.startsWith('/cetak-skp')) {
-      return <CetakSKPStandaloneView />
-    }
-    if (window.location.pathname.startsWith('/cetak-output-final')) {
-      return <CetakOutputFinalStandaloneView />
-    }
-    if (window.location.pathname.startsWith('/cetak-transkrip')) {
-      return <CetakTranskripStandaloneView />
-    }
-  }
-
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
     const token = localStorage.getItem('ubk_auth_token')
@@ -974,6 +961,19 @@ export default function App() {
     localStorage.setItem('ubk_read_notif_ids', JSON.stringify(updated))
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
     api.notifications.markAllRead(allIds).catch((err) => console.warn('Sync ke backend gagal (offline):', err))
+  }
+
+  // Rute Cetak Standalone Resmi (Tab Baru / _blank)
+  if (typeof window !== 'undefined') {
+    if (window.location.pathname.startsWith('/cetak-skp')) {
+      return <CetakSKPStandaloneView />
+    }
+    if (window.location.pathname.startsWith('/cetak-output-final')) {
+      return <CetakOutputFinalStandaloneView />
+    }
+    if (window.location.pathname.startsWith('/cetak-transkrip')) {
+      return <CetakTranskripStandaloneView />
+    }
   }
 
   if (!isLoggedIn) {

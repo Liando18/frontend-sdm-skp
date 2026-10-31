@@ -547,11 +547,12 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
             </div>
           )}
 
-          {/* Footer Hal. 1 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-            <span>Dokumen milik {skp.dosenNama} (NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'})</span>
-            <span style={{ fontStyle: 'italic' }}>Hal. 1 {hasPage2 ? 'dari 2' : 'dari 1'}</span>
-          </div>
+          {/* Footer Hal. 1 (hanya jika total halaman > 1) */}
+          {hasPage2 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+              <span style={{ fontStyle: 'italic' }}>Hal. 1</span>
+            </div>
+          )}
         </div>
 
         {/* HALAMAN 2: LEMBAR LANJUTAN SKP (JIKA ITEM > 7) */}
@@ -788,9 +789,8 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
             </div>
 
             {/* Footer Hal. 2 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#475569', marginTop: 16 }}>
-              <span>Dokumen milik {skp.dosenNama} (NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'})</span>
-              <span style={{ fontStyle: 'italic' }}>Hal. 2 dari 2</span>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: '#475569', marginTop: 16 }}>
+              <span style={{ fontStyle: 'italic' }}>Hal. 2</span>
             </div>
           </div>
         )}

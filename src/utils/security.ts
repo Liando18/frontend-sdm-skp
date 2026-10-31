@@ -67,3 +67,34 @@ export function resolveStorageUrl(url?: string | null): string {
   const backendOrigin = apiBase.replace(/\/api\/?$/, '')
   return `${backendOrigin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`
 }
+
+/**
+ * Resolves avatar image source URL with clean fallback to /user.png.
+ * If user has not uploaded a photo yet (or avatar is null/empty/initials), cleanly displays /user.png.
+ */
+export function getAvatarSrc(avatar?: string | null): string {
+  if (!avatar || typeof avatar !== 'string') return '/user.png'
+  const trimmed = avatar.trim()
+  if (!trimmed) return '/user.png'
+
+  // If it's a data URL, blob, absolute URL, or local storage/image path
+  if (
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('/storage/') ||
+    trimmed.startsWith('storage/') ||
+    trimmed.startsWith('/user.png') ||
+    trimmed === 'user.png' ||
+    /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(trimmed)
+  ) {
+    if (trimmed.startsWith('/user.png') || trimmed === 'user.png') {
+      return '/user.png'
+    }
+    return resolveStorageUrl(trimmed)
+  }
+
+  // Otherwise, treat initials or missing photo as default /user.png
+  return '/user.png'
+}

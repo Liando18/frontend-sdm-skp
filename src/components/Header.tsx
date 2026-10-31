@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { UserSession, Role, NotificationItem } from '../types'
+import { getAvatarSrc } from '../utils/security'
 
 interface HeaderProps {
   user: UserSession
@@ -326,15 +327,25 @@ export const Header: React.FC<HeaderProps> = ({
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                background: 'var(--navy-900)',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '11px',
+                overflow: 'hidden',
+                background: '#f1f5f9',
                 display: 'grid',
                 placeItems: 'center',
+                border: '1.5px solid var(--hair)',
+                flexShrink: 0,
               }}
             >
-              {user.avatar}
+              <img
+                src={getAvatarSrc(user.avatar)}
+                alt={user.name}
+                onError={(e) => {
+                  const target = e.currentTarget
+                  if (!target.src.endsWith('/user.png')) {
+                    target.src = '/user.png'
+                  }
+                }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
             </div>
             <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
               <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

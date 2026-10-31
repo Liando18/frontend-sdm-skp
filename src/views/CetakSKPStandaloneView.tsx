@@ -820,12 +820,6 @@ export const CetakSKPStandaloneView: React.FC = () => {
             <li>Dokumen ini sah dan berkekuatan hukum sejak disetujui serta ditandatangani oleh Pejabat Penilai.</li>
           </ol>
         </div>
-
-        {/* FOOTER INFORMASI DOKUMEN */}
-        <div style={{ marginTop: 8, paddingTop: 4, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: '7pt', color: '#64748b' }}>
-          <span>Dokumen Resmi UBK &bull; ID: {skp.id} &bull; Dicetak dari Sistem Informasi SDM-SKP UBK</span>
-          <span style={{ fontStyle: 'italic' }}>Standar Dokumen Formal A4 PermenPAN-RB / SPMI UBK</span>
-        </div>
       </div>
     </div>
   )

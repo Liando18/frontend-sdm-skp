@@ -31,7 +31,7 @@ import { useStaggerEntrance } from '../utils/animations'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { openPrintSKP } from '../utils/printSKP'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { sanitizeUrl } from '../utils/security'
+import { sanitizeUrl, getAvatarSrc } from '../utils/security'
 import { api } from '../services/api'
 
 interface KelolaSKPDosenSelfProps {
@@ -795,8 +795,18 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
             {/* Profile Pill */}
             <div style={{ background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.16)', borderRadius: 'var(--r-lg)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ffffff', color: '#0f223d', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '14px' }}>
-                {user?.avatar || 'DS'}
+              <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#ffffff', border: '1.5px solid rgba(255,255,255,0.3)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <img
+                  src={getAvatarSrc(user?.avatar)}
+                  alt={targetDosenNama}
+                  onError={(e) => {
+                    const target = e.currentTarget
+                    if (!target.src.endsWith('/user.png')) {
+                      target.src = '/user.png'
+                    }
+                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
               </div>
               <div style={{ fontSize: '12px' }}>
                 <div style={{ fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 8 }}>

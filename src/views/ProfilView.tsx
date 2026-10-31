@@ -23,10 +23,14 @@ import {
   FileCheck,
   PenTool,
   UploadCloud,
+  Camera,
+  RotateCcw,
+  X,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { UserSession } from '../types'
 import { api } from '../services/api'
-import { resolveStorageUrl } from '../utils/security'
+import { resolveStorageUrl, getAvatarSrc } from '../utils/security'
 
 interface ProfilViewProps {
   user: UserSession
@@ -63,6 +67,100 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
   const [showConfirm, setShowConfirm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCopiedNip, setIsCopiedNip] = useState(false)
+
+  // Foto Profil State
+  const avatarInputRef = React.useRef<HTMLInputElement>(null)
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null)
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string | null>(null)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+
+  const handleSelectAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validasi Format
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      onShowToast('Format foto profil harus berupa gambar PNG, JPG, JPEG, atau WEBP.', 'error')
+      return
+    }
+
+    // Validasi Ukuran (Maksimal 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      onShowToast('Ukuran berkas foto profil maksimal 2MB.', 'error')
+      return
+    }
+
+    setSelectedAvatarFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      setPreviewAvatarUrl(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleUploadAvatar = async () => {
+    if (!selectedAvatarFile) {
+      onShowToast('Silakan pilih berkas foto profil terlebih dahulu.', 'warning')
+      return
+    }
+
+    setIsUploadingAvatar(true)
+    try {
+      const res = await api.auth.uploadAvatar(selectedAvatarFile, {
+        userId: user.id,
+        nip: user.nip,
+        email: user.email,
+      })
+
+      if (res && res.avatarUrl) {
+        setPreviewAvatarUrl(null)
+        setSelectedAvatarFile(null)
+        if (avatarInputRef.current) avatarInputRef.current.value = ''
+        onUpdateUser?.({
+          ...user,
+          avatar: res.avatarUrl,
+        })
+        onShowToast('Foto profil resmi berhasil diperbarui di sistem!', 'success')
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal mengunggah foto profil ke server'
+      onShowToast(msg, 'error')
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
+
+  const handleCancelAvatarSelection = () => {
+    setSelectedAvatarFile(null)
+    setPreviewAvatarUrl(null)
+    if (avatarInputRef.current) avatarInputRef.current.value = ''
+  }
+
+  const handleResetAvatar = async () => {
+    setIsUploadingAvatar(true)
+    try {
+      await api.auth.resetAvatar({
+        userId: user.id,
+        nip: user.nip,
+        email: user.email,
+      })
+
+      setPreviewAvatarUrl(null)
+      setSelectedAvatarFile(null)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+      onUpdateUser?.({
+        ...user,
+        avatar: '/user.png',
+      })
+      onShowToast('Foto profil berhasil dikembalikan ke avatar profil semula.', 'info')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal mereset foto profil'
+      onShowToast(msg, 'error')
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
 
   // Tanda Tangan Digital Institusi State
   const [signatureUrl, setSignatureUrl] = useState<string>(
@@ -276,42 +374,87 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Avatar Pegawai */}
+          {/* Avatar Pegawai dengan Tombol Edit Foto */}
           <div style={{ position: 'relative' }}>
+            <input
+              type="file"
+              ref={avatarInputRef}
+              onChange={handleSelectAvatarFile}
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              style={{ display: 'none' }}
+              aria-label="Unggah foto profil"
+            />
             <div
               style={{
-                width: '72px',
-                height: '72px',
-                borderRadius: '18px',
-                background: 'linear-gradient(135deg, var(--navy-900) 0%, #1e293b 100%)',
-                color: '#ffffff',
-                fontSize: '24px',
-                fontWeight: 800,
+                width: '76px',
+                height: '76px',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                background: '#f1f5f9',
                 display: 'grid',
                 placeItems: 'center',
                 boxShadow: 'var(--shadow-sm)',
                 border: '3px solid #f8fafc',
+                position: 'relative',
               }}
             >
-              {user.avatar || user.name.charAt(0)}
+              <img
+                src={previewAvatarUrl || getAvatarSrc(user.avatar)}
+                alt={user.name}
+                onError={(e) => {
+                  const target = e.currentTarget
+                  if (!target.src.endsWith('/user.png')) {
+                    target.src = '/user.png'
+                  }
+                }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              {previewAvatarUrl && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    background: 'rgba(217, 119, 6, 0.92)',
+                    color: '#ffffff',
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    padding: '2px 0',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  BARU
+                </div>
+              )}
             </div>
-            <div
+
+            {/* Tombol Kamera Ubah Foto */}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
               style={{
                 position: 'absolute',
-                bottom: -2,
-                right: -2,
-                width: '20px',
-                height: '20px',
+                bottom: -3,
+                right: -3,
+                width: '26px',
+                height: '26px',
                 borderRadius: '50%',
-                background: '#10b981',
-                border: '2.5px solid #ffffff',
+                background: 'var(--brand-600)',
+                color: '#ffffff',
+                border: '2px solid #ffffff',
                 display: 'grid',
                 placeItems: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.18)',
+                transition: 'transform 0.15s ease',
               }}
-              title="Akun Terverifikasi Aktif"
+              title="Klik untuk ubah foto profil"
+              aria-label="Ubah foto profil"
             >
-              <Check size={11} color="#ffffff" strokeWidth={3} />
-            </div>
+              <Camera size={13} />
+            </button>
           </div>
 
           {/* Info Pegawai */}
@@ -369,11 +512,90 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 <span>{user.prodi || 'Direktorat SDM'}</span>
               </span>
             </div>
+
+            {/* Quick Action Preview Bar */}
+            {previewAvatarUrl && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '10px',
+                  padding: '6px 12px',
+                  background: '#fef3c7',
+                  borderRadius: 'var(--r-md)',
+                  border: '1px solid #fde68a',
+                  fontSize: '12px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span style={{ fontWeight: 600, color: '#92400e' }}>Pratinjau Foto Baru:</span>
+                <button
+                  type="button"
+                  onClick={handleUploadAvatar}
+                  disabled={isUploadingAvatar}
+                  className="brand-btn"
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '11.5px',
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Check size={13} />
+                  <span>{isUploadingAvatar ? 'Menyimpan...' : 'Simpan Foto'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelAvatarSelection}
+                  disabled={isUploadingAvatar}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '11.5px',
+                    background: '#ffffff',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 'var(--r-sm)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <X size={13} />
+                  <span>Batal</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Action Button */}
-        <div>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            className="brand-btn brand-btn--outline"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              background: '#ffffff',
+            }}
+            title="Pilih dan ubah foto profil resmi"
+          >
+            <Camera size={14} color="var(--brand-600)" />
+            <span>Ubah Foto Profil</span>
+          </button>
+
           <button
             type="button"
             onClick={handleCopyNip}
@@ -1112,6 +1334,235 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
       {/* ========================================================= */}
       {activeTab === 'profil' && (
         <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
+          {/* Card Foto Profil Pegawai */}
+          <div
+            className="panel"
+            style={{
+              background: '#ffffff',
+              padding: '24px 28px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              borderRadius: 'var(--r-xl)',
+              border: '1px solid var(--hair)',
+              boxShadow: 'var(--shadow-xs)',
+              gridColumn: '1 / -1',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'var(--brand-50)',
+                    color: 'var(--brand-600)',
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <Camera size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+                    Foto Profil Pegawai
+                  </h2>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                    Kelola foto profil resmi akun Anda untuk identitas portal kepegawaian dan cetak SKP
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div>
+                {user.avatar && !user.avatar.endsWith('user.png') && user.avatar.length > 5 ? (
+                  <span
+                    style={{
+                      background: '#ecfdf5',
+                      color: '#065f46',
+                      border: '1px solid #d1fae5',
+                      padding: '4px 12px',
+                      borderRadius: 'var(--r-full)',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <CheckCircle2 size={13} color="#10b981" />
+                    <span>Foto Khusus Terpasang</span>
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      background: '#f1f5f9',
+                      color: '#475569',
+                      border: '1px solid #e2e8f0',
+                      padding: '4px 12px',
+                      borderRadius: 'var(--r-full)',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>Foto Profil Bawaan Sistem</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+              {/* Foto Display Box */}
+              <div
+                style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '24px',
+                  overflow: 'hidden',
+                  background: '#f8fafc',
+                  border: '2px solid var(--hair)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  boxShadow: 'var(--shadow-sm)',
+                  flexShrink: 0,
+                  position: 'relative',
+                }}
+              >
+                <img
+                  src={previewAvatarUrl || getAvatarSrc(user.avatar)}
+                  alt={user.name}
+                  onError={(e) => {
+                    const target = e.currentTarget
+                    if (!target.src.endsWith('/user.png')) {
+                      target.src = '/user.png'
+                    }
+                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                {previewAvatarUrl && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(217, 119, 6, 0.92)',
+                      color: '#ffffff',
+                      fontSize: '9.5px',
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      padding: '2px 0',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    PRATINJAU
+                  </div>
+                )}
+              </div>
+
+              {/* Action Controls & Information */}
+              <div style={{ flex: 1, minWidth: '260px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="brand-btn"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <UploadCloud size={15} />
+                    <span>Pilih Foto Baru</span>
+                  </button>
+
+                  {previewAvatarUrl && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleUploadAvatar}
+                        disabled={isUploadingAvatar}
+                        className="brand-btn"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          border: 'none',
+                          cursor: isUploadingAvatar ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <Check size={15} />
+                        <span>{isUploadingAvatar ? 'Menyimpan...' : 'Simpan Foto'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCancelAvatarSelection}
+                        disabled={isUploadingAvatar}
+                        className="brand-btn brand-btn--outline"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 14px',
+                          fontSize: '13px',
+                          background: '#ffffff',
+                        }}
+                      >
+                        <X size={15} />
+                        <span>Batal</span>
+                      </button>
+                    </>
+                  )}
+
+                  {user.avatar && !user.avatar.endsWith('user.png') && user.avatar.length > 5 && !previewAvatarUrl && (
+                    <button
+                      type="button"
+                      onClick={handleResetAvatar}
+                      disabled={isUploadingAvatar}
+                      className="brand-btn brand-btn--outline"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        fontSize: '12.5px',
+                        color: 'var(--muted)',
+                        background: '#ffffff',
+                      }}
+                      title="Kembalikan ke avatar profil semula"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Kembali ke Avatar Profil Semula</span>
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5 }}>
+                  <p style={{ margin: 0 }}>
+                    💡 <strong>Ketentuan Berkas:</strong> Format diperbolehkan <code>PNG</code>, <code>JPG</code>, <code>JPEG</code>, atau <code>WEBP</code> dengan ukuran berkas maksimal <strong>2MB</strong>.
+                  </p>
+                  <p style={{ margin: '4px 0 0 0' }}>
+                    ℹ️ Jika belum ada foto yang diunggah atau direset, sistem secara otomatis menampilkan avatar profil bawaan institusi.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Card Biodata Utama */}
           <div
             className="panel"

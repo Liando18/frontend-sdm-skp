@@ -83,6 +83,68 @@ export const api = {
         user?: UserSession
       }>
     },
+    uploadAvatar: async (file: File, meta?: { userId?: string; nip?: string; email?: string }) => {
+      const formData = new FormData()
+      formData.append('avatar', file)
+      if (meta?.userId) formData.append('user_id', meta.userId)
+      if (meta?.nip) formData.append('nip', meta.nip)
+      if (meta?.email) formData.append('email', meta.email)
+
+      const token = localStorage.getItem('ubk_auth_token')
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }
+
+      const response = await fetch(`${API_BASE_URL}/profile/upload-avatar`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Unggah foto profil gagal (${response.status})`)
+      }
+
+      return response.json() as Promise<{
+        success: boolean
+        message: string
+        avatarUrl: string
+        user?: UserSession
+      }>
+    },
+    resetAvatar: async (meta?: { userId?: string; nip?: string; email?: string }) => {
+      const formData = new FormData()
+      formData.append('reset_to_default', '1')
+      if (meta?.userId) formData.append('user_id', meta.userId)
+      if (meta?.nip) formData.append('nip', meta.nip)
+      if (meta?.email) formData.append('email', meta.email)
+
+      const token = localStorage.getItem('ubk_auth_token')
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }
+
+      const response = await fetch(`${API_BASE_URL}/profile/upload-avatar`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Reset foto profil gagal (${response.status})`)
+      }
+
+      return response.json() as Promise<{
+        success: boolean
+        message: string
+        avatarUrl: string
+        user?: UserSession
+      }>
+    },
   },
 
   dosen: {

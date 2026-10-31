@@ -388,12 +388,6 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
                 <div style={{ fontSize: '11px', color: '#475569' }}>NUPTK: {rektor.nuptk || '-'}</div>
               </div>
             </div>
-
-            {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: '#64748b', marginTop: 28, borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
-              <span>Dokumen Transkrip Resmi Evaluasi Perilaku BerAKHLAK Universitas Bhakti Kencana</span>
-              <span>Hal. 1 dari 1</span>
-            </div>
           </div>
         </div>
       </div>

@@ -589,11 +589,6 @@ export const CetakTranskripStandaloneView: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '7pt', color: '#64748b', marginTop: 14, borderTop: '1px solid #e2e8f0', paddingTop: 4 }}>
-          <span>Dokumen Transkrip Resmi Evaluasi Perilaku BerAKHLAK Universitas Bhakti Kencana &bull; SPMI UBK</span>
-          <span>Standar Dokumen Formal A4 PermenPAN-RB</span>
-        </div>
       </div>
     </div>
   )
