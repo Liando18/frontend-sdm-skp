@@ -12,11 +12,13 @@ export const ROUTES: RouteConfig[] = [
   { path: '/dashboard', navId: 'dashboard', title: 'Beranda' },
   { path: '/profil', navId: 'profil', title: 'Profil Pegawai' },
   { path: '/keamanan', navId: 'keamanan', title: 'Keamanan Akun' },
+  { path: '/panduan', navId: 'panduan', title: 'Buku Panduan & SPMI' },
   { path: '/skp-saya', navId: 'skp-self', title: 'Sasaran Kinerja Pegawai (SKP)' },
   { path: '/kinerja-tahunan', navId: 'hasil-kinerja', title: 'Hasil Kinerja Tahunan' },
   { path: '/cetak-skp', navId: 'cetak-skp', title: 'Cetak Formulir SKP Resmi' },
   { path: '/cetak-output-final', navId: 'cetak-output-final', title: 'Cetak Output Final Tahunan' },
   { path: '/cetak-transkrip', navId: 'cetak-transkrip', title: 'Cetak Transkrip Evaluasi BerAKHLAK' },
+  { path: '/cetak-panduan', navId: 'cetak-panduan', title: 'Cetak Buku Panduan & SOP Resmi' },
   // SDM
   { path: '/monitoring-skp', navId: 'skp-dosen', title: 'Monitoring & Verifikasi SKP', allowedRoles: ['sdm'] },
   { path: '/monitoring-kinerja', navId: 'penilaian-kuesioner', title: 'Monitoring Kinerja Tahunan', allowedRoles: ['sdm'] },
@@ -38,9 +40,11 @@ export function getNavIdFromPath(pathname: string, role: Role): string {
   if (cleanPath === '/login') return 'login'
   if (cleanPath === '/profil') return 'profil'
   if (cleanPath === '/keamanan') return 'keamanan'
+  if (cleanPath === '/panduan') return 'panduan'
   if (cleanPath === '/cetak-skp') return 'cetak-skp'
   if (cleanPath === '/cetak-output-final') return 'cetak-output-final'
   if (cleanPath === '/cetak-transkrip') return 'cetak-transkrip'
+  if (cleanPath === '/cetak-panduan') return 'cetak-panduan'
 
   if (cleanPath === '/skp-saya') {
     switch (role) {
@@ -77,6 +81,8 @@ export function getPathFromNavId(navId: string): string {
   if (navId === 'dashboard') return '/dashboard'
   if (navId === 'profil') return '/profil'
   if (navId === 'keamanan') return '/keamanan'
+  if (navId === 'panduan') return '/panduan'
+  if (navId === 'cetak-panduan') return '/cetak-panduan'
   if (navId.startsWith('skp-') && navId.endsWith('-self')) return '/skp-saya'
   if (navId.startsWith('hasil-kinerja')) return '/kinerja-tahunan'
 

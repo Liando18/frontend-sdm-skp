@@ -45,7 +45,7 @@ export interface Dosen {
   pendidikanS3?: string
   pendidikanProfesi?: string
   pendidikan: string
-  status: 'Tetap Yayasan' | 'PNS DPK' | 'Dosen Khusus'
+  status: 'Tetap Yayasan' | 'PNS DPK' | 'Dosen Khusus' | 'Dosen Kontrak' | 'Dosen Luar Biasa' | string
   skpStatus: 'Draft' | 'Diajukan' | 'Dinilai Kaprodi' | 'Dinilai Dekan' | 'Disetujui SDM' | 'Disahkan' | 'Terbit' | 'Perlu Revisi'
   nilaiAkhir: number
   email: string
@@ -56,6 +56,8 @@ export interface Dosen {
   jabatanStruktural?: string
   jabatan_struktural?: string
   jabatanKampusId?: string
+  jabatan_kampus_id?: string
+  jabatanKampus?: JabatanKampus
 }
 
 export interface Fakultas {

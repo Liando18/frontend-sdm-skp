@@ -44,6 +44,13 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<'list' | 'review'>('list')
   const [activeReviewSKP, setActiveReviewSKP] = useState<PengajuanSKP | null>(null)
+
+  // Selalu rujuk ke data SKP paling mutakhir dari skpList (agar jika dosen mengupdate SKP, penilai langsung melihat versi baru)
+  const currentReviewSKP = useMemo(() => {
+    if (!activeReviewSKP) return null
+    return skpList.find((s) => s.id === activeReviewSKP.id) || activeReviewSKP
+  }, [skpList, activeReviewSKP])
+
   const [dekanNotes, setDekanNotes] = useState('')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
@@ -242,27 +249,27 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   }
 
   const handleExecuteApprove = () => {
-    if (activeReviewSKP) {
-      onApproveByDekan(activeReviewSKP.id, dekanNotes, ttdPreview)
+    if (currentReviewSKP) {
+      onApproveByDekan(currentReviewSKP.id, dekanNotes, ttdPreview)
       setConfirmApprove(false)
       setViewMode('list')
-      onShowToast(`SKP Ka Prodi ${activeReviewSKP.dosenNama} telah disetujui & disahkan ${roleLabel} dengan TTD digital!`)
+      onShowToast(`SKP Ka Prodi ${currentReviewSKP.dosenNama} telah disetujui & disahkan ${roleLabel} dengan TTD digital!`)
     }
   }
 
   const handleExecuteReject = () => {
-    if (activeReviewSKP) {
-      onRejectByDekan(activeReviewSKP.id, dekanNotes)
+    if (currentReviewSKP) {
+      onRejectByDekan(currentReviewSKP.id, dekanNotes)
       setConfirmReject(false)
       setViewMode('list')
-      onShowToast(`SKP Ka Prodi ${activeReviewSKP.dosenNama} dikembalikan untuk revisi.`)
+      onShowToast(`SKP Ka Prodi ${currentReviewSKP.dosenNama} dikembalikan untuk revisi.`)
     }
   }
 
   // Detailed Review Mode
-  if (viewMode === 'review' && activeReviewSKP) {
-    const totalRencana = activeReviewSKP.items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
-    const totalRealisasi = activeReviewSKP.items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+  if (viewMode === 'review' && currentReviewSKP) {
+    const totalRencana = currentReviewSKP.items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
+    const totalRealisasi = currentReviewSKP.items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
 
     return (
       <div className="page-container" ref={containerRef}>
@@ -276,13 +283,18 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               Persetujuan &amp; Pengesahan SKP Ketua Program Studi
             </h1>
             <p className="page-desc">
-              Periksa ketercapaian beban tugas kepemimpinan dan Tridharma Ka Prodi {activeReviewSKP.dosenNama}, berikan catatan dekanat, dan bubuhkan tanda tangan digital resmi.
+              Periksa ketercapaian beban tugas kepemimpinan dan Tridharma Ka Prodi {currentReviewSKP.dosenNama}, berikan catatan dekanat, dan bubuhkan tanda tangan digital resmi.
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {currentReviewSKP.tanggalPengajuan && (
+              <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600 }}>
+                📅 Pengajuan Terbaru: {currentReviewSKP.tanggalPengajuan}
+              </span>
+            )}
             {(() => {
-              const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(activeReviewSKP.status)
+              const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(currentReviewSKP.status)
               return (
                 <button
                   onClick={() => {
@@ -290,7 +302,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                       onShowToast('Berkas SKP belum dapat dicetak karena belum disetujui.')
                       return
                     }
-                    openPrintSKP(activeReviewSKP, activeReviewSKP.ttdDosenUrl)
+                    openPrintSKP(currentReviewSKP, currentReviewSKP.ttdDosenUrl)
                   }}
                   disabled={!isApproved}
                   className="brand-btn brand-btn--outline"
@@ -326,15 +338,15 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         >
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span className="badge-pill badge-pill--blue">{activeReviewSKP.dosenProdi}</span>
+              <span className="badge-pill badge-pill--blue">{currentReviewSKP.dosenProdi}</span>
               <span className="badge-pill badge-pill--gray">Ketua Program Studi</span>
-              <span className="badge-pill badge-pill--green">{activeReviewSKP.dosenPangkat}</span>
+              <span className="badge-pill badge-pill--green">{currentReviewSKP.dosenPangkat}</span>
             </div>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--navy-900)', margin: 0 }}>
-              {activeReviewSKP.dosenNama}
+              {currentReviewSKP.dosenNama}
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-              NIP {activeReviewSKP.dosenNip} &bull; Semester {activeReviewSKP.semester} {activeReviewSKP.tahunAkademik}
+              NIP {currentReviewSKP.dosenNip} &bull; Semester {currentReviewSKP.semester} {currentReviewSKP.tahunAkademik}
             </div>
           </div>
 
@@ -348,7 +360,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
             <div>
               <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Nilai Kinerja SKP</div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--brand-700)' }}>
-                {activeReviewSKP.nilaiKinerjaSKP}%
+                {currentReviewSKP.nilaiKinerjaSKP}%
               </div>
             </div>
           </div>
@@ -371,7 +383,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               </tr>
             </thead>
             <tbody>
-              {activeReviewSKP.items.map((it, idx) => (
+              {currentReviewSKP.items.map((it, idx) => (
                 <tr key={it.id}>
                   <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
                     {idx + 1}
@@ -558,7 +570,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         <ConfirmDialog
           isOpen={confirmApprove}
           title={`Pengesahan SKP Ka Prodi oleh ${roleLabel}`}
-          message={`Apakah Anda yakin ingin menyetujui dan menandatangani SKP Ka Prodi "${activeReviewSKP.dosenNama}" untuk periode ${activeReviewSKP.semester} ${activeReviewSKP.tahunAkademik}? Berkas SKP akan langsung SAH dan TERBIT secara resmi tanpa perlu menunggu validasi SDM.`}
+          message={`Apakah Anda yakin ingin menyetujui dan menandatangani SKP Ka Prodi "${currentReviewSKP.dosenNama}" untuk periode ${currentReviewSKP.semester} ${currentReviewSKP.tahunAkademik}? Berkas SKP akan langsung SAH dan TERBIT secara resmi tanpa perlu menunggu validasi SDM.`}
           confirmText="Ya, Sahkan &amp; Bubuhkan TTD"
           cancelText="Batal"
           onConfirm={handleExecuteApprove}
@@ -568,7 +580,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         <ConfirmDialog
           isOpen={confirmReject}
           title="Kembalikan SKP Ka Prodi untuk Revisi"
-          message={`Apakah Anda ingin mengembalikan berkas SKP Ka Prodi "${activeReviewSKP.dosenNama}" dengan catatan perbaikan?`}
+          message={`Apakah Anda ingin mengembalikan berkas SKP Ka Prodi "${currentReviewSKP.dosenNama}" dengan catatan perbaikan?`}
           confirmText="Kembalikan untuk Revisi"
           cancelText="Batal"
           isDestructive={true}

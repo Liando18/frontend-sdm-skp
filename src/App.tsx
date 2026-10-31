@@ -28,6 +28,8 @@ import { ProfilView } from './views/ProfilView'
 import { CetakSKPStandaloneView } from './views/CetakSKPStandaloneView'
 import { CetakOutputFinalStandaloneView } from './views/CetakOutputFinalStandaloneView'
 import { CetakTranskripStandaloneView } from './views/CetakTranskripStandaloneView'
+import { CetakPanduanStandaloneView } from './views/CetakPanduanStandaloneView'
+import { PanduanView } from './views/PanduanView'
 import { HelpModal } from './components/HelpModal'
 import { DashboardSkeleton } from './components/Skeleton'
 import { getNavIdFromPath, getPathFromNavId } from './utils/routes'
@@ -263,6 +265,24 @@ export default function App() {
   const handleNavigate = (navId: string) => {
     setActiveNav(navId)
     updateUrl(navId)
+
+    // Segarkan data SKP dari backend secara halus saat berpindah ke menu pemantauan / review
+    if ([
+      'review-skp-kaprodi',
+      'review-skp-dekan',
+      'monitoring-skp',
+      'skp-dosen-self',
+      'skp-kaprodi-self',
+      'skp-dekan-self',
+      'skp-sdm-self',
+      'dashboard',
+    ].includes(navId)) {
+      api.skp.list().then((fresh) => {
+        if (Array.isArray(fresh) && fresh.length > 0) {
+          setSkpList(fresh)
+        }
+      }).catch(() => {})
+    }
   }
 
   const handleLogin = async (
@@ -644,22 +664,53 @@ export default function App() {
     }
   }
 
-  const handleSubmitSKP = async (skpId: string) => {
-    const existing = skpList.find((s) => s.id === skpId)
-    const updated = existing
-      ? {
-          ...existing,
-          status: 'Diajukan' as const,
-          tanggalPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-        }
-      : null
+  const handleSubmitSKP = async (skpId: string, payload?: PengajuanSKP) => {
+    try {
+      const existing = skpList.find((s) => s.id === skpId)
+      const base = payload || existing
+      if (!base) return
 
-    if (updated) {
-      setSkpList(skpList.map((s) => (s.id === skpId ? updated : s)))
-      showToast('SKP berhasil diajukan ke atasan untuk dinilai!', 'success')
-      api.skp.submit(skpId).catch(() => {
-        api.skp.update(skpId, updated).catch(() => api.skp.create(updated).catch(() => {}))
+      const updated: PengajuanSKP = {
+        ...base,
+        id: skpId,
+        status: 'Diajukan',
+        tanggalPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      }
+
+      // Optimistically update local state so UI updates immediately
+      setSkpList((prev) => {
+        const idx = prev.findIndex((s) => s.id === skpId)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = updated
+          return next
+        }
+        return [updated, ...prev]
       })
+
+      showToast(
+        base.status === 'Diajukan'
+          ? 'Pembaruan SKP berhasil diajukan ke atasan untuk dinilai!'
+          : 'SKP berhasil diajukan ke atasan untuk dinilai!',
+        'success'
+      )
+
+      // Save complete updated SKP with items to backend
+      let res
+      if (existing) {
+        res = await api.skp.update(skpId, updated).catch(() => null)
+      } else {
+        res = await api.skp.create(updated).catch(() => null)
+      }
+
+      // Also call api.skp.submit with full updated payload
+      const submitRes = await api.skp.submit(skpId, updated).catch(() => null)
+      const saved = submitRes?.data || (res as { data?: PengajuanSKP })?.data
+      if (saved && saved.items) {
+        setSkpList((prev) => prev.map((s) => (s.id === skpId ? saved : s)))
+      }
+    } catch (err: unknown) {
+      console.warn('Gagal mengajukan SKP ke backend:', err)
     }
   }
 
@@ -974,6 +1025,9 @@ export default function App() {
     if (window.location.pathname.startsWith('/cetak-transkrip')) {
       return <CetakTranskripStandaloneView />
     }
+    if (window.location.pathname.startsWith('/cetak-panduan')) {
+      return <CetakPanduanStandaloneView />
+    }
   }
 
   if (!isLoggedIn) {
@@ -1044,7 +1098,16 @@ export default function App() {
                 />
               )}
 
-              {activeNav !== 'profil' && activeNav !== 'keamanan' && currentRole === 'sdm' && (
+              {activeNav === 'panduan' && (
+                <PanduanView
+                  currentRole={currentRole}
+                  currentUser={currentUser}
+                  onNavigate={(v) => handleNavigate(v)}
+                  onShowToast={showToast}
+                />
+              )}
+
+              {activeNav !== 'profil' && activeNav !== 'keamanan' && activeNav !== 'panduan' && currentRole === 'sdm' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardSDM
@@ -1164,16 +1227,18 @@ export default function App() {
             </>
           )}
 
-          {activeNav !== 'profil' && activeNav !== 'keamanan' && currentRole === 'dosen' && (
+          {activeNav !== 'profil' && activeNav !== 'keamanan' && activeNav !== 'panduan' && currentRole === 'dosen' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardDosen
                   user={currentUser}
                   mySKP={dosenMySKP}
+                  skpList={skpList}
                   penilaianList={penilaianList}
                   onNavigateToSKP={() => handleNavigate('skp-dosen-self')}
                   onNavigateToHasilKinerja={() => handleNavigate('hasil-kinerja-dosen')}
                   onNavigateToProfil={() => handleNavigate('profil')}
+                  onNavigateToPanduan={() => handleNavigate('panduan')}
                 />
               )}
               {activeNav === 'skp-dosen-self' && (
@@ -1200,7 +1265,7 @@ export default function App() {
             </>
           )}
 
-          {activeNav !== 'profil' && activeNav !== 'keamanan' && currentRole === 'kaprodi' && (
+          {activeNav !== 'profil' && activeNav !== 'keamanan' && activeNav !== 'panduan' && currentRole === 'kaprodi' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardKaprodi
@@ -1212,6 +1277,7 @@ export default function App() {
                   onNavigateToReview={() => handleNavigate('review-skp-kaprodi')}
                   onNavigateToKuesioner={() => handleNavigate('kuesioner-kaprodi')}
                   onNavigateToHasilKinerjaSelf={() => handleNavigate('hasil-kinerja-kaprodi')}
+                  onNavigateToPanduan={() => handleNavigate('panduan')}
                   onSelectSKP={(skp) => {
                     setSelectedSKPForReview(skp)
                     handleNavigate('review-skp-kaprodi')
@@ -1271,7 +1337,7 @@ export default function App() {
             </>
           )}
 
-          {activeNav !== 'profil' && activeNav !== 'keamanan' && currentRole === 'dekan' && (
+          {activeNav !== 'profil' && activeNav !== 'keamanan' && activeNav !== 'panduan' && currentRole === 'dekan' && (
             <>
               {activeNav === 'dashboard' && (
                 <DashboardDekan
@@ -1285,6 +1351,7 @@ export default function App() {
                   onNavigateToReview={() => handleNavigate('review-skp-dekan')}
                   onNavigateToEvaluasiKaprodi={() => handleNavigate('kuesioner-dekan')}
                   onNavigateToHasilKinerjaSelf={() => handleNavigate('hasil-kinerja-dekan')}
+                  onNavigateToPanduan={() => handleNavigate('panduan')}
                   onShowToast={showToast}
                 />
               )}
@@ -1362,6 +1429,7 @@ export default function App() {
       <HelpModal
         isOpen={isHelpModalOpen}
         onClose={() => setIsHelpModalOpen(false)}
+        onNavigateToPanduan={() => handleNavigate('panduan')}
       />
 
       {toastMessage && (

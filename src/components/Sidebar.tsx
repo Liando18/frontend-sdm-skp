@@ -16,6 +16,7 @@ import {
   Building2,
   User,
   ShieldCheck,
+  BookOpen,
 } from 'lucide-react'
 import { Role } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
@@ -376,10 +377,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="nav__label">Bantuan &amp; Sesi</div>
           <button
             className="nav__link"
-            onClick={onOpenHelp}
+            aria-current={activeNav === 'panduan' ? 'page' : undefined}
+            onClick={() => {
+              onSelectNav('panduan')
+              onClose()
+            }}
           >
-            <HelpCircle size={18} />
-            <span>Panduan SPMI &amp; FAQ</span>
+            <BookOpen size={18} />
+            <span>Buku Panduan &amp; SPMI</span>
           </button>
           <button
             className="nav__link"

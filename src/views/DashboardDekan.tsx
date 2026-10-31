@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react'
+import React, { useRef, useState, useMemo, useEffect } from 'react'
 import {
   Users,
   FileCheck2,
@@ -10,6 +10,9 @@ import {
   Clock,
   FileText,
   Search,
+  BookOpen,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react'
 import { UserSession, PengajuanSKP, Dosen, ProgramStudi, Fakultas, Psdku } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
@@ -26,6 +29,7 @@ interface DashboardDekanProps {
   onNavigateToReview: () => void
   onNavigateToEvaluasiKaprodi?: () => void
   onNavigateToHasilKinerjaSelf?: () => void
+  onNavigateToPanduan?: () => void
   onShowToast?: (msg: string) => void
 }
 
@@ -40,8 +44,22 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
   onNavigateToReview,
   onNavigateToEvaluasiKaprodi,
   onNavigateToHasilKinerjaSelf,
+  onNavigateToPanduan,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
+  const quickMenuRef = useRef<HTMLDivElement>(null)
+  const [showQuickMenu, setShowQuickMenu] = useState(false)
+
+  useEffect(() => {
+    if (!showQuickMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (quickMenuRef.current && !quickMenuRef.current.contains(e.target as Node)) {
+        setShowQuickMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showQuickMenu])
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 12, stagger: 0.05 })
   useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.03, delay: 0.1 })
 
@@ -198,22 +216,16 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
 
   return (
     <div className="page-container" ref={containerRef}>
-      {/* Header Banner */}
+      {/* Header Banner (Spacious, Elegant & Balanced) */}
       <div
+        className="dashboard-banner"
         style={{
           background: 'linear-gradient(135deg, var(--navy-900) 0%, #1e3a5f 100%)',
-          borderRadius: 'var(--r-xl)',
-          padding: '28px 32px',
           color: '#ffffff',
-          boxShadow: 'var(--shadow-md)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 20,
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div>
+        <div style={{ flex: 1, minWidth: 280 }}>
           <div
             style={{
               display: 'inline-flex',
@@ -221,101 +233,204 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
               gap: 6,
               background: 'rgba(255, 255, 255, 0.12)',
               backdropFilter: 'blur(4px)',
-              padding: '4px 12px',
+              padding: '3px 10px',
               borderRadius: '999px',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 600,
               color: '#fdba74',
-              marginBottom: 10,
+              marginBottom: 6,
             }}
           >
-            <Building2 size={14} />
+            <Building2 size={13} />
             <span>{isKacap ? `Portal Pimpinan Cabang \u2022 ${territoryLabel}` : `Portal Pimpinan Fakultas \u2022 ${territoryLabel}`}</span>
           </div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
+          <h1 style={{ fontSize: 'clamp(19px, 2.2vw, 23px)', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 4px 0', lineHeight: 1.3 }}>
             Selamat Datang, {user.name}
           </h1>
-          <p style={{ fontSize: '13.5px', color: '#cbd5e1', marginTop: 6, maxWidth: 640 }}>
-            Anda memiliki wewenang untuk mengevaluasi, memverifikasi dokumen bukti, memberikan skor mutu, dan mengesahkan TTD digital SKP Ketua Program Studi di lingkungan {isKacap ? `kampus cabang (${territoryLabel})` : `fakultas (${territoryLabel})`}.
+          <p style={{ fontSize: '12.5px', color: '#cbd5e1', margin: 0, maxWidth: 640, lineHeight: 1.5 }}>
+            Evaluasi dokumen bukti, validasi standar mutu SKS, dan bubuhkan pengesahan TTD digital SKP Ketua Program Studi lingkungan {isKacap ? `kampus cabang (${territoryLabel})` : `fakultas (${territoryLabel})`}.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {onNavigateToSKP && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Menu Pintas Dropdown */}
+          <div ref={quickMenuRef} style={{ position: 'relative' }}>
             <button
-              onClick={onNavigateToSKP}
+              onClick={() => setShowQuickMenu((prev) => !prev)}
               className="brand-btn"
               style={{
+                padding: '9px 14px',
                 background: 'rgba(255, 255, 255, 0.15)',
                 color: '#ffffff',
                 border: '1px solid rgba(255, 255, 255, 0.25)',
-                padding: '10px 18px',
+                borderRadius: 'var(--r-md)',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
                 backdropFilter: 'blur(4px)',
               }}
+              aria-expanded={showQuickMenu}
+              aria-label="Menu Akses Cepat"
             >
-              <FileText size={16} />
-              <span>Sasaran Kinerja Pegawai (SKP)</span>
+              <FileText size={14} />
+              <span>Menu Cepat</span>
+              <ChevronDown size={14} style={{ transform: showQuickMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
             </button>
-          )}
 
-          {onNavigateToHasilKinerjaSelf && (
-            <button
-              onClick={onNavigateToHasilKinerjaSelf}
-              className="brand-btn"
-              style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                padding: '10px 18px',
-                backdropFilter: 'blur(4px)',
-              }}
-            >
-              <Award size={16} />
-              <span>Hasil Kinerja Tahunan</span>
-            </button>
-          )}
+            {showQuickMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: 200,
+                  background: '#ffffff',
+                  borderRadius: 'var(--r-md)',
+                  boxShadow: 'var(--shadow-lg)',
+                  border: '1px solid var(--hair)',
+                  padding: '6px',
+                  zIndex: 40,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                {onNavigateToSKP && (
+                  <button
+                    onClick={() => {
+                      setShowQuickMenu(false)
+                      onNavigateToSKP()
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: '12.5px',
+                      color: 'var(--ink)',
+                      textAlign: 'left',
+                      width: '100%',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <FileText size={14} style={{ color: 'var(--brand-600)' }} />
+                    <span>SKP Saya</span>
+                  </button>
+                )}
+                {onNavigateToHasilKinerjaSelf && (
+                  <button
+                    onClick={() => {
+                      setShowQuickMenu(false)
+                      onNavigateToHasilKinerjaSelf()
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: '12.5px',
+                      color: 'var(--ink)',
+                      textAlign: 'left',
+                      width: '100%',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Award size={14} style={{ color: '#2563eb' }} />
+                    <span>Hasil Kinerja</span>
+                  </button>
+                )}
+                {onNavigateToEvaluasiKaprodi && (
+                  <button
+                    onClick={() => {
+                      setShowQuickMenu(false)
+                      onNavigateToEvaluasiKaprodi()
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: '12.5px',
+                      color: 'var(--ink)',
+                      textAlign: 'left',
+                      width: '100%',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <CheckCircle2 size={14} style={{ color: '#7c3aed' }} />
+                    <span>Evaluasi Ka.Prodi</span>
+                  </button>
+                )}
+                {onNavigateToPanduan && (
+                  <button
+                    onClick={() => {
+                      setShowQuickMenu(false)
+                      onNavigateToPanduan()
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: '12.5px',
+                      color: 'var(--ink)',
+                      textAlign: 'left',
+                      width: '100%',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <BookOpen size={14} style={{ color: '#059669' }} />
+                    <span>Panduan Dekan</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
-          {onNavigateToEvaluasiKaprodi && (
-            <button
-              onClick={onNavigateToEvaluasiKaprodi}
-              className="brand-btn"
-              style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                padding: '10px 18px',
-                backdropFilter: 'blur(4px)',
-              }}
-            >
-              <CheckCircle2 size={16} />
-              <span>Evaluasi Kinerja Ka Prodi</span>
-            </button>
-          )}
-
+          {/* Primary Action Button */}
           <button
             onClick={onNavigateToReview}
             className="brand-btn btn-action-add"
             style={{
-              padding: '10px 20px',
+              padding: '9.5px 18px',
+              fontSize: '13px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            <FileCheck2 size={16} />
-            <span>Verifikasi SKP Ka Prodi ({pendingReviewCount})</span>
+            <FileCheck2 size={15} />
+            <span>Verifikasi SKP ({pendingReviewCount})</span>
           </button>
         </div>
       </div>
 
       {/* KPI Cards (Clean, Solid, Industry-Standard) */}
-      <div className="kpi-bento-grid-3" style={{ marginTop: 16 }}>
+      <div className="kpi-bento-grid-3">
         <div className="kpi-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+            <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
               Total Ketua Program Studi
             </span>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: 'var(--r-sm)',
                 background: 'var(--panel-hover)',
                 display: 'grid',
@@ -323,17 +438,17 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                 color: 'var(--navy-900)',
               }}
             >
-              <Users size={18} />
+              <Users size={16} />
             </div>
           </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              {kaprodiList.length} <span style={{ fontSize: '15px', color: 'var(--muted)', fontWeight: 500 }}>Kaprodi</span>
+          <div style={{ marginTop: 8 }}>
+            <div className="kpi-stat-number" style={{ color: 'var(--ink)' }}>
+              {kaprodiList.length} <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 500 }}>Kaprodi</span>
             </div>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 6 }}>
               <span className="kpi-badge">
-                <Building2 size={12} />
-                <span>Homebase {user.fakultas || 'Fakultas Keperawatan'}</span>
+                <Building2 size={11} />
+                <span>Homebase {user.fakultas || 'Fakultas'}</span>
               </span>
             </div>
           </div>
@@ -341,13 +456,13 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
 
         <div className="kpi-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+            <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
               Menunggu Verifikasi Dekan
             </span>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: 'var(--r-sm)',
                 background: 'rgba(217, 119, 6, 0.1)',
                 display: 'grid',
@@ -355,14 +470,14 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                 color: '#b45309',
               }}
             >
-              <Clock size={18} />
+              <Clock size={16} />
             </div>
           </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: '32px', fontWeight: 800, color: pendingReviewCount > 0 ? '#b45309' : 'var(--ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              {pendingReviewCount} <span style={{ fontSize: '15px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
+          <div style={{ marginTop: 8 }}>
+            <div className="kpi-stat-number" style={{ color: pendingReviewCount > 0 ? '#b45309' : 'var(--ink)' }}>
+              {pendingReviewCount} <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
             </div>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 6 }}>
               <span
                 className="kpi-badge"
                 style={{
@@ -370,8 +485,8 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                   color: 'var(--status-warning-ink)',
                 }}
               >
-                <Clock size={12} />
-                <span>Diajukan &bull; Siap Ditandatangani</span>
+                <Clock size={11} />
+                <span>{pendingReviewCount > 0 ? 'Siap Ditandatangani' : 'Tuntas'}</span>
               </span>
             </div>
           </div>
@@ -379,13 +494,13 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
 
         <div className="kpi-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12.5px', color: 'var(--muted)', fontWeight: 600 }}>
+            <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>
               SKP Disahkan Dekan
             </span>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: 'var(--r-sm)',
                 background: 'rgba(22, 163, 74, 0.1)',
                 display: 'grid',
@@ -393,14 +508,14 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                 color: '#15803d',
               }}
             >
-              <CheckCircle2 size={18} />
+              <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--status-success-ink)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              {approvedCount} <span style={{ fontSize: '15px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
+          <div style={{ marginTop: 8 }}>
+            <div className="kpi-stat-number" style={{ color: 'var(--status-success-ink)' }}>
+              {approvedCount} <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 500 }}>Berkas</span>
             </div>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 6 }}>
               <span
                 className="kpi-badge"
                 style={{
@@ -408,8 +523,8 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                   color: 'var(--status-success-ink)',
                 }}
               >
-                <ShieldCheck size={12} />
-                <span>Telah Dibubuhi TTD Digital {isKacap ? 'KeCab' : 'Dekan'}</span>
+                <ShieldCheck size={11} />
+                <span>TTD Digital {isKacap ? 'KeCab' : 'Dekan'} Sah</span>
               </span>
             </div>
           </div>
@@ -417,39 +532,31 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
       </div>
 
       {/* Daftar SKP Kaprodi Yang Harus Dinilai */}
-      <div
-        style={{
-          background: 'var(--card)',
-          borderRadius: 'var(--r-xl)',
-          padding: '24px 28px',
-          border: '1px solid var(--hair)',
-          boxShadow: 'var(--shadow-xs)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+      <div className="dashboard-panel">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--navy-900)', margin: 0 }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--navy-900)', margin: 0 }}>
               Daftar Persetujuan &amp; Pengesahan SKP Ketua Program Studi ({territoryLabel})
             </h2>
-            <p style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2 }}>
-              Sebagai {roleLabel}, Anda memverifikasi dan menyetujui pengesahan SKP Ketua Program Studi.
+            <p style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
+              Verifikasi kelayakan kinerja dan bubuhkan tanda tangan pengesahan SKP kepemimpinan prodi.
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                background: 'var(--panel-bg)',
-                border: '1px solid var(--hair)',
+                background: '#ffffff',
+                border: '1px solid var(--hair-strong)',
                 borderRadius: 'var(--r-md)',
-                padding: '6px 12px',
-                minWidth: 200,
+                padding: '5px 10px',
+                minWidth: 180,
               }}
             >
-              <Search size={14} style={{ color: 'var(--muted)' }} />
+              <Search size={13} style={{ color: 'var(--muted)' }} />
               <input
                 type="text"
                 value={searchKaprodi}
@@ -462,7 +569,7 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                   border: 'none',
                   background: 'transparent',
                   outline: 'none',
-                  fontSize: '12.5px',
+                  fontSize: '12px',
                   color: 'var(--ink)',
                   width: '100%',
                 }}
@@ -472,10 +579,10 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
             <button
               onClick={onNavigateToReview}
               className="brand-btn brand-btn--outline"
-              style={{ padding: '8px 16px', fontSize: '12.5px', gap: 6 }}
+              style={{ padding: '6px 12px', fontSize: '12px', gap: 5 }}
             >
               <span>Panel Verifikasi</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={13} />
             </button>
           </div>
         </div>
@@ -484,7 +591,7 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
           <table className="custom-table custom-table--sticky-1">
             <thead>
               <tr>
-                <th style={{ minWidth: 200 }}>Nama Ketua Program Studi</th>
+                <th style={{ minWidth: 180 }}>Nama Ketua Program Studi</th>
                 <th>Program Studi</th>
                 <th style={{ textAlign: 'center' }}>Semester</th>
                 <th style={{ textAlign: 'center' }}>Total SKS</th>
@@ -497,7 +604,7 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
             <tbody>
               {paginatedKaprodiSKPs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '28px', color: 'var(--muted)' }}>
                     Tidak ada berkas SKP Kaprodi yang sesuai pencarian.
                   </td>
                 </tr>
@@ -505,20 +612,20 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                 paginatedKaprodiSKPs.map((skp) => (
                   <tr key={skp.id}>
                     <td>
-                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{skp.dosenNama}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>NIP: {skp.dosenNip}</div>
+                      <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '13px' }}>{skp.dosenNama}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>NIP: {skp.dosenNip || '-'}</div>
                     </td>
                     <td>
-                      <span className="badge-pill badge-pill--blue">{skp.dosenProdi}</span>
+                      <span className="badge-pill badge-pill--blue">{skp.dosenProdi || '-'}</span>
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, fontSize: '12.5px' }}>
                       {skp.semester} {skp.tahunAkademik}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                      {skp.totalSksRealisasi} SKS
+                    <td style={{ textAlign: 'center', fontWeight: 600, fontVariantNumeric: 'tabular-nums', fontSize: '12.5px' }}>
+                      {skp.totalSksRealisasi ?? 0} SKS
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--brand-700)' }}>
-                      {skp.nilaiKinerjaSKP}%
+                    <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--brand-700)', fontVariantNumeric: 'tabular-nums', fontSize: '12.5px' }}>
+                      {skp.nilaiKinerjaSKP ? `${skp.nilaiKinerjaSKP}%` : '-'}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       {(() => {
@@ -533,7 +640,7 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                                 : 'badge-pill--orange'
                             }`}
                           >
-                            {isSah ? 'Sah & Terbit' : skp.status}
+                            {isSah ? 'Sah & Terbit' : skp.status || '-'}
                           </span>
                         )
                       })()}
@@ -551,7 +658,7 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                       <button
                         onClick={onNavigateToReview}
                         className="brand-btn btn-action-view"
-                        style={{ padding: '6px 14px', fontSize: '12px' }}
+                        style={{ padding: '5px 12px', fontSize: '11.5px' }}
                       >
                         Verifikasi &amp; TTD
                       </button>

@@ -224,8 +224,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
     const kode = (newJabatanKode.trim() || val.toUpperCase().replace(/[^A-Z0-9]/g, '_')).slice(0, 30)
     const isStruktural = !newJabatanKategori.toLowerCase().includes('fungsional')
+    const targetId = `jab-${kode.toLowerCase().replace(/_/g, '-')}`
     if (onAddJabatan) {
       await onAddJabatan({
+        id: targetId,
         nama: val,
         kode: kode,
         kategori: newJabatanKategori,
@@ -235,6 +237,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
     setFormData((prev) => ({
       ...prev,
+      jabatanKampusId: targetId,
       jabatanStruktural: val,
       roleLogin: newJabatanRoleAkses,
     }))
@@ -410,6 +413,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedProdi, setSelectedProdi] = useState('Semua Program Studi')
   const [selectedStatus, setSelectedStatus] = useState('Semua Status')
+  const [selectedJabatanFilter, setSelectedJabatanFilter] = useState('Semua Jabatan')
 
   const defaultProdi = prodiList[0] || 'S1 Keperawatan'
 
@@ -434,7 +438,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     pendidikanS3: '',
     pendidikanProfesi: '',
     pendidikan: '',
-    status: 'Tetap Yayasan' as 'Tetap Yayasan' | 'PNS DPK' | 'Dosen Khusus',
+    status: 'Tetap Yayasan' as Dosen['status'],
     email: '',
     phone: '',
   })
@@ -468,7 +472,11 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       (d.prodi || '').toLowerCase().includes(q)
     const matchProdi = selectedProdi === 'Semua Program Studi' || d.prodi === selectedProdi
     const matchStatus = selectedStatus === 'Semua Status' || d.status === selectedStatus
-    return matchSearch && matchProdi && matchStatus
+    const matchJabatan =
+      selectedJabatanFilter === 'Semua Jabatan' ||
+      d.jabatanKampusId === selectedJabatanFilter ||
+      d.jabatanStruktural === selectedJabatanFilter
+    return matchSearch && matchProdi && matchStatus && matchJabatan
   })
 
   const [page, setPage] = useState(1)
@@ -556,11 +564,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   const handleOpenEdit = (dosen: Dosen) => {
     setSelectedDosen(dosen)
     const currentJabName = dosen.jabatanStruktural || 'Dosen'
-    const matchedJab = jabatanList.find((j) => j.id === dosen.jabatanKampusId || j.nama.toLowerCase() === currentJabName.toLowerCase())
+    const matchedJab = jabatanList.find(
+      (j) => j.id === dosen.jabatanKampusId || j.nama.toLowerCase() === currentJabName.toLowerCase()
+    )
+    const resolvedJabId = matchedJab?.id || dosen.jabatanKampusId || 'jab-dosen'
+    const resolvedJabNama = matchedJab?.nama || currentJabName || 'Dosen'
     let derivedRole: Role = (matchedJab?.role_akses || matchedJab?.default_role || 'dosen') as Role
     if (dosen.isKaprodi) derivedRole = 'kaprodi'
     else if (dosen.isDekan) derivedRole = 'dekan'
-    else if (currentJabName.toLowerCase().includes('sdm')) derivedRole = 'sdm'
+    else if (resolvedJabNama.toLowerCase().includes('sdm')) derivedRole = 'sdm'
 
     const isPsdku = Boolean(dosen.tipeLokasi === 'PSDKU' || dosen.psdkuId || (dosen.kampus && dosen.kampus !== 'Pusat'))
     const locType: 'Pusat' | 'PSDKU' = isPsdku ? 'PSDKU' : 'Pusat'
@@ -609,8 +621,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
       kampus: resolvedKampus,
       programStudiId: matchedProdi?.id || dosen.programStudiId || '',
       prodi: dosen.prodi,
-      jabatanStruktural: currentJabName,
-      jabatanKampusId: matchedJab?.id || dosen.jabatanKampusId || 'jab-dosen',
+      jabatanStruktural: resolvedJabNama,
+      jabatanKampusId: resolvedJabId,
       roleLogin: derivedRole,
       jafung: dosen.jafung,
       golongan: dosen.golongan,
@@ -2742,9 +2754,10 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as Dosen['status'] })}
               >
-                <option value="Tetap Yayasan">Tetap Yayasan</option>
-                <option value="PNS DPK">PNS DPK</option>
-                <option value="Dosen Khusus">Dosen Khusus</option>
+                <option value="Tetap Yayasan">Tetap Yayasan (PTY / DTY)</option>
+                <option value="PNS DPK">PNS DPK (Dpk LLDIKTI)</option>
+                <option value="Dosen Kontrak">Dosen Kontrak</option>
+                <option value="Dosen Luar Biasa">Dosen Luar Biasa (DLB)</option>
               </select>
               <span className="form-help">
                 Status ikatan kerja dosen di lingkungan yayasan / institusi.
@@ -2767,32 +2780,28 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 </div>
                 <select
                   className="custom-select"
-                  value={formData.jabatanStruktural}
+                  value={formData.jabatanKampusId || 'jab-dosen'}
                   onChange={(e) => {
-                    const sel = jabatanList.find((j) => j.nama === e.target.value)
-                    let autoRole: Role = (sel?.role_akses || sel?.default_role || 'dosen') as Role
-                    if (!sel?.role_akses && !sel?.default_role) {
-                      const lower = e.target.value.toLowerCase()
-                      if (lower.includes('sdm')) autoRole = 'sdm'
-                      else if (lower.includes('kaprodi') || lower.includes('ketua program studi') || lower.includes('ka prodi') || lower.includes('ka.prodi')) autoRole = 'kaprodi'
-                      else if (lower.includes('dekan') && !lower.includes('wakil')) autoRole = 'dekan'
-                      else autoRole = 'dosen'
-                    }
+                    const selId = e.target.value
+                    const sel = jabatanList.find((j) => j.id === selId)
+                    const autoRole: Role = (sel?.role_akses || sel?.default_role || 'dosen') as Role
                     setFormData({
                       ...formData,
-                      jabatanStruktural: e.target.value,
-                      jabatanKampusId: sel?.id || '',
+                      jabatanKampusId: selId,
+                      jabatanStruktural: sel?.nama || 'Dosen',
                       roleLogin: autoRole,
                     })
                   }}
                 >
                   {jabatanList.map((j) => (
-                    <option key={j.id} value={j.nama}>
+                    <option key={j.id} value={j.id}>
                       {j.nama} {j.kategori ? `(${j.kategori})` : ''}
                     </option>
                   ))}
-                  {!jabatanList.some((j) => j.nama === formData.jabatanStruktural) && (
-                    <option value={formData.jabatanStruktural}>{formData.jabatanStruktural}</option>
+                  {!jabatanList.some((j) => j.id === formData.jabatanKampusId) && formData.jabatanKampusId && (
+                    <option value={formData.jabatanKampusId}>
+                      {formData.jabatanStruktural || formData.jabatanKampusId}
+                    </option>
                   )}
                 </select>
                 <span className="form-help">
@@ -2903,14 +2912,16 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                   value={formData.golongan}
                   onChange={(e) => setFormData({ ...formData, golongan: e.target.value })}
                 >
-                  <option value="Pembina Utama / IVe">Pembina Utama / IVe</option>
-                  <option value="Pembina Utama Madya / IVd">Pembina Utama Madya / IVd</option>
-                  <option value="Pembina Tingkat I / IVb">Pembina Tingkat I / IVb</option>
-                  <option value="Pembina / IVa">Pembina / IVa</option>
-                  <option value="Penata Tk I / IIId">Penata Tk I / IIId</option>
-                  <option value="Penata / IIIc">Penata / IIIc</option>
-                  <option value="Penata Muda Tk I / IIIb">Penata Muda Tk I / IIIb</option>
-                  <option value="Penata Muda / IIIa">Penata Muda / IIIa</option>
+                  <option value="-">- (Belum Memiliki Pangkat / Golongan)</option>
+                  <option value="III/a">III/a - Penata Muda</option>
+                  <option value="III/b">III/b - Penata Muda Tingkat I</option>
+                  <option value="III/c">III/c - Penata</option>
+                  <option value="III/d">III/d - Penata Tingkat I</option>
+                  <option value="IV/a">IV/a - Pembina</option>
+                  <option value="IV/b">IV/b - Pembina Tingkat I</option>
+                  <option value="IV/c">IV/c - Pembina Utama Muda</option>
+                  <option value="IV/d">IV/d - Pembina Utama Madya</option>
+                  <option value="IV/e">IV/e - Pembina Utama</option>
                 </select>
               </div>
             </div>
@@ -3091,14 +3102,20 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jabatan Fungsional</div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 4 }}>
-                {selectedDosen.jafung}
+                {(selectedDosen.jafung || 'Tenaga Pengajar').replace(/asistan/i, 'Asisten')}
               </div>
             </div>
 
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jabatan Kampus / Tugas Tambahan</div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: selectedDosen.jabatanStruktural && selectedDosen.jabatanStruktural !== 'Dosen' ? '#1d4ed8' : 'var(--ink)', marginTop: 4 }}>
-                {selectedDosen.jabatanStruktural || 'Dosen'}
+                {(() => {
+                  const matched = jabatanList.find((j) => j.id === selectedDosen.jabatanKampusId)
+                  const raw = matched?.nama || selectedDosen.jabatanStruktural || 'Dosen'
+                  return raw.length > 25 && raw === raw.toUpperCase()
+                    ? raw.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+                    : raw
+                })()}
               </div>
             </div>
 
@@ -3291,7 +3308,27 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <option value="Semua Status">Semua Status</option>
             <option value="Tetap Yayasan">Tetap Yayasan</option>
             <option value="PNS DPK">PNS DPK</option>
-            <option value="Dosen Khusus">Dosen Khusus</option>
+            <option value="Dosen Kontrak">Dosen Kontrak</option>
+            <option value="Dosen Luar Biasa">Dosen Luar Biasa</option>
+          </select>
+        </div>
+
+        <div style={{ flex: '0 1 auto', minWidth: 190 }}>
+          <select
+            className="custom-select"
+            style={{ height: 38, width: '100%', fontSize: '13px', fontWeight: 600 }}
+            value={selectedJabatanFilter}
+            onChange={(e) => {
+              setSelectedJabatanFilter(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="Semua Jabatan">Semua Jabatan Kampus</option>
+            {jabatanList.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.nama}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -3305,8 +3342,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           <thead>
             <tr>
               <th style={{ minWidth: 240 }}>Nama Dosen &amp; Identitas</th>
-              <th>Homebase Prodi</th>
-              <th>Jabatan Fungsional &amp; Kampus</th>
+              <th>Homebase Prodi &amp; Kampus</th>
+              <th>Jabatan Fungsional &amp; Struktural</th>
               <th>Pangkat / Golongan</th>
               <th>Status</th>
               <th>Status SKP</th>
@@ -3335,50 +3372,90 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                     </div>
                   </td>
                   <td>
-                    <div style={{ fontWeight: 500 }}>{dosen.prodi}</div>
-                    <div style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                      {dosen.kampus && dosen.kampus !== 'Pusat' ? (
-                        <span style={{ color: '#0369a1', fontWeight: 600, background: '#e0f2fe', padding: '1px 6px', borderRadius: 4 }}>
-                          📍 {dosen.kampus}
-                        </span>
-                      ) : (
-                        <span style={{ color: '#047857', fontWeight: 600, background: '#d1fae5', padding: '1px 6px', borderRadius: 4 }}>
-                          🏛️ {dosen.fakultas || 'Pusat'}
-                        </span>
-                      )}
+                    <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '13px' }}>{dosen.prodi}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: '#047857',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          background: '#d1fae5',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          width: 'fit-content',
+                        }}
+                      >
+                        🏛️ {dosen.fakultas || 'Fakultas'}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          color: dosen.kampus && dosen.kampus !== 'Pusat' ? '#0369a1' : '#475569',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                          background: dosen.kampus && dosen.kampus !== 'Pusat' ? '#e0f2fe' : '#f1f5f9',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          width: 'fit-content',
+                        }}
+                      >
+                        📍 {dosen.kampus === 'Pusat' ? 'Kampus Pusat' : (dosen.kampus || 'Kampus Pusat')}
+                      </span>
                     </div>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 'var(--r-xs)',
-                          background: 'var(--panel-hover)',
-                          border: '1px solid var(--hair)',
-                          color: 'var(--brand-700)',
-                          fontWeight: 600,
-                          fontSize: '11.5px',
-                          width: 'fit-content',
-                        }}
-                      >
-                        {dosen.jafung}
-                      </span>
-                      <span
-                        style={{
-                          padding: '2px 7px',
-                          borderRadius: 'var(--r-xs)',
-                          background: dosen.jabatanStruktural && dosen.jabatanStruktural !== 'Dosen' ? '#eff6ff' : '#f8fafc',
-                          border: dosen.jabatanStruktural && dosen.jabatanStruktural !== 'Dosen' ? '1px solid #bfdbfe' : '1px solid var(--hair)',
-                          color: dosen.jabatanStruktural && dosen.jabatanStruktural !== 'Dosen' ? '#1d4ed8' : 'var(--muted)',
-                          fontWeight: 600,
-                          fontSize: '11px',
-                          width: 'fit-content',
-                        }}
-                      >
-                        🏛️ {dosen.jabatanStruktural || 'Dosen'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const matchedJab = jabatanList.find((j) => j.id === dosen.jabatanKampusId)
+                      const rawJab = matchedJab?.nama || (dosen as any).jabatan_kampus?.nama || dosen.jabatanStruktural || 'Dosen'
+                      // Normalize screaming uppercase or standard names
+                      const formattedJab =
+                        rawJab.length > 25 && rawJab === rawJab.toUpperCase()
+                          ? rawJab
+                              .split(' ')
+                              .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                              .join(' ')
+                          : rawJab
+                      const isStruktural = formattedJab.toLowerCase() !== 'dosen'
+                      const normalizedJafung = (dosen.jafung || 'Tenaga Pengajar').replace(/asistan/i, 'Asisten')
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 'var(--r-xs)',
+                              background: 'var(--panel-hover)',
+                              border: '1px solid var(--hair)',
+                              color: 'var(--brand-700)',
+                              fontWeight: 600,
+                              fontSize: '11.5px',
+                              width: 'fit-content',
+                            }}
+                          >
+                            {normalizedJafung}
+                          </span>
+                          <span
+                            style={{
+                              padding: '2px 7px',
+                              borderRadius: 'var(--r-xs)',
+                              background: isStruktural ? '#eff6ff' : '#f8fafc',
+                              border: isStruktural ? '1px solid #bfdbfe' : '1px solid var(--hair)',
+                              color: isStruktural ? '#1d4ed8' : 'var(--muted)',
+                              fontWeight: 600,
+                              fontSize: '11px',
+                              width: 'fit-content',
+                            }}
+                          >
+                            {isStruktural ? '🎖️ ' : '🏛️ '}{formattedJab}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td>{dosen.golongan}</td>
                   <td>

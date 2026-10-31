@@ -43,7 +43,7 @@ interface KelolaSKPDosenSelfProps {
   prodiList?: ProgramStudi[]
   komponenList: KomponenSKP[]
   onUpdateSKP: (skp: PengajuanSKP) => void
-  onSubmitSKP?: (skpId: string) => void
+  onSubmitSKP?: (skpId: string, payload?: PengajuanSKP) => void
   onShowToast: (msg: string) => void
 }
 
@@ -754,6 +754,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
     ...Array.from(new Set(komponenList.map((k) => k.kategori).filter(Boolean))),
   ]
 
+  const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(activeSKP.status)
+
   return (
     <div className="page-container" ref={containerRef}>
       {/* =========================================================================
@@ -954,20 +956,21 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             <span>⚡ Isi Contoh Cepat</span>
           </button>
 
-          {/* Action: Simpan Draft */}
-          <button
-            type="button"
-            onClick={handleManualSave}
-            className="brand-btn brand-btn--outline"
-            style={{ padding: '7px 14px', fontSize: '12px', borderRadius: 'var(--r-md)', background: '#ffffff' }}
-            title="Simpan draft SKP ke sistem"
-          >
-            <span>{isSaving ? 'Menyimpan...' : 'Simpan Draft'}</span>
-          </button>
+          {/* Action: Simpan Draft / Simpan Perubahan */}
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={handleManualSave}
+              className="brand-btn brand-btn--outline"
+              style={{ padding: '7px 14px', fontSize: '12px', borderRadius: 'var(--r-md)', background: '#ffffff' }}
+              title="Simpan perubahan berkas SKP ke sistem"
+            >
+              <span>{isSaving ? 'Menyimpan...' : (activeSKP.status === 'Diajukan' ? 'Simpan Perubahan' : 'Simpan Draft')}</span>
+            </button>
+          )}
 
           {/* Action: Cetak Formulir SKP (Membuka tab baru _blank dengan layout formal - Hanya jika sudah disetujui) */}
           {(() => {
-            const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(activeSKP.status)
             return (
               <button
                 type="button"
@@ -996,8 +999,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             )
           })()}
 
-          {/* Action: Submit / Ajukan SKP ke Atasan */}
-          {(activeSKP.status === 'Draft' || activeSKP.status === 'Perlu Revisi' || !activeSKP.status) && (
+          {/* Action: Submit / Ajukan / Perbarui SKP ke Atasan (selama belum disetujui / dinilai) */}
+          {!isApproved && (
             <button
               type="button"
               onClick={() => setShowSubmitConfirm(true)}
@@ -1005,7 +1008,13 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
               style={{ padding: '7px 16px', fontSize: '12px', borderRadius: 'var(--r-md)' }}
             >
               <Send size={13} />
-              <span>{isKaprodi ? 'Ajukan ke Dekan' : 'Ajukan ke Kaprodi'}</span>
+              <span>
+                {activeSKP.status === 'Diajukan'
+                  ? (isKaprodi ? 'Perbarui Pengajuan ke Dekan' : 'Perbarui Pengajuan ke Kaprodi')
+                  : activeSKP.status === 'Perlu Revisi'
+                  ? (isKaprodi ? 'Ajukan Ulang ke Dekan' : 'Ajukan Ulang ke Kaprodi')
+                  : (isKaprodi ? 'Ajukan ke Dekan' : 'Ajukan ke Kaprodi')}
+              </span>
             </button>
           )}
         </div>
@@ -1085,26 +1094,28 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
             </div>
           </div>
           <div style={{ marginTop: 8 }}>
-            {(() => {
-              const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Dekan', 'Dinilai Kaprodi'].includes(activeSKP.status)
-              return (
-                <span
-                  className={`badge-pill ${
-                    isSah
-                      ? 'badge-pill--green'
-                      : activeSKP.status === 'Perlu Revisi'
-                      ? 'badge-pill--red'
-                      : 'badge-pill--orange'
-                  }`}
-                  style={{ fontSize: '12px', fontWeight: 700 }}
-                >
-                  {isSah ? 'Sah & Terbit' : activeSKP.status === 'Perlu Revisi' ? 'Perlu Revisi / Dibatalkan' : activeSKP.status}
-                </span>
-              )
-            })()}
+            <span
+              className={`badge-pill ${
+                isApproved
+                  ? 'badge-pill--green'
+                  : activeSKP.status === 'Perlu Revisi'
+                  ? 'badge-pill--red'
+                  : 'badge-pill--orange'
+              }`}
+              style={{ fontSize: '12px', fontWeight: 700 }}
+            >
+              {isApproved
+                ? 'Sah & Terbit'
+                : activeSKP.status === 'Perlu Revisi'
+                ? 'Perlu Revisi / Dibatalkan'
+                : activeSKP.status === 'Diajukan'
+                ? 'Diajukan (Dapat Diperbarui Sebelum Dinilai)'
+                : activeSKP.status || 'Draft'}
+            </span>
           </div>
           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Disetujui Oleh: <strong>{activeSKP.penilaiNama || activeSKP.penilaiJabatan || 'Pimpinan'}</strong>
+            {isApproved ? 'Disetujui Oleh: ' : 'Penilai: '}
+            <strong>{activeSKP.penilaiNama || activeSKP.penilaiJabatan || 'Pimpinan'}</strong>
           </div>
         </div>
       </div>
@@ -1397,6 +1408,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                       min={0}
                       step="any"
                       placeholder="0"
+                      disabled={isApproved}
                       className="table-inline-input"
                       value={it.rencanaAwal === 0 ? '' : it.rencanaAwal}
                       onFocus={(e) => e.target.select()}
@@ -1411,6 +1423,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                       min={0}
                       step="any"
                       placeholder="0"
+                      disabled={isApproved}
                       className="table-inline-input"
                       value={it.perubahanTengah === 0 ? '' : it.perubahanTengah}
                       onFocus={(e) => e.target.select()}
@@ -1425,6 +1438,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                       min={0}
                       step="any"
                       placeholder="0"
+                      disabled={isApproved}
                       className="table-inline-input table-inline-input--highlight"
                       value={it.realisasi === 0 ? '' : it.realisasi}
                       onFocus={(e) => e.target.select()}
@@ -1462,6 +1476,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                         <input
                           type="url"
                           placeholder="https://drive.google.com/..."
+                          disabled={isApproved}
                           className="custom-input"
                           style={{
                             height: 34,
@@ -1622,17 +1637,51 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       {showSubmitConfirm && (
         <ConfirmDialog
           isOpen={showSubmitConfirm}
-          title="Konfirmasi Pengajuan SKP"
-          message={`Apakah Anda yakin ingin mengajukan berkas SKP Semester ${selectedSemester} Tahun Ajaran ${selectedTahun} ke ${
-            isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi'
-          } untuk diperiksa dan diverifikasi?`}
-          confirmText="Ya, Ajukan SKP"
+          title={activeSKP.status === 'Diajukan' ? 'Perbarui Pengajuan SKP' : 'Konfirmasi Pengajuan SKP'}
+          message={
+            activeSKP.status === 'Diajukan'
+              ? `Apakah Anda ingin memperbarui berkas SKP Semester ${selectedSemester} Tahun Ajaran ${selectedTahun} yang telah diajukan ke ${
+                  isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi'
+                }? Penilai akan langsung memeriksa versi pembaruan terbaru ini.`
+              : `Apakah Anda yakin ingin mengajukan berkas SKP Semester ${selectedSemester} Tahun Ajaran ${selectedTahun} ke ${
+                  isKaprodi ? 'Dekan Fakultas' : 'Ketua Program Studi'
+                } untuk diperiksa dan diverifikasi?`
+          }
+          confirmText={activeSKP.status === 'Diajukan' ? 'Ya, Perbarui Pengajuan' : 'Ya, Ajukan SKP'}
           cancelText="Batal"
           onConfirm={() => {
+            const newTotalRencana = items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
+            const newTotalRealisasi = items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+            const itemsWithTarget = items.filter((it) => Number(it.perubahanTengah || it.rencanaAwal) > 0)
+            const newMutu =
+              itemsWithTarget.length > 0
+                ? Number(
+                    (
+                      itemsWithTarget.reduce((acc, curr) => acc + (Number(curr.kualitasMutu) || 0), 0) /
+                      itemsWithTarget.length
+                    ).toFixed(2)
+                  )
+                : 0
+            const newPersen =
+              newTotalRencana > 0 ? Number(((newTotalRealisasi / newTotalRencana) * 100).toFixed(1)) : 0
+
+            const finalSKP: PengajuanSKP = {
+              ...activeSKP,
+              semester: selectedSemester,
+              tahunAkademik: selectedTahun,
+              items,
+              totalSksRencana: newTotalRencana,
+              totalSksRealisasi: newTotalRealisasi,
+              persentaseCapaian: newPersen,
+              nilaiKinerjaSKP: newMutu,
+              status: 'Diajukan',
+              tanggalPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+            }
+
             if (onSubmitSKP) {
-              onSubmitSKP(activeSKP.id)
+              onSubmitSKP(activeSKP.id, finalSKP)
             } else {
-              onUpdateSKP({ ...activeSKP, status: 'Diajukan' })
+              onUpdateSKP(finalSKP)
               onShowToast('SKP berhasil diajukan ke atasan untuk dinilai!')
             }
             setShowSubmitConfirm(false)

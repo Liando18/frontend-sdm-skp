@@ -38,6 +38,13 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
     : ['Semua Program Studi', ...Array.from(new Set(skpList.map((s) => s.dosenProdi).filter(Boolean)))]
   const [viewMode, setViewMode] = useState<'list' | 'review'>(initialSelectedSKP ? 'review' : 'list')
   const [selectedSKP, setSelectedSKP] = useState<PengajuanSKP | null>(initialSelectedSKP || null)
+
+  // Selalu rujuk ke data SKP paling mutakhir dari skpList (agar jika dosen mengupdate SKP, verifikator SDM langsung melihat versi baru)
+  const currentSelectedSKP = useMemo(() => {
+    if (!selectedSKP) return null
+    return skpList.find((s) => s.id === selectedSKP.id) || selectedSKP
+  }, [skpList, selectedSKP])
+
   const [sdmNotes, setSdmNotes] = useState(initialSelectedSKP?.catatanSDM || '')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
@@ -111,22 +118,22 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   }
 
   const handleExecuteApprove = () => {
-    if (!selectedSKP) return
-    onApproveSKP(selectedSKP.id, sdmNotes)
+    if (!currentSelectedSKP) return
+    onApproveSKP(currentSelectedSKP.id, sdmNotes)
     setConfirmApprove(false)
     setViewMode('list')
-    onShowToast(`SKP ${selectedSKP.dosenNama} berhasil divalidasi dan disahkan oleh Direktorat SDM!`)
+    onShowToast(`SKP ${currentSelectedSKP.dosenNama} berhasil divalidasi dan disahkan oleh Direktorat SDM!`)
   }
 
   const handleExecuteReject = () => {
-    if (!selectedSKP) return
-    onRejectSKP(selectedSKP.id, sdmNotes)
+    if (!currentSelectedSKP) return
+    onRejectSKP(currentSelectedSKP.id, sdmNotes)
     setConfirmReject(false)
     setViewMode('list')
     onShowToast('Permintaan revisi berkas telah dikirimkan.')
   }
 
-  if (viewMode === 'review' && selectedSKP) {
+  if (viewMode === 'review' && currentSelectedSKP) {
     return (
       <div className="page-container" ref={containerRef}>
         <div className="page-header">
@@ -136,38 +143,45 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
               <span>Kembali ke Daftar SKP</span>
             </button>
             <h1 className="page-title" style={{ marginTop: 14 }}>
-              Verifikasi &amp; Validasi SDM: {selectedSKP.dosenNama}
+              Verifikasi &amp; Validasi SDM: {currentSelectedSKP.dosenNama}
             </h1>
             <p className="page-desc">
               Pemeriksaan kesesuaian luaran Tridharma dan tanda tangan Ka Prodi terhadap standar SPMI Universitas Bhakti Kencana.
             </p>
           </div>
 
-          {(() => {
-            const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(selectedSKP.status)
-            return (
-              <button
-                onClick={() => {
-                  if (!isApproved) {
-                    onShowToast('Berkas SKP belum dapat dicetak karena belum disetujui oleh pimpinan.')
-                    return
-                  }
-                  openPrintSKP(selectedSKP, selectedSKP.ttdDosenUrl)
-                }}
-                disabled={!isApproved}
-                className="brand-btn btn-action-print"
-                style={{
-                  padding: '10px 18px',
-                  opacity: isApproved ? 1 : 0.5,
-                  cursor: isApproved ? 'pointer' : 'not-allowed',
-                }}
-                title={isApproved ? 'Cetak Formulir SKP Resmi di Tab Baru' : 'SKP belum dapat dicetak (menunggu persetujuan)'}
-              >
-                <Printer size={16} />
-                <span>Cetak Pratinjau SKP</span>
-              </button>
-            )
-          })()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {currentSelectedSKP.tanggalPengajuan && (
+              <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600 }}>
+                📅 Pengajuan Terbaru: {currentSelectedSKP.tanggalPengajuan}
+              </span>
+            )}
+            {(() => {
+              const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(currentSelectedSKP.status)
+              return (
+                <button
+                  onClick={() => {
+                    if (!isApproved) {
+                      onShowToast('Berkas SKP belum dapat dicetak karena belum disetujui oleh pimpinan.')
+                      return
+                    }
+                    openPrintSKP(currentSelectedSKP, currentSelectedSKP.ttdDosenUrl)
+                  }}
+                  disabled={!isApproved}
+                  className="brand-btn btn-action-print"
+                  style={{
+                    padding: '10px 18px',
+                    opacity: isApproved ? 1 : 0.5,
+                    cursor: isApproved ? 'pointer' : 'not-allowed',
+                  }}
+                  title={isApproved ? 'Cetak Formulir SKP Resmi di Tab Baru' : 'SKP belum dapat dicetak (menunggu persetujuan)'}
+                >
+                  <Printer size={16} />
+                  <span>Cetak Pratinjau SKP</span>
+                </button>
+              )
+            })()}
+          </div>
         </div>
 
         <div className="form-page-card">
@@ -175,43 +189,43 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Dosen yang Dinilai</div>
               <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
-                {selectedSKP.dosenNama}
+                {currentSelectedSKP.dosenNama}
               </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>NIP {selectedSKP.dosenNip}</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>NIP {currentSelectedSKP.dosenNip}</div>
             </div>
 
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Disetujui Oleh</div>
               <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
-                {selectedSKP.penilaiNama}
+                {currentSelectedSKP.penilaiNama}
               </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>{selectedSKP.penilaiJabatan}</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>{currentSelectedSKP.penilaiJabatan}</div>
             </div>
 
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Realisasi SKS &amp; Mutu</div>
               <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--brand-700)', marginTop: 2 }}>
-                {selectedSKP.totalSksRealisasi} SKS {selectedSKP.nilaiKinerjaSKP ? `(${selectedSKP.nilaiKinerjaSKP}%)` : ''}
+                {currentSelectedSKP.totalSksRealisasi} SKS {currentSelectedSKP.nilaiKinerjaSKP ? `(${currentSelectedSKP.nilaiKinerjaSKP}%)` : ''}
               </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>Semester {selectedSKP.semester} {selectedSKP.tahunAkademik}</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>Semester {currentSelectedSKP.semester} {currentSelectedSKP.tahunAkademik}</div>
             </div>
 
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
               <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Status Berkas Saat Ini</div>
               <div style={{ marginTop: 6 }}>
                 {(() => {
-                  const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(selectedSKP.status)
+                  const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(currentSelectedSKP.status)
                   return (
                     <span
                       className={`badge-pill ${
                         isSah
                           ? 'badge-pill--green'
-                          : selectedSKP.status === 'Diajukan'
+                          : currentSelectedSKP.status === 'Diajukan'
                           ? 'badge-pill--orange'
                           : 'badge-pill--red'
                       }`}
                     >
-                      {isSah ? 'Sah & Terbit' : selectedSKP.status === 'Perlu Revisi' ? 'Dibatalkan / Revisi' : selectedSKP.status}
+                      {isSah ? 'Sah & Terbit' : currentSelectedSKP.status === 'Perlu Revisi' ? 'Dibatalkan / Revisi' : currentSelectedSKP.status}
                     </span>
                   )
                 })()}
@@ -220,7 +234,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           </div>
 
           {/* Banner Status Sah & Terbit vs Perlu Revisi */}
-          {['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(selectedSKP.status) ? (
+          {['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(currentSelectedSKP.status) ? (
             <div style={{ padding: '14px 18px', borderRadius: 'var(--r-md)', background: '#ecfdf5', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: 12 }}>
               <CheckCircle size={22} color="#059669" />
               <div>
@@ -228,11 +242,11 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                   SKP Telah Sah &amp; Diterbitkan Secara Resmi
                 </div>
                 <div style={{ fontSize: '12px', color: '#047857', marginTop: 2 }}>
-                  Sesuai ketentuan, berkas SKP yang telah disetujui &amp; ditandatangani oleh pimpinan yang berwenang (<strong>{selectedSKP.penilaiNama}</strong>) langsung sah &amp; terbit tanpa menunggu validasi SDM. Sebagai Biro SDM, Anda dapat memeriksa bukti luaran tridharma di bawah ini atau <strong>membatalkan penerbitan</strong> jika terdapat perbaikan/revisi berkas.
+                  Sesuai ketentuan, berkas SKP yang telah disetujui &amp; ditandatangani oleh pimpinan yang berwenang (<strong>{currentSelectedSKP.penilaiNama}</strong>) langsung sah &amp; terbit tanpa menunggu validasi SDM. Sebagai Biro SDM, Anda dapat memeriksa bukti luaran tridharma di bawah ini atau <strong>membatalkan penerbitan</strong> jika terdapat perbaikan/revisi berkas.
                 </div>
               </div>
             </div>
-          ) : selectedSKP.status === 'Perlu Revisi' ? (
+          ) : currentSelectedSKP.status === 'Perlu Revisi' ? (
             <div style={{ padding: '14px 18px', borderRadius: 'var(--r-md)', background: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 12 }}>
               <XCircle size={22} color="#e11d48" />
               <div>
@@ -240,7 +254,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                   Penerbitan SKP Sedang Dibatalkan (Perlu Revisi)
                 </div>
                 <div style={{ fontSize: '12px', color: '#be123c', marginTop: 2 }}>
-                  Catatan SDM/Persetujuan: "{selectedSKP.catatanSDM || selectedSKP.catatanKaprodi || 'Perlu perbaikan bukti fisik luaran tridharma.'}"
+                  Catatan SDM/Persetujuan: "{currentSelectedSKP.catatanSDM || currentSelectedSKP.catatanKaprodi || 'Perlu perbaikan bukti fisik luaran tridharma.'}"
                 </div>
               </div>
             </div>
@@ -249,7 +263,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           {/* Activities Table */}
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginBottom: 12 }}>
-              Daftar Bukti Fisik Luaran Tridharma ({selectedSKP.items.length} Kegiatan)
+              Daftar Bukti Fisik Luaran Tridharma ({currentSelectedSKP.items.length} Kegiatan)
             </div>
 
             <div className="table-container">
@@ -267,7 +281,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedSKP.items.map((it, idx) => (
+                  {currentSelectedSKP.items.map((it, idx) => (
                     <tr key={it.id}>
                       <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>{idx + 1}</td>
                       <td style={{ fontWeight: 600, minWidth: 260 }}>{it.kegiatan}</td>
@@ -306,12 +320,12 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           {/* Catatan Persetujuan & Verifikasi Pimpinan */}
           <div style={{ padding: '16px 20px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-              Catatan Persetujuan &amp; Verifikasi dari {selectedSKP.penilaiJabatan || 'Pimpinan'}:
+              Catatan Persetujuan &amp; Verifikasi dari {currentSelectedSKP.penilaiJabatan || 'Pimpinan'}:
             </div>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: 4, fontStyle: 'italic', lineHeight: 1.5 }}>
-              "{selectedSKP.catatanKaprodi || 'Seluruh luaran tridharma telah sesuai dengan standar SPMI UBK dan telah diverifikasi lengkap.'}"
+              "{currentSelectedSKP.catatanKaprodi || 'Seluruh luaran tridharma telah sesuai dengan standar SPMI UBK dan telah diverifikasi lengkap.'}"
             </div>
-            {selectedSKP.ttdKaprodiUrl && (
+            {currentSelectedSKP.ttdKaprodiUrl && (
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="badge-pill badge-pill--green" style={{ fontSize: '11px' }}>
                   Tanda Tangan Digital Ka Prodi Terverifikasi
@@ -334,7 +348,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, paddingTop: 10 }}>
-            {['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(selectedSKP.status) ? (
+            {['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(currentSelectedSKP.status) ? (
               <>
                 <button
                   type="button"
@@ -348,7 +362,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                 <button
                   type="button"
                   className="brand-btn btn-action-print"
-                  onClick={() => openPrintSKP(selectedSKP, selectedSKP.ttdDosenUrl)}
+                  onClick={() => openPrintSKP(currentSelectedSKP, currentSelectedSKP.ttdDosenUrl)}
                   title="Cetak Formulir SKP Resmi di Tab Baru"
                 >
                   <Printer size={15} />
@@ -390,7 +404,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
         <ConfirmDialog
           isOpen={confirmApprove}
           title="Konfirmasi Validasi SDM"
-          message={`Konfirmasi verifikasi berkas SKP atas nama ${selectedSKP.dosenNama}? Catatan verifikasi SDM akan disimpan pada pangkalan data.`}
+          message={`Konfirmasi verifikasi berkas SKP atas nama ${currentSelectedSKP.dosenNama}? Catatan verifikasi SDM akan disimpan pada pangkalan data.`}
           confirmText="Simpan Validasi"
           cancelText="Batal"
           onConfirm={handleExecuteApprove}
@@ -400,7 +414,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
         <ConfirmDialog
           isOpen={confirmReject}
           title="Batalkan Penerbitan SKP"
-          message={`Apakah Anda yakin ingin MEMBATALKAN status terbit SKP atas nama ${selectedSKP.dosenNama}? Berkas akan dikembalikan ke status Perlu Revisi agar dosen dan prodi dapat memperbaiki luaran sesuai catatan Anda.`}
+          message={`Apakah Anda yakin ingin MEMBATALKAN status terbit SKP atas nama ${currentSelectedSKP.dosenNama}? Berkas akan dikembalikan ke status Perlu Revisi agar dosen dan prodi dapat memperbaiki luaran sesuai catatan Anda.`}
           confirmText="Ya, Batalkan Terbit"
           cancelText="Kembali"
           isDestructive={true}

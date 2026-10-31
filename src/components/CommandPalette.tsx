@@ -61,6 +61,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   if (!isOpen) return null
 
   const items = [
+    // ALL ROLES
+    { id: 'panduan', label: 'Buku Panduan & Pedoman SPMI', role: 'all', icon: BookOpen, desc: 'SOP penyusunan SKP, aturan 12-16 SKS, dan evaluasi BerAKHLAK' },
+
     // SDM
     { id: 'dashboard', label: 'Beranda Eksekutif', role: 'sdm', icon: BarChart3, desc: 'Ringkasan analitik kepegawaian & SKP' },
     { id: 'skp-sdm-self', label: 'Sasaran Kinerja Pegawai (SKP)', role: 'sdm', icon: FileCheck, desc: 'Pengisian SKP tugas jabatan SDM dinilai oleh Ka Prodi' },

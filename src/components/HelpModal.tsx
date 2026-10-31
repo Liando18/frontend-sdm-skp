@@ -1,13 +1,14 @@
 import React, { useRef } from 'react'
-import { HelpCircle, X } from 'lucide-react'
+import { HelpCircle, X, ExternalLink } from 'lucide-react'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 
 interface HelpModalProps {
   isOpen: boolean
   onClose: () => void
+  onNavigateToPanduan?: () => void
 }
 
-export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
+export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, onNavigateToPanduan }) => {
   const modalRef = useRef<HTMLDivElement>(null)
 
   useGSAP(
@@ -82,12 +83,27 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        <div className="modal-foot">
+        <div className="modal-foot" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          {onNavigateToPanduan ? (
+            <button
+              className="brand-btn"
+              onClick={() => {
+                onClose()
+                onNavigateToPanduan()
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <span>Buka Halaman Panduan Lengkap</span>
+              <ExternalLink size={15} />
+            </button>
+          ) : (
+            <div />
+          )}
           <button
             className="brand-btn brand-btn--outline"
             onClick={onClose}
           >
-            Tutup Panduan
+            Tutup
           </button>
         </div>
       </div>

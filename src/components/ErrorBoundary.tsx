@@ -112,15 +112,25 @@ export class ErrorBoundary extends Component<Props, State> {
                   fontSize: '12px',
                   fontFamily: 'monospace',
                   color: '#334155',
-                  maxHeight: '120px',
+                  maxHeight: '300px',
                   overflowY: 'auto',
                   border: '1px solid #CBD5E1',
                 }}
               >
                 <strong>Detail Kesalahan:</strong>
-                <div style={{ marginTop: '4px', wordBreak: 'break-word' }}>
+                <div style={{ marginTop: '4px', wordBreak: 'break-word', color: '#b91c1c', fontWeight: 600 }}>
                   {this.state.error.message}
                 </div>
+                {this.state.error.stack && (
+                  <pre style={{ marginTop: '8px', fontSize: '11px', whiteSpace: 'pre-wrap', color: '#475569' }}>
+                    {this.state.error.stack}
+                  </pre>
+                )}
+                {this.state.errorInfo?.componentStack && (
+                  <pre style={{ marginTop: '8px', fontSize: '11px', whiteSpace: 'pre-wrap', color: '#0369a1' }}>
+                    {this.state.errorInfo.componentStack}
+                  </pre>
+                )}
               </div>
             )}
 

@@ -11,7 +11,7 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@mui/x-charts', '@mui/material'],
+    include: ['react', 'react-dom'],
   },
   build: {
     chunkSizeWarningLimit: 600,

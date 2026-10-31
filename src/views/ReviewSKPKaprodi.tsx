@@ -43,6 +43,13 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<'list' | 'review'>(initialSelectedSKP ? 'review' : 'list')
   const [activeReviewSKP, setActiveReviewSKP] = useState<PengajuanSKP | null>(initialSelectedSKP || null)
+
+  // Selalu rujuk ke data SKP paling mutakhir dari skpList (agar jika dosen mengupdate SKP, penilai langsung melihat versi baru)
+  const currentReviewSKP = useMemo(() => {
+    if (!activeReviewSKP) return null
+    return skpList.find((s) => s.id === activeReviewSKP.id) || activeReviewSKP
+  }, [skpList, activeReviewSKP])
+
   const [kaprodiNotes, setKaprodiNotes] = useState(initialSelectedSKP?.catatanKaprodi || '')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
@@ -233,23 +240,23 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   }
 
   const handleExecuteApprove = () => {
-    if (!activeReviewSKP) return
-    onApproveByKaprodi(activeReviewSKP.id, kaprodiNotes, ttdPreview)
+    if (!currentReviewSKP) return
+    onApproveByKaprodi(currentReviewSKP.id, kaprodiNotes, ttdPreview)
     setConfirmApprove(false)
     setViewMode('list')
-    onShowToast(`SKP dosen ${activeReviewSKP.dosenNama} berhasil disetujui, ditandatangani, dan diajukan ke SDM!`)
+    onShowToast(`SKP dosen ${currentReviewSKP.dosenNama} berhasil disetujui, ditandatangani, dan diajukan ke SDM!`)
   }
 
   const handleExecuteReject = () => {
-    if (!activeReviewSKP) return
-    onRejectByKaprodi(activeReviewSKP.id, kaprodiNotes)
+    if (!currentReviewSKP) return
+    onRejectByKaprodi(currentReviewSKP.id, kaprodiNotes)
     setConfirmReject(false)
     setViewMode('list')
     onShowToast(`Catatan revisi telah dikirimkan kepada dosen.`)
   }
 
   // Sub-view: Review SKP Form
-  if (viewMode === 'review' && activeReviewSKP) {
+  if (viewMode === 'review' && currentReviewSKP) {
     return (
       <div className="page-container" ref={containerRef}>
         <div className="page-header">
@@ -259,7 +266,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               <span>Kembali ke Daftar SKP Prodi</span>
             </button>
             <h1 className="page-title" style={{ marginTop: 14 }}>
-              Review &amp; Pengesahan SKP: {activeReviewSKP.dosenNama}
+              Review &amp; Pengesahan SKP: {currentReviewSKP.dosenNama}
             </h1>
             <p className="page-desc">
               Verifikasi capaian Tridharma dosen homebase {user.prodi}, berikan catatan evaluasi mutu, dan bubuhkan tanda tangan digital.
@@ -267,7 +274,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
           </div>
 
           {(() => {
-            const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(activeReviewSKP.status)
+            const isApproved = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(currentReviewSKP.status)
             return (
               <button
                 onClick={() => {
@@ -275,7 +282,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                     onShowToast('Berkas SKP belum dapat dicetak karena belum disetujui.')
                     return
                   }
-                  openPrintSKP(activeReviewSKP, activeReviewSKP.ttdDosenUrl)
+                  openPrintSKP(currentReviewSKP, currentReviewSKP.ttdDosenUrl)
                 }}
                 disabled={!isApproved}
                 className="brand-btn brand-btn--outline"
@@ -308,10 +315,10 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 Dosen yang Dinilai
               </div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
-                {activeReviewSKP.dosenNama}
+                {currentReviewSKP.dosenNama}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-                NIP: {activeReviewSKP.dosenNip} &bull; {activeReviewSKP.dosenPangkat}
+                NIP: {currentReviewSKP.dosenNip} &bull; {currentReviewSKP.dosenPangkat}
               </div>
             </div>
 
@@ -327,10 +334,10 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 Realisasi &amp; Total Mutu
               </div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--brand-700)', marginTop: 4 }}>
-                {activeReviewSKP.totalSksRealisasi} SKS / Mutu {activeReviewSKP.nilaiKinerjaSKP ?? activeReviewSKP.persentaseCapaian ?? 0}%
+                {currentReviewSKP.totalSksRealisasi} SKS / Mutu {currentReviewSKP.nilaiKinerjaSKP ?? currentReviewSKP.persentaseCapaian ?? 0}%
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-                Semester {activeReviewSKP.semester} {activeReviewSKP.tahunAkademik}
+                Semester {currentReviewSKP.semester} {currentReviewSKP.tahunAkademik}
               </div>
             </div>
 
@@ -356,8 +363,15 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
 
           {/* Activities List */}
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginBottom: 12 }}>
-              Daftar Bukti Fisik Luaran Tridharma ({activeReviewSKP.items.length} Kegiatan)
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
+                Daftar Bukti Fisik Luaran Tridharma ({currentReviewSKP.items.length} Kegiatan)
+              </div>
+              {currentReviewSKP.tanggalPengajuan && (
+                <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600 }}>
+                  📅 Pengajuan Terbaru: {currentReviewSKP.tanggalPengajuan}
+                </span>
+              )}
             </div>
             <div className="table-container">
               <table className="custom-table custom-table--sticky-skp">
@@ -374,7 +388,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {activeReviewSKP.items.map((it, idx) => (
+                  {currentReviewSKP.items.map((it, idx) => (
                     <tr key={it.id}>
                       <td style={{ width: 48, minWidth: 48, maxWidth: 48, textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>
                         {idx + 1}
@@ -475,7 +489,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                   <span>TTD Digital Resmi Terdaftar di Profil</span>
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--muted)', maxWidth: 440 }}>
-                  Pada saat tombol <strong>Setujui SKP</strong> ditekan, tanda tangan persetujuan Anda dan tanda tangan <strong>{activeReviewSKP?.dosenNama}</strong> akan <strong>otomatis disematkan bersamaan</strong> pada berkas SKP resmi.
+                  Pada saat tombol <strong>Setujui SKP</strong> ditekan, tanda tangan persetujuan Anda dan tanda tangan <strong>{currentReviewSKP?.dosenNama}</strong> akan <strong>otomatis disematkan bersamaan</strong> pada berkas SKP resmi.
                 </div>
               </div>
             </div>
@@ -534,7 +548,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
         <ConfirmDialog
           isOpen={confirmApprove}
           title="Sahkan &amp; Terbitkan SKP Dosen"
-          message={`Apakah Anda yakin ingin menyetujui dan menandatangani SKP atas nama ${activeReviewSKP.dosenNama}? Berkas SKP akan langsung SAH dan TERBIT secara resmi tanpa perlu menunggu validasi SDM.`}
+          message={`Apakah Anda yakin ingin menyetujui dan menandatangani SKP atas nama ${currentReviewSKP.dosenNama}? Berkas SKP akan langsung SAH dan TERBIT secara resmi tanpa perlu menunggu validasi SDM.`}
           confirmText="Ya, Sahkan &amp; Terbitkan SKP"
           cancelText="Batal"
           onConfirm={handleExecuteApprove}
@@ -544,7 +558,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
         <ConfirmDialog
           isOpen={confirmReject}
           title="Minta Revisi SKP"
-          message={`Kembalikan berkas SKP kepada ${activeReviewSKP.dosenNama} untuk diperbaiki sesuai catatan evaluasi?`}
+          message={`Kembalikan berkas SKP kepada ${currentReviewSKP.dosenNama} untuk diperbaiki sesuai catatan evaluasi?`}
           confirmText="Kirim Catatan Revisi"
           cancelText="Batal"
           isDestructive={true}

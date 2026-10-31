@@ -237,7 +237,11 @@ export const api = {
     create: (data: Partial<PengajuanSKP>) => request<{ data: PengajuanSKP }>('/pengajuan-skp', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<PengajuanSKP>) => request<{ data: PengajuanSKP }>(`/pengajuan-skp/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request<{ message: string }>(`/pengajuan-skp/${id}`, { method: 'DELETE' }),
-    submit: (id: string) => request<{ data: PengajuanSKP }>(`/pengajuan-skp/${id}/submit`, { method: 'POST' }),
+    submit: (id: string, payload?: Partial<PengajuanSKP>) =>
+      request<{ data: PengajuanSKP }>(`/pengajuan-skp/${id}/submit`, {
+        method: 'POST',
+        body: payload ? JSON.stringify(payload) : undefined,
+      }),
     reviewKaprodi: (id: string, action: 'approve' | 'reject', notes?: string, ttdUrl?: string) =>
       request<{ data: PengajuanSKP }>(`/pengajuan-skp/${id}/review-kaprodi`, {
         method: 'POST',
