@@ -53,6 +53,8 @@ export interface Dosen {
   phone: string
   isKaprodi?: boolean
   isDekan?: boolean
+  avatar?: string
+  foto?: string
   signatureUrl?: string
   jabatanStruktural?: string
   jabatan_struktural?: string

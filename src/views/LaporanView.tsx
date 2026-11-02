@@ -5,6 +5,7 @@ import { CetakOutputFinalTahunan, OutputFinalData } from '../components/CetakOut
 import { openPrintOutputFinal } from '../utils/printOutputFinal'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
 
 interface LaporanViewProps {
   dosenList: Dosen[]
@@ -26,9 +27,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     new Set([
       ...skpList.map((s) => s.tahunAkademik).filter(Boolean),
       ...penilaianList.map((p) => p.tahun).filter(Boolean),
-      '2026/2027',
-      '2025/2026',
-      '2024/2025',
+      ...DEFAULT_TAHUN_AJARAN_OPTIONS,
     ])
   ).sort().reverse()
 

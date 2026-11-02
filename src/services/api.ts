@@ -1,9 +1,15 @@
 import { Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, UserSession, Role, ProgramStudi, JabatanKampus, DriveLinkCheckResult, Fakultas, Psdku } from '../types'
+import {
+  getStoredAuthToken,
+  saveAuthToken,
+  clearAuthData,
+  dispatchUnauthorized,
+} from '../utils/authStorage'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
 function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem('ubk_auth_token')
+  const token = getStoredAuthToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -18,7 +24,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   const response = await fetch(url, { ...options, headers })
 
+  if (response.status === 401) {
+    const isExcludedEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/logout')
+    if (!isExcludedEndpoint) {
+      clearAuthData()
+      dispatchUnauthorized('Sesi Anda telah berakhir, silakan masuk kembali.')
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || 'Sesi Anda telah berakhir, silakan masuk kembali.')
+    }
+  }
+
   if (!response.ok) {
+    if (endpoint.includes('/auth/logout')) {
+      return {} as T
+    }
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.message || `Request failed with status ${response.status}`)
   }
@@ -28,13 +47,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   auth: {
-    login: async (payload: { role?: Role; email?: string; nip?: string; password?: string }) => {
+    login: async (
+      payload: { role?: Role; email?: string; nip?: string; password?: string },
+      rememberMe = true
+    ) => {
       const res = await request<{ token: string; user: UserSession }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify(payload),
       })
       if (res.token) {
-        localStorage.setItem('ubk_auth_token', res.token)
+        saveAuthToken(res.token, rememberMe)
       }
       return res
     },
@@ -43,7 +65,7 @@ export const api = {
       try {
         await request('/auth/logout', { method: 'POST' })
       } finally {
-        localStorage.removeItem('ubk_auth_token')
+        clearAuthData()
       }
     },
     getDemoUsers: () => request<Record<string, UserSession>>('/auth/demo-users'),
@@ -59,7 +81,7 @@ export const api = {
       if (meta?.nip) formData.append('nip', meta.nip)
       if (meta?.email) formData.append('email', meta.email)
 
-      const token = localStorage.getItem('ubk_auth_token')
+      const token = getStoredAuthToken()
       const headers: Record<string, string> = {
         Accept: 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -70,6 +92,13 @@ export const api = {
         headers,
         body: formData,
       })
+
+      if (response.status === 401) {
+        clearAuthData()
+        dispatchUnauthorized('Sesi Anda telah berakhir, silakan masuk kembali.')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Sesi Anda telah berakhir, silakan masuk kembali.')
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -90,7 +119,7 @@ export const api = {
       if (meta?.nip) formData.append('nip', meta.nip)
       if (meta?.email) formData.append('email', meta.email)
 
-      const token = localStorage.getItem('ubk_auth_token')
+      const token = getStoredAuthToken()
       const headers: Record<string, string> = {
         Accept: 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -101,6 +130,13 @@ export const api = {
         headers,
         body: formData,
       })
+
+      if (response.status === 401) {
+        clearAuthData()
+        dispatchUnauthorized('Sesi Anda telah berakhir, silakan masuk kembali.')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Sesi Anda telah berakhir, silakan masuk kembali.')
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -121,7 +157,7 @@ export const api = {
       if (meta?.nip) formData.append('nip', meta.nip)
       if (meta?.email) formData.append('email', meta.email)
 
-      const token = localStorage.getItem('ubk_auth_token')
+      const token = getStoredAuthToken()
       const headers: Record<string, string> = {
         Accept: 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -132,6 +168,13 @@ export const api = {
         headers,
         body: formData,
       })
+
+      if (response.status === 401) {
+        clearAuthData()
+        dispatchUnauthorized('Sesi Anda telah berakhir, silakan masuk kembali.')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Sesi Anda telah berakhir, silakan masuk kembali.')
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))

@@ -532,7 +532,7 @@ export const KelolaIndikatorKuesioner: React.FC<KelolaIndikatorKuesionerProps> =
             title="Isi form otomatis dengan data dummy indikator perilaku"
           >
             <Sparkles size={14} className="text-amber-600 animate-pulse" />
-            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+            <span>Isi Form Otomatis (Data Dummy)</span>
           </button>
         </div>
 

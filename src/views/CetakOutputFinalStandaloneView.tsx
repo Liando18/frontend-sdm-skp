@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { OutputFinalData, CetakOutputFinalTahunan } from '../components/CetakOutputFinalTahunan'
 import { fetchOfficialRektor, getCachedOfficialRektor } from '../utils/rektorData'
+import { extractDocumentParams } from '../utils/urlSecurity'
 
 export const CetakOutputFinalStandaloneView: React.FC = () => {
   const [data, setData] = useState<OutputFinalData | null>(null)
@@ -35,8 +36,8 @@ export const CetakOutputFinalStandaloneView: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true
-    const urlParams = new URLSearchParams(window.location.search)
-    const dosenId = urlParams.get('id')
+    const docParams = extractDocumentParams()
+    const dosenId = docParams.dosenId || docParams.id
 
     let currentParsed: OutputFinalData | null = null
     try {

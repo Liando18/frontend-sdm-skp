@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import {
   Award,
   Search,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner, PengajuanSKP } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
+import { getBerakhlakDimensions } from '../utils/berakhlak'
 
 interface KelolaKuesionerKaprodiProps {
   user: UserSession
@@ -21,45 +22,9 @@ interface KelolaKuesionerKaprodiProps {
   onShowToast: (msg: string) => void
 }
 
-const TAHUN_AJARAN_OPTIONS = ['2026/2027', '2025/2026', '2024/2025']
+import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
 
-const BERAKHLAK_DIMENSIONS = [
-  {
-    key: 'nilaiPelayanan',
-    label: '1. Orientasi Pelayanan',
-    sub: 'Sikap ramah, solutif, menghargai mahasiswa dan sivitas akademika, serta mematuhi standar pelayanan akademik.',
-  },
-  {
-    key: 'nilaiAkuntabel',
-    label: '2. Akuntabel',
-    sub: 'Jujur, bertanggung jawab, disiplin waktu mengajar, berintegritas tinggi, dan objektif dalam evaluasi nilai.',
-  },
-  {
-    key: 'nilaiKompeten',
-    label: '3. Kompeten',
-    sub: 'Meningkatkan kompetensi keilmuan secara berkelanjutan dan membantu mahasiswa mencapai capaian pembelajaran terbaik.',
-  },
-  {
-    key: 'nilaiHarmonis',
-    label: '4. Harmonis',
-    sub: 'Membangun lingkungan kerja yang kondusif, toleran, dan saling tolong-menolong di lingkungan program studi.',
-  },
-  {
-    key: 'nilaiLoyal',
-    label: '5. Loyal',
-    sub: 'Memegang teguh visi misi Universitas Bhakti Kencana, menjaga nama baik almamater, dan berdedikasi tinggi.',
-  },
-  {
-    key: 'nilaiAdaptif',
-    label: '6. Adaptif',
-    sub: 'Cepat beradaptasi terhadap inovasi kurikulum, kurikulum MBKM, sistem LMS, dan teknologi Siakad UBK.',
-  },
-  {
-    key: 'nilaiKolaboratif',
-    label: '7. Kolaboratif',
-    sub: 'Mendorong kerja sama Tridharma antardisiplin, riset bersama, dan pengabdian masyarakat lintas bidang.',
-  },
-]
+const TAHUN_AJARAN_OPTIONS = DEFAULT_TAHUN_AJARAN_OPTIONS
 
 export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   user,
@@ -74,6 +39,11 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'evaluate'>('list')
   const [activeDosen, setActiveDosen] = useState<Dosen | null>(null)
+
+  const berakhlakDimensions = useMemo(
+    () => getBerakhlakDimensions(indikatorList),
+    [indikatorList]
+  )
 
   const [kuisScores, setKuisScores] = useState({
     nilaiPelayanan: 4,
@@ -347,7 +317,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
             title="Isi form otomatis dengan nilai evaluasi dummy"
           >
             <Sparkles size={14} className="text-amber-600 animate-pulse" />
-            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+            <span>Isi Form Otomatis (Data Dummy)</span>
           </button>
         </div>
 
@@ -397,7 +367,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {BERAKHLAK_DIMENSIONS.map((item) => (
+              {berakhlakDimensions.map((item) => (
                 <div
                   key={item.key}
                   style={{
@@ -417,24 +387,16 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
                     <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>
                       {item.sub}
                     </div>
-                    {(() => {
-                      const keyword = item.label.split('.')[1]?.trim().toLowerCase() || ''
-                      const count = (indikatorList || []).filter(
-                        (ind) =>
-                          ind.aspek.toLowerCase().includes(keyword) ||
-                          keyword.includes(ind.aspek.toLowerCase())
-                      ).length
-                      return count > 0 ? (
-                        <div style={{ marginTop: 6 }}>
-                          <span
-                            className="badge-pill badge-pill--blue"
-                            style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <span>{count} Butir Indikator SDM Aktif</span>
-                          </span>
-                        </div>
-                      ) : null
-                    })()}
+                    {item.count > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <span
+                          className="badge-pill badge-pill--blue"
+                          style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <span>{item.count} Butir Indikator SDM Aktif</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

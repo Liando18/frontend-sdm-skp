@@ -12,6 +12,8 @@ import {
   Filter,
   Search,
   Sparkles,
+  Calendar,
+  Loader2,
 } from 'lucide-react'
 import { PengajuanSKP, Dosen, UserSession } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -30,7 +32,9 @@ interface ReviewSKPKaprodiProps {
   onShowToast: (msg: string) => void
 }
 
-const TAHUN_OPTIONS = ['2026/2027', '2025/2026', '2024/2025']
+import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+
+const TAHUN_OPTIONS = DEFAULT_TAHUN_AJARAN_OPTIONS
 
 export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   user,
@@ -53,6 +57,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
   const [kaprodiNotes, setKaprodiNotes] = useState(initialSelectedSKP?.catatanKaprodi || '')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
 
   // React pattern: adjust state during render when initialSelectedSKP changes
@@ -239,20 +244,30 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
     reader.readAsDataURL(file)
   }
 
-  const handleExecuteApprove = () => {
-    if (!currentReviewSKP) return
-    onApproveByKaprodi(currentReviewSKP.id, kaprodiNotes, ttdPreview)
-    setConfirmApprove(false)
-    setViewMode('list')
-    onShowToast(`SKP dosen ${currentReviewSKP.dosenNama} berhasil disetujui, ditandatangani, dan diajukan ke SDM!`)
+  const handleExecuteApprove = async () => {
+    if (!currentReviewSKP || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onApproveByKaprodi(currentReviewSKP.id, kaprodiNotes, ttdPreview)
+      setConfirmApprove(false)
+      setViewMode('list')
+      onShowToast(`SKP dosen ${currentReviewSKP.dosenNama} berhasil disetujui, ditandatangani, dan diajukan ke SDM!`)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleExecuteReject = () => {
-    if (!currentReviewSKP) return
-    onRejectByKaprodi(currentReviewSKP.id, kaprodiNotes)
-    setConfirmReject(false)
-    setViewMode('list')
-    onShowToast(`Catatan revisi telah dikirimkan kepada dosen.`)
+  const handleExecuteReject = async () => {
+    if (!currentReviewSKP || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onRejectByKaprodi(currentReviewSKP.id, kaprodiNotes)
+      setConfirmReject(false)
+      setViewMode('list')
+      onShowToast(`Catatan revisi telah dikirimkan kepada dosen.`)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Sub-view: Review SKP Form
@@ -368,8 +383,9 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 Daftar Bukti Fisik Luaran Tridharma ({currentReviewSKP.items.length} Kegiatan)
               </div>
               {currentReviewSKP.tanggalPengajuan && (
-                <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                  📅 Pengajuan Terbaru: {currentReviewSKP.tanggalPengajuan}
+                <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Calendar size={12} />
+                  <span>Pengajuan Terbaru: {currentReviewSKP.tanggalPengajuan}</span>
                 </span>
               )}
             </div>
@@ -507,7 +523,7 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 title="Isi otomatis catatan evaluasi dummy"
               >
                 <Sparkles size={11} className="text-amber-600 animate-pulse" />
-                <span>⚡ Isi Catatan Otomatis</span>
+                <span>Isi Catatan Otomatis</span>
               </button>
             </div>
             <textarea
@@ -527,7 +543,10 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               className="brand-btn btn-action-delete"
               style={{
                 padding: '10px 20px',
+                opacity: isSubmitting ? 0.6 : 1,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
               }}
+              disabled={isSubmitting}
               onClick={() => setConfirmReject(true)}
             >
               <XCircle size={16} />
@@ -536,11 +555,16 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
             <button
               type="button"
               className="brand-btn btn-action-add"
-              style={{ padding: '10px 24px' }}
+              style={{
+                padding: '10px 24px',
+                opacity: isSubmitting ? 0.6 : 1,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              }}
+              disabled={isSubmitting}
               onClick={() => setConfirmApprove(true)}
             >
-              <CheckCircle size={16} />
-              <span>Setujui, TTD &amp; Sahkan SKP</span>
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+              <span>{isSubmitting ? 'Memproses...' : 'Setujui, TTD & Sahkan SKP'}</span>
             </button>
           </div>
         </div>

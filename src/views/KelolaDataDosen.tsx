@@ -99,7 +99,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   // Derive prodi list dynamically from database / props
   const [customAddedProdis, setCustomAddedProdis] = useState<string[]>([])
   const fallbackProdi = Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
-  const baseProdis = (prodiListProp && prodiListProp.length > 0) ? prodiListProp : (fallbackProdi.length > 0 ? fallbackProdi : ['S1 Keperawatan'])
+  const baseProdis = (prodiListProp && prodiListProp.length > 0) ? prodiListProp : fallbackProdi
   const prodiList = Array.from(new Set([...baseProdis, ...customAddedProdis]))
   const [isManageProdiOpen, setIsManageProdiOpen] = useState(false)
   const [newProdiJenjang, setNewProdiJenjang] = useState<'S1' | 'D3' | 'D4' | 'Profesi' | 'S2'>('S1')
@@ -161,17 +161,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   }
 
   // Derive jabatan kampus list dynamically from database / props
-  const defaultJabatanList: JabatanKampus[] = [
-    { id: 'jab-dosen', kode: 'DOSEN', nama: 'Dosen', kategori: 'Fungsional', level: 10, is_struktural: false },
-    { id: 'jab-rektor', kode: 'REKTOR', nama: 'Rektor', kategori: 'Pimpinan', level: 1, is_struktural: true },
-    { id: 'jab-warek1', kode: 'WAREK_1', nama: 'Wakil Rektor I (Bidang Akademik)', kategori: 'Pimpinan', level: 2, is_struktural: true },
-    { id: 'jab-warek2', kode: 'WAREK_2', nama: 'Wakil Rektor II (Bidang Non-Akademik)', kategori: 'Pimpinan', level: 2, is_struktural: true },
-    { id: 'jab-dekan', kode: 'DEKAN', nama: 'Dekan Fakultas', kategori: 'Struktural', level: 3, is_struktural: true },
-    { id: 'jab-kecab', kode: 'KECAB', nama: 'Kepala Cabang (KeCab)', kategori: 'Pimpinan PSDKU', level: 2, is_struktural: true, role_akses: 'dekan' },
-    { id: 'jab-kaprodi', kode: 'KAPRODI', nama: 'Ketua Program Studi (Kaprodi)', kategori: 'Struktural', level: 4, is_struktural: true },
-    { id: 'jab-sekprodi', kode: 'SEKPRODI', nama: 'Sekretaris Program Studi', kategori: 'Struktural', level: 5, is_struktural: true },
-  ]
-  const jabatanList = jabatanListProp && jabatanListProp.length > 0 ? jabatanListProp : defaultJabatanList
+  const jabatanList = jabatanListProp || []
   const [isManageJabatanOpen, setIsManageJabatanOpen] = useState(false)
   const [newJabatanNama, setNewJabatanNama] = useState('')
   const [newJabatanKode, setNewJabatanKode] = useState('')
@@ -455,7 +445,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     return Array.from(new Set([...standard, ...fromDosens]))
   }, [dosenList])
 
-  const defaultProdi = prodiList[0] || 'S1 Keperawatan'
+  const defaultProdi = prodiList[0] || ''
 
   const [formData, setFormData] = useState({
     nama: '',
@@ -616,7 +606,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     const firstFak = fakultasListProp[0]
     const pList = prodiObjects.filter((p) => (p.tipe_unit || 'Pusat') === 'Pusat' && (!firstFak || p.fakultas_id === firstFak.id))
     const firstP = pList[0] || prodiObjects.find((p) => (p.tipe_unit || 'Pusat') === 'Pusat') || prodiObjects[0]
-    const firstProdiName = firstP ? (firstP.nama_lengkap || `${firstP.jenjang ? firstP.jenjang + ' ' : ''}${firstP.nama}`) : (prodiList[0] || 'S1 Keperawatan')
+    const firstProdiName = firstP ? (firstP.nama_lengkap || `${firstP.jenjang ? firstP.jenjang + ' ' : ''}${firstP.nama}`) : (prodiList[0] || '')
 
     setFormData({
       nama: '',
@@ -2904,11 +2894,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                     })
                   }}
                 >
-                  {jabatanList.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.nama} {j.kategori ? `(${j.kategori})` : ''}
-                    </option>
-                  ))}
+                  {jabatanList.length === 0 ? (
+                    <option value="" disabled>Memuat daftar jabatan kampus dari database...</option>
+                  ) : (
+                    jabatanList.map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.nama} {j.kategori ? `(${j.kategori})` : ''}
+                      </option>
+                    ))
+                  )}
                   {!jabatanList.some((j) => j.id === formData.jabatanKampusId) && formData.jabatanKampusId && (
                     <option value={formData.jabatanKampusId}>
                       {formData.jabatanStruktural || formData.jabatanKampusId}
@@ -3156,180 +3150,6 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     )
   }
 
-  if (viewMode === 'detail' && selectedDosen) {
-    return (
-      <div className="page-container" ref={containerRef}>
-        <div className="page-header">
-          <div>
-            <button className="btn-back" onClick={() => setViewMode('list')}>
-              <ArrowLeft size={14} />
-              <span>Kembali ke Data Dosen</span>
-            </button>
-            <h1 className="page-title" style={{ marginTop: 12 }}>
-              Profil Dosen: {selectedDosen.nama}
-            </h1>
-            <p className="page-desc">
-              Informasi lengkap biodata kepegawaian, jabatan fungsional, dan status sasaran kinerja.
-            </p>
-          </div>
-
-          <button
-            className="brand-btn btn-action-edit"
-            onClick={() => handleOpenEdit(selectedDosen)}
-          >
-            <Edit2 size={15} />
-            <span>Edit Data Dosen</span>
-          </button>
-        </div>
-
-        <div className="form-page-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 18, paddingBottom: 20, borderBottom: '1px solid var(--hair)' }}>
-            <div
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: '50%',
-                background: 'var(--navy-900)',
-                color: '#ffffff',
-                fontWeight: 800,
-                fontSize: '20px',
-                display: 'grid',
-                placeItems: 'center',
-              }}
-            >
-              {selectedDosen.nama.split(' ')[0][0]}
-            </div>
-            <div>
-              <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--ink)' }}>
-                {selectedDosen.nama}
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: 3 }}>
-                NIP: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.nip}</strong> &bull; NUPTK: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.nuptk || '-'}</strong> &bull; Homebase: {selectedDosen.prodi} &bull; Jabatan Kampus: <strong style={{ color: 'var(--ink)' }}>{selectedDosen.jabatanStruktural || 'Dosen'}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jabatan Fungsional</div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--brand-700)', marginTop: 4 }}>
-                {(selectedDosen.jafung || 'Tenaga Pengajar').replace(/asistan/i, 'Asisten')}
-              </div>
-            </div>
-
-            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Jabatan Kampus / Tugas Tambahan</div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: selectedDosen.jabatanStruktural && selectedDosen.jabatanStruktural !== 'Dosen' ? '#1d4ed8' : 'var(--ink)', marginTop: 4 }}>
-                {(() => {
-                  const matched = jabatanList.find((j) => j.id === selectedDosen.jabatanKampusId)
-                  const raw = matched?.nama || selectedDosen.jabatanStruktural || 'Dosen'
-                  return raw.length > 25 && raw === raw.toUpperCase()
-                    ? raw.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-                    : raw
-                })()}
-              </div>
-            </div>
-
-            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Pangkat &amp; Golongan</div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
-                {selectedDosen.golongan}
-              </div>
-            </div>
-
-            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Status Kepegawaian</div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
-                {selectedDosen.status}
-              </div>
-            </div>
-
-            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Status SKP Semester Ini</div>
-              <div style={{ marginTop: 4 }}>
-                {(() => {
-                  const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(selectedDosen.skpStatus)
-                  return (
-                    <span
-                      className={`badge-pill ${
-                        isSah
-                          ? 'badge-pill--green'
-                          : selectedDosen.skpStatus === 'Perlu Revisi'
-                          ? 'badge-pill--red'
-                          : selectedDosen.skpStatus === 'Diajukan'
-                          ? 'badge-pill--orange'
-                          : 'badge-pill--gray'
-                      }`}
-                    >
-                      {isSah ? 'Sah & Terbit' : selectedDosen.skpStatus}
-                    </span>
-                  )
-                })()}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ padding: '18px 20px', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)', background: 'var(--panel-hover)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: 12 }}>
-              <GraduationCap size={16} color="var(--brand-600)" />
-              <span>Riwayat Kualifikasi Pendidikan Formal</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-              <div style={{ padding: '10px 14px', background: '#ffffff', borderRadius: 'var(--r-sm)', border: '1px solid var(--hair)' }}>
-                <span style={{ fontSize: '11px', color: 'var(--brand-700)', fontWeight: 700 }}>Jenjang S1 (Sarjana / D4)</span>
-                <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 3, fontWeight: 500 }}>
-                  {selectedDosen.pendidikanS1 || selectedDosen.pendidikan || '-'}
-                </div>
-              </div>
-              {selectedDosen.pendidikanProfesi && (
-                <div style={{ padding: '10px 14px', background: '#ffffff', borderRadius: 'var(--r-sm)', border: '1px solid var(--hair)' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>Pendidikan Profesi</span>
-                  <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 3, fontWeight: 500 }}>
-                    {selectedDosen.pendidikanProfesi}
-                  </div>
-                </div>
-              )}
-              {selectedDosen.pendidikanS2 && (
-                <div style={{ padding: '10px 14px', background: '#ffffff', borderRadius: 'var(--r-sm)', border: '1px solid var(--hair)' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>Jenjang S2 (Magister)</span>
-                  <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 3, fontWeight: 500 }}>
-                    {selectedDosen.pendidikanS2}
-                  </div>
-                </div>
-              )}
-              {selectedDosen.pendidikanS3 && (
-                <div style={{ padding: '10px 14px', background: '#ffffff', borderRadius: 'var(--r-sm)', border: '1px solid var(--hair)' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>Jenjang S3 (Doktor)</span>
-                  <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 3, fontWeight: 500 }}>
-                    {selectedDosen.pendidikanS3}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <Mail size={18} color="var(--brand-600)" />
-              <div>
-                <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Email Akun Resmi</div>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)' }}>{selectedDosen.email}</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-              <Phone size={18} color="var(--brand-600)" />
-              <div>
-                <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Nomor WhatsApp / Seluler</div>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)' }}>{selectedDosen.phone}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="page-container" ref={containerRef}>
       <div className="page-header">
@@ -3413,6 +3233,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <select
               className="custom-select"
               title={`Program Studi: ${selectedProdi}`}
+              disabled={prodiList.length === 0}
               style={{
                 height: 38,
                 width: '100%',
@@ -3421,6 +3242,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 textOverflow: 'ellipsis',
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
+                opacity: prodiList.length === 0 ? 0.6 : 1,
               }}
               value={selectedProdi}
               onChange={(e) => {
@@ -3429,11 +3251,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               }}
             >
               <option value="Semua Program Studi">Semua Program Studi</option>
-              {prodiList.map((prodi, idx) => (
-                <option key={idx} value={prodi} title={prodi}>
-                  {prodi}
-                </option>
-              ))}
+              {prodiList.length === 0 ? (
+                <option disabled value="">Memuat program studi...</option>
+              ) : (
+                prodiList.map((prodi, idx) => (
+                  <option key={idx} value={prodi} title={prodi}>
+                    {prodi}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -3472,6 +3298,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
             <select
               className="custom-select"
               title={`Jabatan Kampus: ${selectedJabatanFilter}`}
+              disabled={jabatanList.length === 0}
               style={{
                 height: 38,
                 width: '100%',
@@ -3480,6 +3307,7 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                 textOverflow: 'ellipsis',
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
+                opacity: jabatanList.length === 0 ? 0.6 : 1,
               }}
               value={selectedJabatanFilter}
               onChange={(e) => {
@@ -3488,11 +3316,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               }}
             >
               <option value="Semua Jabatan">Semua Jabatan Kampus</option>
-              {jabatanList.map((j) => (
-                <option key={j.id} value={j.id} title={j.nama}>
-                  {j.nama}
-                </option>
-              ))}
+              {jabatanList.length === 0 ? (
+                <option disabled value="">Memuat jabatan kampus...</option>
+              ) : (
+                jabatanList.map((j) => (
+                  <option key={j.id} value={j.id} title={j.nama}>
+                    {j.nama}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

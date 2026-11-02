@@ -20,6 +20,7 @@ import { openPrintSKP } from '../utils/printSKP'
 import { useStaggerEntrance } from '../utils/animations'
 import { sanitizeUrl } from '../utils/security'
 import { TablePagination } from '../components/TablePagination'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
 
 interface KelolaSKPDosenProps {
   skpList: PengajuanSKP[]
@@ -88,9 +89,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
     const years = Array.from(
       new Set([
         ...skpList.map((s) => s.tahunAkademik).filter(Boolean),
-        '2026/2027',
-        '2025/2026',
-        '2024/2025',
+        ...DEFAULT_TAHUN_AJARAN_OPTIONS,
       ])
     )
     return years.sort().reverse()

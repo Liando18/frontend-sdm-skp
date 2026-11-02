@@ -5,6 +5,11 @@ import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 import { exportSKPToExcel } from '../utils/skpExcelExport'
 import { api } from '../services/api'
 import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
+import { getStoredUserSession } from '../utils/authStorage'
+import { extractDocumentParams } from '../utils/urlSecurity'
+import { KopSuratUBK } from '../components/print/KopSuratUBK'
+import { TandaTanganBlock } from '../components/print/TandaTanganBlock'
+import { PrintPageContainer } from '../components/print/PrintPageContainer'
 
 export const CetakSKPStandaloneView: React.FC = () => {
   const [skp, setSkp] = useState<PengajuanSKP | null>(null)
@@ -16,8 +21,8 @@ export const CetakSKPStandaloneView: React.FC = () => {
   // Data Rektor Pejabat Penilai formal (100% dinamis dari database dosens dengan jabatan Rektor)
   const [rektor, setRektor] = useState<RektorData | null>(() => {
     try {
-      const urlParams = new URLSearchParams(window.location.search)
-      const skpId = urlParams.get('id')
+      const docParams = extractDocumentParams()
+      const skpId = docParams.id
       const rawCache = skpId
         ? localStorage.getItem(`ubk_print_skp_${skpId}`) || localStorage.getItem('ubk_print_skp_data')
         : localStorage.getItem('ubk_print_skp_data')
@@ -35,9 +40,9 @@ export const CetakSKPStandaloneView: React.FC = () => {
   useEffect(() => {
     let isMounted = true
 
-    // 1. Ambil ID dari URL query param ?id=...
-    const urlParams = new URLSearchParams(window.location.search)
-    const skpId = urlParams.get('id')
+    // 1. Ambil ID dari token path URL atau query param
+    const docParams = extractDocumentParams()
+    const skpId = docParams.id
 
     // 2. Baca cache jika sudah lengkap (data SKP dan Rektor dinamis)
     let hasSkpCache = false
@@ -175,9 +180,8 @@ export const CetakSKPStandaloneView: React.FC = () => {
 
     // Fallback: Jika pengguna yang sedang aktif di sesi adalah dosen yang bersangkutan
     try {
-      const rawUser = localStorage.getItem('ubk_user_session')
-      if (rawUser) {
-        const u = JSON.parse(rawUser)
+      const u = getStoredUserSession()
+      if (u) {
         const isMatchNip = u.nip && skp.dosenNip && u.nip !== '-' && u.nip === skp.dosenNip
         const isMatchNama = u.name && skp.dosenNama && u.name.trim().toLowerCase() === skp.dosenNama.trim().toLowerCase()
         const isMatchId = u.id && skp.dosenId && u.id === skp.dosenId
@@ -248,160 +252,71 @@ export const CetakSKPStandaloneView: React.FC = () => {
   const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(skp.status)
 
   return (
-    <div className="print-standalone-wrapper">
-      {/* =========================================================================
-          EMBEDDED STYLES FOR CLEAN SCREEN PREVIEW & FLAWLESS A4 MULTI-PAGE PRINT
-         ========================================================================= */}
+    <PrintPageContainer
+      title="Formulir Sasaran Kinerja Pegawai (SKP)"
+      subtitle={`${skp.dosenNama} • Semester ${skp.semester} TA ${skp.tahunAkademik} • ${skp.dosenProdi}`}
+      badge={
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 999,
+            background: isSah ? '#059669' : '#d97706',
+            color: '#ffffff',
+          }}
+        >
+          {isSah ? 'Sah & Terbit Resmi' : skp.status}
+        </span>
+      }
+      actions={
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={isExportingExcel}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: '#16a34a',
+            color: '#ffffff',
+            border: '1px solid #15803d',
+            borderRadius: 8,
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+          title="Unduh format spreadsheet Excel"
+        >
+          {isExportingExcel ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <FileSpreadsheet size={14} />
+          )}
+          <span>{isExportingExcel ? 'Membuat Excel...' : 'Ekspor Excel'}</span>
+        </button>
+      }
+    >
       <style>{`
-        @media print {
-          @page {
-            size: A4 portrait;
-            margin: 8mm 10mm 8mm 10mm;
-          }
-
-          *, *::before, *::after {
-            box-shadow: none !important;
-            text-shadow: none !important;
-          }
-
-          html, body, #root, .print-standalone-wrapper {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            min-height: 0 !important;
-            overflow: visible !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
-          .no-print-bar {
-            display: none !important;
-          }
-
-          .print-standalone-wrapper {
-            padding-top: 0 !important;
-          }
-
-          .a4-paper {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            min-height: 0 !important;
-            height: auto !important;
-          }
-
-          /* Ensure table headers stay on top of subsequent pages */
-          thead {
-            display: table-header-group !important;
-          }
-
-          tfoot {
-            display: table-footer-group !important;
-          }
-
-          /* Prevent table rows and signature section from breaking across pages awkwardly */
-          tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-
-          .avoid-break {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-        }
-
-        /* Screen Preview Styling */
-        @media screen {
-          html, body {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            height: auto !important;
-            min-height: 100% !important;
-            background-color: #334155 !important;
-          }
-
-          #root {
-            height: auto !important;
-            min-height: 100vh !important;
-            overflow: visible !important;
-          }
-
-          .print-standalone-wrapper {
-            min-height: 100vh;
-            height: auto;
-            width: 100%;
-            background-color: #334155;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-y: visible;
-            padding-top: 72px;
-            padding-bottom: 60px;
-          }
-
-          .a4-paper {
-            background: #ffffff;
-            width: 210mm;
-            min-height: 297mm;
-            margin: 20px auto 40px;
-            padding: 12mm 14mm 16mm 14mm;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.35);
-            box-sizing: border-box;
-          }
-        }
-
-        .print-standalone-wrapper {
-          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        .no-print-bar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          width: 100%;
-          background: #0f172a;
-          color: #f8fafc;
-          padding: 12px 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 12px;
-          z-index: 9999;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        .a4-paper {
-          color: #000000;
-          font-size: 8.5pt;
-          line-height: 1.3;
-          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
         .skp-table {
-          width: 100%;
+          width: 100% !important;
+          max-width: 100% !important;
           border-collapse: collapse;
           table-layout: fixed;
           font-size: 8pt;
           margin-top: 8px;
+          box-sizing: border-box;
           font-variant-numeric: tabular-nums;
           font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         .skp-table th, .skp-table td {
           border: 1px solid #000000;
-          padding: 3.5px 3px;
+          padding: 4px 3px;
+          overflow: hidden;
+          box-sizing: border-box;
+          line-height: 1.35;
           word-wrap: break-word;
           overflow-wrap: break-word;
         }
@@ -411,7 +326,10 @@ export const CetakSKPStandaloneView: React.FC = () => {
           font-weight: 700;
           text-align: center;
           color: #000000;
-          padding: 4px 3px;
+          padding: 6px 3px;
+          word-break: keep-all;
+          hyphens: none;
+          line-height: 1.3;
         }
 
         .skp-table tbody tr {
@@ -422,139 +340,10 @@ export const CetakSKPStandaloneView: React.FC = () => {
           background-color: #ffffff !important;
           color: #000000;
         }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
       `}</style>
 
-      {/* =========================================================================
-          FLOATING TOOLBAR (HANYA MUNCUL DI LAYAR, TERSEMBUNYI SAAT DICETAK)
-         ========================================================================= */}
-      <div className="no-print-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button
-            onClick={() => window.close()}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#1e293b',
-              color: '#cbd5e1',
-              border: '1px solid #334155',
-              borderRadius: 6,
-              padding: '6px 12px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-            title="Tutup tab pratinjau cetak ini"
-          >
-            <ArrowLeft size={14} />
-            <span>Tutup Tab</span>
-          </button>
-
-          <div>
-            <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>Formulir Sasaran Kinerja Pegawai (SKP)</span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: 999,
-                  background: isSah ? '#059669' : '#d97706',
-                  color: '#ffffff',
-                }}
-              >
-                {isSah ? 'Sah & Terbit Resmi' : skp.status}
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 1 }}>
-              {skp.dosenNama} &bull; Semester {skp.semester} TA {skp.tahunAkademik} &bull; {skp.dosenProdi}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={isExportingExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: '#16a34a',
-              color: '#ffffff',
-              border: '1px solid #15803d',
-              borderRadius: 8,
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-            title="Unduh format spreadsheet Excel"
-          >
-            <FileSpreadsheet size={14} />
-            <span>{isExportingExcel ? 'Membuat Excel...' : 'Ekspor Excel'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 18px',
-              background: '#4b5563',
-              color: '#ffffff',
-              border: '1px solid #374151',
-              borderRadius: 8,
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(75,85,99,0.35)',
-            }}
-            title="Buka dialog cetak browser (Pilih Save as PDF untuk menyimpan file PDF)"
-          >
-            <Printer size={16} />
-            <span>Cetak / Simpan PDF</span>
-          </button>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          KERTAS STANDAR A4 RESMI (CONTINUOUS LAYOUT - NATIVE AUTO PAGINATION)
-         ========================================================================= */}
-      <div className="a4-paper">
-        {/* KOP SURAT RESMI UNIVERSITAS BHAKTI KENCANA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '3px double #000000', paddingBottom: 6, marginBottom: 8 }}>
-          <img
-            src="/logo.svg"
-            alt="Logo UBK"
-            style={{ width: 64, height: 64, objectFit: 'contain' }}
-            onError={(e) => {
-              // Sembunyikan jika gagal termuat
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: '11pt', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              YAYASAN BHAKTI KENCANA
-            </div>
-            <div style={{ fontSize: '13.5pt', fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#0f223d' }}>
-              UNIVERSITAS BHAKTI KENCANA
-            </div>
-            <div style={{ fontSize: '8pt', color: '#1e293b', marginTop: 1 }}>
-              Jl. Soekarno-Hatta No. 754 Cibiru, Kota Bandung, Jawa Barat 40614
-            </div>
-            <div style={{ fontSize: '7.5pt', color: '#475569' }}>
-              Telp. (022) 7806500 | Laman: www.bku.ac.id | Pos-el: info@bku.ac.id
-            </div>
-          </div>
-        </div>
+      {/* KOP SURAT RESMI UNIVERSITAS BHAKTI KENCANA */}
+      <KopSuratUBK />
 
         {/* JUDUL FORMULIR */}
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
@@ -634,46 +423,46 @@ export const CetakSKPStandaloneView: React.FC = () => {
            ========================================================================= */}
         <table className="skp-table">
           <colgroup>
-            <col style={{ width: '26px' }} />
-            <col style={{ width: 'auto' }} />
-            <col style={{ width: '52px' }} />
-            <col style={{ width: '54px' }} />
-            <col style={{ width: '36px' }} />
-            <col style={{ width: '58px' }} />
-            <col style={{ width: '50px' }} />
-            <col style={{ width: '30px' }} />
-            <col style={{ width: '30px' }} />
-            <col style={{ width: '74px' }} />
+            <col style={{ width: '4%' }} />   {/* 1. NO */}
+            <col style={{ width: '34%' }} />  {/* 2. KEGIATAN */}
+            <col style={{ width: '7%' }} />   {/* 3. Rencana Awal */}
+            <col style={{ width: '7%' }} />   {/* 4. Perubahan Tengah */}
+            <col style={{ width: '5%' }} />   {/* 5. Realisasi Kuantitas */}
+            <col style={{ width: '11%' }} />  {/* 6. Satuan Output */}
+            <col style={{ width: '7%' }} />   {/* 7. Kualitas Mutu */}
+            <col style={{ width: '4%' }} />   {/* 8. Waktu Angka */}
+            <col style={{ width: '7%' }} />   {/* 9. Waktu Satuan (bulan) */}
+            <col style={{ width: '14%' }} />  {/* 10. Link Dokumen */}
           </colgroup>
           <thead>
             <tr>
-              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', wordBreak: 'keep-all', hyphens: 'none' }}>
                 NO
               </th>
-              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', wordBreak: 'keep-all', hyphens: 'none' }}>
                 III. KEGIATAN TUGAS JABATAN
               </th>
-              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', lineHeight: 1.25 }}>
+              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', lineHeight: 1.25, wordBreak: 'keep-all', hyphens: 'none' }}>
                 Rencana Awal<br />Semester
               </th>
-              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', lineHeight: 1.25 }}>
+              <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', lineHeight: 1.25, wordBreak: 'keep-all', hyphens: 'none' }}>
                 Perubahan<br />Tengah Semester
               </th>
-              <th colSpan={6} style={{ textAlign: 'center', verticalAlign: 'middle', fontWeight: 800 }}>
+              <th colSpan={6} style={{ textAlign: 'center', verticalAlign: 'middle', fontWeight: 800, wordBreak: 'keep-all', hyphens: 'none' }}>
                 Realisasi
               </th>
             </tr>
             <tr>
-              <th colSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+              <th colSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', wordBreak: 'keep-all', hyphens: 'none' }}>
                 KUANT/OUTPUT
               </th>
-              <th style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+              <th style={{ textAlign: 'center', verticalAlign: 'middle', wordBreak: 'keep-all', hyphens: 'none' }}>
                 KUAL/MUTU
               </th>
-              <th colSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+              <th colSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle', wordBreak: 'keep-all', hyphens: 'none' }}>
                 WAKTU
               </th>
-              <th style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+              <th style={{ textAlign: 'center', verticalAlign: 'middle', wordBreak: 'keep-all', hyphens: 'none' }}>
                 Link Dokumen
               </th>
             </tr>
@@ -683,7 +472,7 @@ export const CetakSKPStandaloneView: React.FC = () => {
               skp.items.map((item, idx) => (
                 <tr key={item.id || idx} style={{ background: '#ffffff' }}>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
-                  <td style={{ textAlign: 'left', fontWeight: 500 }}>
+                  <td style={{ textAlign: 'left', fontWeight: 500, wordBreak: 'break-word' }}>
                     <div>{item.kegiatan}</div>
                     {item.kategori && (
                       <span style={{ fontSize: '7.5pt', color: '#64748b', fontStyle: 'italic' }}>
@@ -696,7 +485,7 @@ export const CetakSKPStandaloneView: React.FC = () => {
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
                     {item.realisasi ?? 0}
                   </td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td style={{ textAlign: 'center', wordBreak: 'break-word', fontSize: '7.5pt' }}>
                     {item.satuan || 'SKS'}
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
@@ -707,10 +496,10 @@ export const CetakSKPStandaloneView: React.FC = () => {
                   <td style={{ textAlign: 'center' }}>
                     {item.waktuNilai ?? 6}
                   </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {item.waktuSatuan || 'bln'}
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {item.waktuSatuan || 'bulan'}
                   </td>
-                  <td style={{ textAlign: 'center', fontSize: '8pt' }}>
+                  <td style={{ textAlign: 'center', fontSize: '7.5pt' }}>
                     {item.linkDokumen ? (
                       <a
                         href={sanitizeUrl(item.linkDokumen)}
@@ -744,16 +533,16 @@ export const CetakSKPStandaloneView: React.FC = () => {
           </tbody>
           <tfoot>
             <tr style={{ background: '#ffffff', fontWeight: 800 }}>
-              <td colSpan={4} style={{ textAlign: 'right', padding: '6px 10px' }}>
+              <td colSpan={4} style={{ textAlign: 'right', padding: '6px 10px', whiteSpace: 'nowrap' }}>
                 REKAPITULASI CAPAIAN TRIDHARMA:
               </td>
-              <td colSpan={2} style={{ textAlign: 'center' }}>
+              <td colSpan={2} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                 {skp.totalSksRealisasi} SKS
               </td>
-              <td style={{ textAlign: 'center', color: '#000000' }}>
+              <td style={{ textAlign: 'center', color: '#000000', whiteSpace: 'nowrap' }}>
                 {totalMutu.replace('.', ',')}
               </td>
-              <td colSpan={3} style={{ textAlign: 'center', fontSize: '8pt', color: '#475569' }}>
+              <td colSpan={3} style={{ textAlign: 'center', fontSize: '8pt', color: '#475569', whiteSpace: 'nowrap' }}>
                 Formula SPMI UBK
               </td>
             </tr>
@@ -780,88 +569,26 @@ export const CetakSKPStandaloneView: React.FC = () => {
         {/* =========================================================================
             BAGIAN PENGESAHAN & TANDA TANGAN (AVOID PAGE BREAK)
            ========================================================================= */}
-        <div className="avoid-break" style={{ marginTop: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: '9pt' }}>
-            {/* Sisi Kiri: Pegawai Yang Dinilai */}
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ visibility: 'hidden' }}>Bandung, -</div>
-              <div style={{ fontWeight: 700 }}>Pegawai Yang Dinilai,</div>
-
-              {/* Tanda Tangan Dosen */}
-              <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {activeDosenSignature ? (
-                  <img
-                    src={resolveStorageUrl(activeDosenSignature)}
-                    alt="Tanda Tangan Dosen"
-                    style={{ maxHeight: 46, maxWidth: 160, objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      padding: '3px 10px',
-                      border: '1px dashed #94a3b8',
-                      borderRadius: 4,
-                      fontSize: '8pt',
-                      color: '#64748b',
-                    }}
-                  >
-                    (Tanda Tangan Digital Dosen)
-                  </div>
-                )}
-              </div>
-
-              <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 2 }}>
-                {skp.dosenNama}
-              </div>
-              <div style={{ fontSize: '8.5pt', color: '#334155' }}>
-                NUPTK: {skp.dosenNuptk || (skp as any).dosen_nuptk || '-'}
-              </div>
-            </div>
-
-            {/* Sisi Kanan: Pejabat Penilai (Rektor) */}
-            <div style={{ textAlign: 'center' }}>
-              <div>
-                Bandung, {skp.tanggalPenilaianKaprodi || skp.tanggalPenilaianDekan || skp.tanggalPengajuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </div>
-              <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
-
-              {/* Tanda Tangan Penilai (Rektor) */}
-              <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {rektor?.signatureUrl ? (
-                  <img
-                    src={resolveStorageUrl(rektor.signatureUrl)}
-                    alt="Tanda Tangan Pejabat Penilai"
-                    style={{ maxHeight: 46, maxWidth: 160, objectFit: 'contain' }}
-                  />
-                ) : isSah ? (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 4, color: '#047857', fontSize: '8pt', fontWeight: 700 }}>
-                    <CheckCircle2 size={12} />
-                    <span>Disahkan Secara Digital</span>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      padding: '3px 10px',
-                      border: '1px dashed #94a3b8',
-                      borderRadius: 4,
-                      fontSize: '8pt',
-                      color: '#64748b',
-                    }}
-                  >
-                    (Tanda Tangan Digital Rektor)
-                  </div>
-                )}
-              </div>
-
-              <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 2 }}>
-                {rektor?.nama || '-'}
-              </div>
-              <div style={{ fontSize: '8.5pt', color: '#334155' }}>
-                NUPTK: {rektor?.nuptk || '-'}
-              </div>
-            </div>
-          </div>
-        </div>
+        <TandaTanganBlock
+          pegawai={{
+            roleLabel: 'Pegawai Yang Dinilai',
+            nama: skp.dosenNama,
+            nuptk: skp.dosenNuptk || (skp as any).dosen_nuptk || undefined,
+            signatureUrl: activeDosenSignature,
+          }}
+          penilai={{
+            roleLabel: 'Pejabat Penilai',
+            nama: rektor?.nama || '-',
+            nuptk: rektor?.nuptk || undefined,
+            tanggal:
+              skp.tanggalPenilaianKaprodi ||
+              skp.tanggalPenilaianDekan ||
+              skp.tanggalPengajuan ||
+              undefined,
+            signatureUrl: rektor?.signatureUrl,
+            isDigitalVerified: isSah,
+          }}
+        />
 
         {/* CATATAN PENGISIAN RESMI */}
         <div className="avoid-break" style={{ marginTop: 10, padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 4, background: '#f8fafc', fontSize: '7.5pt', lineHeight: 1.35 }}>
@@ -872,7 +599,6 @@ export const CetakSKPStandaloneView: React.FC = () => {
             <li>Dokumen ini sah dan berkekuatan hukum sejak disetujui serta ditandatangani oleh Pejabat Penilai.</li>
           </ol>
         </div>
-      </div>
-    </div>
+    </PrintPageContainer>
   )
 }

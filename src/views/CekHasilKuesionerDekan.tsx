@@ -20,6 +20,7 @@ import { Dosen, PenilaianKuesioner, UserSession, IndikatorKuesioner, ProgramStud
 import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 import { openPrintTranskrip } from '../utils/printTranskrip'
+import { getBerakhlakDimensions } from '../utils/berakhlak'
 
 interface CekHasilKuesionerDekanProps {
   user: UserSession
@@ -34,51 +35,16 @@ interface CekHasilKuesionerDekanProps {
   onShowToast: (msg: string) => void
 }
 
-const TAHUN_AJARAN_OPTIONS = ['2026/2027', '2025/2026', '2024/2025']
+import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
 
-const BERAKHLAK_DIMENSIONS = [
-  {
-    key: 'nilaiPelayanan' as const,
-    label: '1. Orientasi Pelayanan',
-    sub: 'Sikap ramah, solutif, menghargai mahasiswa dan sivitas akademika, serta mematuhi standar pelayanan akademik.',
-  },
-  {
-    key: 'nilaiAkuntabel' as const,
-    label: '2. Akuntabel',
-    sub: 'Jujur, bertanggung jawab, disiplin waktu, berintegritas tinggi, dan objektif dalam manajemen kepemimpinan.',
-  },
-  {
-    key: 'nilaiKompeten' as const,
-    label: '3. Kompeten',
-    sub: 'Meningkatkan kompetensi keilmuan secara berkelanjutan dan membina rekan sejawat mencapai standar mutu tridharma.',
-  },
-  {
-    key: 'nilaiHarmonis' as const,
-    label: '4. Harmonis',
-    sub: 'Membangun iklim kerja program studi yang kondusif, toleran, dan sinergis antardosen dan staf.',
-  },
-  {
-    key: 'nilaiLoyal' as const,
-    label: '5. Loyal',
-    sub: 'Memegang teguh visi misi Universitas Bhakti Kencana, menjaga martabat institusi, dan berdedikasi tinggi.',
-  },
-  {
-    key: 'nilaiAdaptif' as const,
-    label: '6. Adaptif',
-    sub: 'Cepat menyesuaikan tata kelola prodi terhadap regulasi MBKM, transformasi kurikulum, dan sistem Siakad UBK.',
-  },
-  {
-    key: 'nilaiKolaboratif' as const,
-    label: '7. Kolaboratif',
-    sub: 'Mendorong sinergi riset lintas fakultas, kerja sama institusi faskes mitra, dan pemanfaatan sumber daya bersama.',
-  },
-]
+const TAHUN_AJARAN_OPTIONS = DEFAULT_TAHUN_AJARAN_OPTIONS
 
 export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   user,
   dosenList,
   skpList = [],
   penilaianList,
+  indikatorList = [],
   prodiList = [],
   fakultasList = [],
   psdkuList = [],
@@ -96,6 +62,11 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
     dosen: Dosen
     penilaian: PenilaianKuesioner
   } | null>(null)
+
+  const berakhlakDimensions = useMemo(
+    () => getBerakhlakDimensions(indikatorList),
+    [indikatorList]
+  )
 
   // 1. Identifikasi apakah user adalah Kepala Cabang (KeCab PSDKU) atau Dekan Fakultas (Pusat)
   const isKacap = Boolean(
@@ -944,14 +915,14 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                 title="Isi form otomatis dengan nilai evaluasi dummy"
               >
                 <Sparkles size={14} className="text-amber-600 animate-pulse" />
-                <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+                <span>Isi Form Otomatis (Data Dummy)</span>
               </button>
             </div>
 
             <form onSubmit={handleSaveEvaluation} style={{ marginTop: 14 }}>
               {/* 7 Dimensions Scoring */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {BERAKHLAK_DIMENSIONS.map((dim) => {
+                {berakhlakDimensions.map((dim) => {
                   const currentValue = evalScores[dim.key] as number
                   return (
                     <div
@@ -1203,7 +1174,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
 
                 {/* 7 Dimensions Detail */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {BERAKHLAK_DIMENSIONS.map((dim) => {
+                  {berakhlakDimensions.map((dim) => {
                     const score = activeDetailItem.penilaian ? (activeDetailItem.penilaian[dim.key] as number) : 0
                     const percent = (score / 4) * 100
                     return (
@@ -1312,6 +1283,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                       dosenJafung: activeDetailItem.dosen.jafung,
                       dosenGolongan: activeDetailItem.dosen.golongan,
                       tahunAkademik: selectedTahun,
+                      indikatorList,
                     })
                   }}
                   className="brand-btn btn-action-print"
@@ -1346,6 +1318,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
           dosenJafung={transcriptToPrint.dosen.jafung}
           dosenGolongan={transcriptToPrint.dosen.golongan}
           tahunAkademik={selectedTahun}
+          indikatorList={indikatorList}
         />
       )}
     </div>

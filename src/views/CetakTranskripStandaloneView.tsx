@@ -1,64 +1,31 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { Printer, ArrowLeft } from 'lucide-react'
 import { TranskripPrintData } from '../utils/printTranskrip'
 import { api } from '../services/api'
 import { resolveStorageUrl } from '../utils/security'
 import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
-
-const BERAKHLAK_ITEMS = [
-  {
-    no: 1,
-    key: 'berorientasiPelayanan',
-    label: 'Berorientasi Pelayanan',
-    desc: 'Komitmen memberikan pelayanan prima demi kepuasan mahasiswa, rekan sejawat, dan sivitas akademika.',
-  },
-  {
-    no: 2,
-    key: 'akuntabel',
-    label: 'Akuntabel',
-    desc: 'Bertanggung jawab atas kepercayaan yang diberikan serta transparan dalam tridharma perguruan tinggi.',
-  },
-  {
-    no: 3,
-    key: 'kompeten',
-    label: 'Kompeten',
-    desc: 'Terus belajar dan mengembangkan kapabilitas akademik, pedagogik, serta kepakaran bidang ilmu.',
-  },
-  {
-    no: 4,
-    key: 'harmonis',
-    label: 'Harmonis',
-    desc: 'Saling peduli dan menghargai perbedaan latar belakang sivitas akademika dalam lingkungan kampus.',
-  },
-  {
-    no: 5,
-    key: 'loyal',
-    label: 'Loyal',
-    desc: 'Berdedikasi dan mengutamakan kepentingan bangsa, negara, dan institusi Universitas Bhakti Kencana.',
-  },
-  {
-    no: 6,
-    key: 'adaptif',
-    label: 'Adaptif',
-    desc: 'Terus berinovasi dan antusias dalam menggerakkan ataupun menghadapi perubahan teknologi kurikulum.',
-  },
-  {
-    no: 7,
-    key: 'kolaboratif',
-    label: 'Kolaboratif',
-    desc: 'Membangun kerja sama yang sinergis antar program studi, fakultas, maupun mitra eksternal.',
-  },
-]
+import { extractDocumentParams } from '../utils/urlSecurity'
+import { KopSuratUBK } from '../components/print/KopSuratUBK'
+import { TandaTanganBlock } from '../components/print/TandaTanganBlock'
+import { PrintPageContainer } from '../components/print/PrintPageContainer'
+import { IndikatorKuesioner } from '../types'
+import { getBerakhlakDimensions, extractDimensionScore, getEkspektasiKualifikasi } from '../utils/berakhlak'
 
 export const CetakTranskripStandaloneView: React.FC = () => {
   const [data, setData] = useState<TranskripPrintData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [indikatorList, setIndikatorList] = useState<IndikatorKuesioner[]>([])
+
+  const berakhlakDimensions = useMemo(
+    () => getBerakhlakDimensions(indikatorList),
+    [indikatorList]
+  )
 
   // Data Rektor Pejabat Penilai formal (100% dinamis dari database)
   const [rektor, setRektor] = useState<RektorData | null>(() => {
     try {
-      const urlParams = new URLSearchParams(window.location.search)
-      const nip = urlParams.get('nip')
+      const docParams = extractDocumentParams()
+      const nip = docParams.nip || docParams.dosenNip || docParams.id
       const raw = nip
         ? localStorage.getItem(`ubk_print_transkrip_${nip}`) || localStorage.getItem('ubk_print_transkrip_data')
         : localStorage.getItem('ubk_print_transkrip_data')
@@ -74,8 +41,8 @@ export const CetakTranskripStandaloneView: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true
-    const urlParams = new URLSearchParams(window.location.search)
-    const nip = urlParams.get('nip')
+    const docParams = extractDocumentParams()
+    const nip = docParams.nip || docParams.dosenNip || docParams.id
 
     let hasCompleteCache = false
     try {
@@ -87,6 +54,9 @@ export const CetakTranskripStandaloneView: React.FC = () => {
         const parsed = JSON.parse(raw) as TranskripPrintData
         if (parsed?.penilaian) {
           setData(parsed)
+          if (Array.isArray(parsed.indikatorList) && parsed.indikatorList.length > 0) {
+            setIndikatorList(parsed.indikatorList)
+          }
           if (parsed.rektor?.nama && parsed.rektor.nama !== '-') {
             setRektor(parsed.rektor)
             hasCompleteCache = true
@@ -114,6 +84,15 @@ export const CetakTranskripStandaloneView: React.FC = () => {
           setIsLoading(false)
         }
       })
+
+    api.indikator
+      .list()
+      .then((items) => {
+        if (isMounted && Array.isArray(items)) {
+          setIndikatorList(items)
+        }
+      })
+      .catch(() => {})
 
     return () => {
       isMounted = false
@@ -156,159 +135,29 @@ export const CetakTranskripStandaloneView: React.FC = () => {
 
   const { penilaian, dosenNama, dosenNip, dosenNuptk, dosenProdi, dosenJafung = 'Dosen Tetap', dosenGolongan = 'Penata Muda / IIIa', tahunAkademik } = data as any
 
-  const getScore = (key: string): number => {
-    const p = penilaian as unknown as Record<string, unknown>
-    if (key === 'berorientasiPelayanan') return Number(penilaian.nilaiPelayanan ?? p.berorientasiPelayanan ?? 0)
-    if (key === 'akuntabel') return Number(penilaian.nilaiAkuntabel ?? p.akuntabel ?? 0)
-    if (key === 'kompeten') return Number(penilaian.nilaiKompeten ?? p.kompeten ?? 0)
-    if (key === 'harmonis') return Number(penilaian.nilaiHarmonis ?? p.harmonis ?? 0)
-    if (key === 'loyal') return Number(penilaian.nilaiLoyal ?? p.loyal ?? 0)
-    if (key === 'adaptif') return Number(penilaian.nilaiAdaptif ?? p.adaptif ?? 0)
-    if (key === 'kolaboratif') return Number(penilaian.nilaiKolaboratif ?? p.kolaboratif ?? 0)
-    return Number(p[key] || 0)
-  }
-
   const rataRata = Number(penilaian.rataRata) || 0
   const skala100 = (rataRata / 4) * 100
 
-  const getKualifikasi = (score: number) => {
-    if (score >= 3.8) return 'Di Atas Ekspektasi'
-    if (score >= 3.0) return 'Sesuai Ekspektasi'
-    return 'Di Bawah Ekspektasi'
-  }
-
   return (
-    <div className="print-standalone-wrapper">
+    <PrintPageContainer
+      title="Transkrip Evaluasi Perilaku Kerja BerAKHLAK"
+      subtitle={`${dosenNama} • TA ${tahunAkademik} • ${dosenProdi}`}
+      badge={
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 999,
+            background: '#059669',
+            color: '#ffffff',
+          }}
+        >
+          Resmi Terverifikasi
+        </span>
+      }
+    >
       <style>{`
-        @media print {
-          @page {
-            size: A4 portrait;
-            margin: 8mm 10mm 8mm 10mm;
-          }
-
-          *, *::before, *::after {
-            box-shadow: none !important;
-            text-shadow: none !important;
-          }
-
-          html, body, #root, .print-standalone-wrapper {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            min-height: 0 !important;
-            overflow: visible !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
-          .no-print-bar {
-            display: none !important;
-          }
-
-          .print-standalone-wrapper {
-            padding-top: 0 !important;
-          }
-
-          .a4-paper {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            min-height: 0 !important;
-            height: auto !important;
-          }
-
-          thead {
-            display: table-header-group !important;
-          }
-
-          tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-
-          .avoid-break {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-        }
-
-        @media screen {
-          html, body {
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            height: auto !important;
-            min-height: 100% !important;
-            background-color: #334155 !important;
-          }
-
-          #root {
-            height: auto !important;
-            min-height: 100vh !important;
-            overflow: visible !important;
-          }
-
-          .print-standalone-wrapper {
-            min-height: 100vh;
-            height: auto;
-            width: 100%;
-            background-color: #334155;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-y: visible;
-            padding-top: 72px;
-            padding-bottom: 60px;
-          }
-
-          .a4-paper {
-            background: #ffffff;
-            width: 210mm;
-            min-height: 297mm;
-            margin: 20px auto 40px;
-            padding: 12mm 14mm 16mm 14mm;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.35);
-            box-sizing: border-box;
-          }
-        }
-
-        .print-standalone-wrapper {
-          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        .no-print-bar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          width: 100%;
-          background: #0f172a;
-          color: #f8fafc;
-          padding: 12px 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 12px;
-          z-index: 9999;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        .a4-paper {
-          color: #000000;
-          font-size: 8.5pt;
-          line-height: 1.3;
-          font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
         .transkrip-table {
           width: 100%;
           border-collapse: collapse;
@@ -336,98 +185,10 @@ export const CetakTranskripStandaloneView: React.FC = () => {
           background-color: #ffffff !important;
           color: #000000;
         }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
       `}</style>
 
-      {/* Floating Toolbar */}
-      <div className="no-print-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button
-            onClick={() => window.close()}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#1e293b',
-              color: '#cbd5e1',
-              border: '1px solid #334155',
-              borderRadius: 6,
-              padding: '6px 12px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            <ArrowLeft size={14} />
-            <span>Tutup Tab</span>
-          </button>
-
-          <div>
-            <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>Transkrip Evaluasi Perilaku Kerja BerAKHLAK</span>
-              <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: '#059669', color: '#ffffff' }}>
-                Resmi Terverifikasi
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 1 }}>
-              {dosenNama} &bull; TA {tahunAkademik} &bull; {dosenProdi}
-            </div>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handlePrint}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 18px',
-            background: '#4b5563',
-            color: '#ffffff',
-            border: '1px solid #374151',
-            borderRadius: 8,
-            fontSize: '13px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(75,85,99,0.35)',
-          }}
-        >
-          <Printer size={16} />
-          <span>Cetak / Simpan PDF</span>
-        </button>
-      </div>
-
-      {/* A4 Document Body */}
-      <div className="a4-paper">
-        {/* Kop Surat Resmi */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '3px double #000000', paddingBottom: 6, marginBottom: 8 }}>
-          <img
-            src="/logo.svg"
-            alt="Logo UBK"
-            style={{ width: 64, height: 64, objectFit: 'contain' }}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: '11pt', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              YAYASAN BHAKTI KENCANA
-            </div>
-            <div style={{ fontSize: '13.5pt', fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#0f223d' }}>
-              UNIVERSITAS BHAKTI KENCANA
-            </div>
-            <div style={{ fontSize: '8pt', color: '#1e293b', marginTop: 1 }}>
-              Jl. Soekarno-Hatta No. 754 Cibiru, Kota Bandung, Jawa Barat 40614
-            </div>
-            <div style={{ fontSize: '7.5pt', color: '#475569' }}>
-              Telp. (022) 7806500 | Laman: www.bku.ac.id | Pos-el: info@bku.ac.id
-            </div>
-          </div>
-        </div>
+      {/* Kop Surat Resmi */}
+      <KopSuratUBK />
 
         {/* Judul Dokumen */}
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
@@ -500,15 +261,15 @@ export const CetakTranskripStandaloneView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {BERAKHLAK_ITEMS.map((item, idx) => {
-              const score = getScore(item.key)
+            {berakhlakDimensions.map((item, idx) => {
+              const score = extractDimensionScore(data?.penilaian, item.key)
               const pct = (score / 4) * 100
               return (
-                <tr key={idx}>
+                <tr key={item.key || idx}>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{item.no}</td>
                   <td>
-                    <div style={{ fontWeight: 700 }}>{item.label}</div>
-                    <div style={{ fontSize: '7.5pt', color: '#475569', marginTop: 1 }}>{item.desc}</div>
+                    <div style={{ fontWeight: 700 }}>{item.title}</div>
+                    <div style={{ fontSize: '7.5pt', color: '#475569', marginTop: 1 }}>{item.sub}</div>
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 800, fontSize: '9pt' }}>
                     {score.toFixed(1)}
@@ -517,7 +278,7 @@ export const CetakTranskripStandaloneView: React.FC = () => {
                     {pct.toFixed(0)}%
                   </td>
                   <td style={{ textAlign: 'center', fontSize: '8pt', color: '#0369a1', fontWeight: 600 }}>
-                    {getKualifikasi(score)}
+                    {getEkspektasiKualifikasi(score)}
                   </td>
                 </tr>
               )
@@ -550,47 +311,22 @@ export const CetakTranskripStandaloneView: React.FC = () => {
         </div>
 
         {/* Tanda Tangan */}
-        <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: '8.5pt', marginTop: 10 }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '8pt', visibility: 'hidden' }}>Bandung, -</div>
-            <div style={{ fontWeight: 700 }}>Pegawai Yang Dinilai,</div>
-            <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {data.dosenSignatureUrl ? (
-                <img
-                  src={resolveStorageUrl(data.dosenSignatureUrl)}
-                  alt="Tanda Tangan Dosen"
-                  style={{ maxHeight: 44, maxWidth: 150, objectFit: 'contain' }}
-                />
-              ) : (
-                <div style={{ height: 38 }} />
-              )}
-            </div>
-            <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosenNama}</div>
-            <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {dosenNuptk || '-'}</div>
-          </div>
-
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '8pt', color: '#334155' }}>
-              Bandung, {penilaian.tanggal || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </div>
-            <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
-            <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {rektor?.signatureUrl ? (
-                <img
-                  src={resolveStorageUrl(rektor.signatureUrl)}
-                  alt="Tanda Tangan Pejabat Penilai"
-                  style={{ maxHeight: 44, maxWidth: 150, objectFit: 'contain' }}
-                />
-              ) : (
-                <div style={{ height: 38 }} />
-              )}
-            </div>
-            <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{rektor?.nama || '-'}</div>
-            <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {rektor?.nuptk || '-'}</div>
-          </div>
-        </div>
-
-      </div>
-    </div>
+        <TandaTanganBlock
+          pegawai={{
+            roleLabel: 'Pegawai Yang Dinilai',
+            nama: dosenNama,
+            nuptk: dosenNuptk || undefined,
+            signatureUrl: data.dosenSignatureUrl,
+          }}
+          penilai={{
+            roleLabel: 'Pejabat Penilai',
+            nama: rektor?.nama || '-',
+            nuptk: rektor?.nuptk || undefined,
+            tanggal: penilaian.tanggal || undefined,
+            signatureUrl: rektor?.signatureUrl,
+            isDigitalVerified: true,
+          }}
+        />
+    </PrintPageContainer>
   )
 }

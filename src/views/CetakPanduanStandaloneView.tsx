@@ -1,6 +1,9 @@
+import { KopSuratUBK } from '../components/print/KopSuratUBK'
+import { PrintPageContainer } from '../components/print/PrintPageContainer'
 import React, { useEffect, useState } from 'react'
 import { Printer, ArrowLeft, ShieldCheck, GraduationCap, Users, Building2 } from 'lucide-react'
 import { Role, UserSession } from '../types'
+import { getStoredUserSession } from '../utils/authStorage'
 
 interface StepDetail {
   no: number
@@ -58,10 +61,8 @@ export const CetakPanduanStandaloneView: React.FC = () => {
   // Baca user session & parameter peran dari URL
   useEffect(() => {
     try {
-      const savedSession = localStorage.getItem('ubk_user_session')
-      let user: UserSession | null = null
-      if (savedSession) {
-        user = JSON.parse(savedSession)
+      const user = getStoredUserSession()
+      if (user) {
         setCurrentUser(user)
       }
 
@@ -467,194 +468,70 @@ export const CetakPanduanStandaloneView: React.FC = () => {
   })
 
   return (
-    <div style={{ background: '#e2e8f0', minHeight: '100vh', padding: '16px 0 32px', fontFamily: '"Arial", "Helvetica", sans-serif' }}>
-      {/* =========================================================================
-          TOOLBAR PRATINJAU CETAK (DILUAR DOKUMEN CETAK - NO PRINT)
-         ========================================================================= */}
-      <div
-        className="no-print"
-        style={{
-          maxWidth: '210mm',
-          margin: '0 auto 16px',
-          background: '#ffffff',
-          borderRadius: 8,
-          padding: '10px 16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-          border: '1px solid #cbd5e1',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            onClick={() => window.close()}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              background: '#ffffff',
-              border: '1px solid #475569',
-              color: '#334155',
-              fontWeight: 600,
-              fontSize: '12px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-            }}
-          >
-            <ArrowLeft size={14} />
-            <span>Tutup Tab</span>
-          </button>
+    <PrintPageContainer
+      title="Buku Panduan Penggunaan Sistem Informasi SDM & SKP Digital"
+      subtitle="Format Standar A4 Resmi Universitas Bhakti Kencana"
+      badge={
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            padding: '2px 8px',
+            borderRadius: 999,
+            background: '#059669',
+            color: '#ffffff',
+          }}
+        >
+          Pedoman Resmi
+        </span>
+      }
+    >
+      <style>{`
+        .panduan-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 8pt;
+          margin-bottom: 10px;
+        }
+        .panduan-table th {
+          border: 1px solid #000000;
+          padding: 5px 7px;
+          background: #f1f5f9;
+          font-weight: 800;
+          text-align: left;
+          text-transform: uppercase;
+          font-size: 7.5pt;
+        }
+        .panduan-table td {
+          border: 1px solid #000000;
+          padding: 5px 7px;
+          vertical-align: top;
+          line-height: 1.35;
+        }
+        .identity-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 8pt;
+          margin-bottom: 8px;
+        }
+        .identity-table td {
+          padding: 2.5px 4px;
+          vertical-align: top;
+        }
+        .badge-dokumen {
+          display: inline-block;
+          border: 1px solid #000000;
+          padding: 1px 6px;
+          font-size: 7pt;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+      `}</style>
 
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
-              Dokumen Cetak Panduan Penggunaan Sistem
-            </div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>
-              Format Standar A4 Resmi Universitas Bhakti Kencana
-            </div>
-          </div>
-        </div>
+      {/* KOP INSTITUSI RESMI UNIVERSITAS BHAKTI KENCANA */}
+      <KopSuratUBK />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            onClick={handlePrint}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 6,
-              background: '#4b5563',
-              border: 'none',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '12.5px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-            }}
-          >
-            <Printer size={15} />
-            <span>Cetak / Simpan PDF</span>
-          </button>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          LEMBAR DOKUMEN CETAK UTAMA (FORMAT STANDAR A4 RESMI)
-         ========================================================================= */}
-      <div
-        id="print-document"
-        style={{
-          width: '210mm',
-          minHeight: '297mm',
-          margin: '0 auto',
-          background: '#ffffff',
-          padding: '16mm 18mm',
-          boxSizing: 'border-box',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          color: '#000000',
-          position: 'relative',
-        }}
-      >
-        {/* CSS Cetak Khusus A4 Standar */}
-        <style>{`
-          @media print {
-            body, html {
-              background: #ffffff !important;
-              padding: 0 !important;
-              margin: 0 !important;
-            }
-            .no-print {
-              display: none !important;
-            }
-            #print-document {
-              width: 100% !important;
-              min-height: auto !important;
-              margin: 0 !important;
-              padding: 10mm 12mm !important;
-              box-shadow: none !important;
-              border: none !important;
-            }
-            .page-break {
-              page-break-before: always;
-            }
-            .avoid-break {
-              page-break-inside: avoid;
-            }
-          }
-
-          .panduan-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 8pt;
-            margin-bottom: 10px;
-          }
-          .panduan-table th {
-            border: 1px solid #000000;
-            padding: 5px 7px;
-            background: #f1f5f9;
-            font-weight: 800;
-            text-align: left;
-            text-transform: uppercase;
-            font-size: 7.5pt;
-          }
-          .panduan-table td {
-            border: 1px solid #000000;
-            padding: 5px 7px;
-            vertical-align: top;
-            line-height: 1.35;
-          }
-          .identity-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 8pt;
-            margin-bottom: 8px;
-          }
-          .identity-table td {
-            padding: 2.5px 4px;
-            vertical-align: top;
-          }
-          .badge-dokumen {
-            display: inline-block;
-            border: 1px solid #000000;
-            padding: 1px 6px;
-            font-size: 7pt;
-            font-weight: 700;
-            text-transform: uppercase;
-          }
-        `}</style>
-
-        {/* KOP INSTITUSI RESMI UNIVERSITAS BHAKTI KENCANA */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '2.5px solid #000000', paddingBottom: 8, marginBottom: 10 }}>
-          <img
-            src="/logo-ubk.png"
-            alt="Logo Universitas Bhakti Kencana"
-            style={{ width: 66, height: 66, objectFit: 'contain' }}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: '11pt', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              YAYASAN BHAKTI KENCANA
-            </div>
-            <div style={{ fontSize: '13pt', fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#0f223d' }}>
-              UNIVERSITAS BHAKTI KENCANA
-            </div>
-            <div style={{ fontSize: '8pt', color: '#1e293b', marginTop: 1 }}>
-              Jl. Soekarno-Hatta No. 754 Cibiru, Kota Bandung, Jawa Barat 40614
-            </div>
-            <div style={{ fontSize: '7.5pt', color: '#334155' }}>
-              Telp. (022) 7806500 | Laman: www.bku.ac.id | Pos-el: info@bku.ac.id / sdm@bku.ac.id
-            </div>
-          </div>
-        </div>
-
-        {/* JUDUL DOKUMEN PANDUAN PENGGUNAAN SISTEM */}
+      {/* JUDUL DOKUMEN PANDUAN PENGGUNAAN SISTEM */}
         <div style={{ textAlign: 'center', marginBottom: 10 }}>
           <div style={{ fontSize: '11pt', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#0f223d' }}>
             BUKU PANDUAN PENGGUNAAN SISTEM INFORMASI SDM &amp; SKP DIGITAL
@@ -820,7 +697,6 @@ export const CetakPanduanStandaloneView: React.FC = () => {
         <div className="avoid-break" style={{ marginTop: 12, padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 4, background: '#f8fafc', fontSize: '7.5pt', lineHeight: 1.4, color: '#334155' }}>
           <strong>Catatan Penggunaan Dokumen:</strong> Buku Panduan ini merupakan panduan operasional resmi tata cara penggunaan aplikasi SIM-SDM &amp; SKP Digital di lingkungan Universitas Bhakti Kencana. Diterbitkan oleh Direktorat Sumber Daya Manusia Universitas Bhakti Kencana untuk mendukung tata kelola kinerja akademik terstandar.
         </div>
-      </div>
-    </div>
+    </PrintPageContainer>
   )
 }

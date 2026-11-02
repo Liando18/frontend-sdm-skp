@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
             justifyContent: 'center',
             backgroundColor: '#F8FAFC',
             padding: '24px',
-            fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+            fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
           }}
         >
           <div
@@ -149,7 +149,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   alignItems: 'center',
                   gap: '8px',
                   padding: '10px 20px',
-                  backgroundColor: '#0F766E',
+                  backgroundColor: '#0F223D',
                   color: '#FFFFFF',
                   borderRadius: '10px',
                   fontSize: '14px',
@@ -157,9 +157,10 @@ export class ErrorBoundary extends Component<Props, State> {
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'background-color 0.2s ease',
+                  fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0D9488')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#0F766E')}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1E3A5F')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#0F223D')}
               >
                 <RefreshCw size={16} />
                 Muat Ulang Halaman

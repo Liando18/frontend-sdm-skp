@@ -522,7 +522,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
             title="Isi form otomatis dengan data dummy komponen SKP"
           >
             <Sparkles size={14} className="text-amber-600 animate-pulse" />
-            <span>⚡ Isi Form Otomatis (Data Dummy)</span>
+            <span>Isi Form Otomatis (Data Dummy)</span>
           </button>
         </div>
 
@@ -563,7 +563,7 @@ export const KelolaKomponenSKP: React.FC<KelolaKomponenSKPProps> = ({
                   value={formData.targetJabatan}
                   onChange={(e) => setFormData({ ...formData, targetJabatan: e.target.value as TargetJabatanSKP })}
                 >
-                  <option value="Semua Jabatan">🌟 Semua Jabatan (Berlaku Seluruh Dosen)</option>
+                  <option value="Semua Jabatan">Semua Jabatan (Berlaku Seluruh Dosen)</option>
                   {availableTargetJabatan.filter((j) => j !== 'Semua Jabatan').map((jab, idx) => (
                     <option key={idx} value={jab}>
                       {jab}

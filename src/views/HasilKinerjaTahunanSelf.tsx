@@ -7,60 +7,30 @@ import {
   ShieldCheck,
   UserCheck,
 } from 'lucide-react'
-import { PenilaianKuesioner, UserSession } from '../types'
+import { PenilaianKuesioner, UserSession, IndikatorKuesioner } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 import { openPrintTranskrip } from '../utils/printTranskrip'
+import { getBerakhlakDimensions } from '../utils/berakhlak'
 
 interface HasilKinerjaTahunanSelfProps {
   user: UserSession
   penilaianList: PenilaianKuesioner[]
+  indikatorList?: IndikatorKuesioner[]
   onShowToast: (msg: string) => void
 }
-
-const BERAKHLAK_DIMENSIONS = [
-  {
-    key: 'nilaiPelayanan' as const,
-    label: '1. Orientasi Pelayanan',
-    sub: 'Sikap ramah, solutif, menghargai mahasiswa dan sivitas akademika, serta mematuhi standar pelayanan akademik.',
-  },
-  {
-    key: 'nilaiAkuntabel' as const,
-    label: '2. Akuntabel',
-    sub: 'Jujur, bertanggung jawab, disiplin waktu, berintegritas tinggi, dan objektif dalam manajemen kepemimpinan.',
-  },
-  {
-    key: 'nilaiKompeten' as const,
-    label: '3. Kompeten',
-    sub: 'Meningkatkan kompetensi keilmuan secara berkelanjutan dan membina rekan sejawat mencapai standar mutu tridharma.',
-  },
-  {
-    key: 'nilaiHarmonis' as const,
-    label: '4. Harmonis',
-    sub: 'Membangun iklim kerja program studi yang kondusif, toleran, dan sinergis antardosen dan staf.',
-  },
-  {
-    key: 'nilaiLoyal' as const,
-    label: '5. Loyal',
-    sub: 'Memegang teguh visi misi Universitas Bhakti Kencana, menjaga martabat institusi, dan berdedikasi tinggi.',
-  },
-  {
-    key: 'nilaiAdaptif' as const,
-    label: '6. Adaptif',
-    sub: 'Cepat menyesuaikan tata kelola prodi terhadap regulasi MBKM, transformasi kurikulum, dan sistem Siakad UBK.',
-  },
-  {
-    key: 'nilaiKolaboratif' as const,
-    label: '7. Kolaboratif',
-    sub: 'Mendorong sinergi riset lintas fakultas, kerja sama institusi faskes mitra, dan pemanfaatan sumber daya bersama.',
-  },
-]
 
 export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = ({
   user,
   penilaianList,
+  indikatorList = [],
   onShowToast,
 }) => {
+  const berakhlakDimensions = useMemo(
+    () => getBerakhlakDimensions(indikatorList),
+    [indikatorList]
+  )
+
   const availableYears = useMemo(() => {
     const years = Array.from(new Set([...penilaianList.map((p) => p.tahun).filter(Boolean), '2026/2027', '2025/2026', '2024/2025']))
     return years.sort().reverse()
@@ -117,6 +87,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
               dosenNuptk: user.nuptk || '',
               dosenProdi: user.prodi || 'Program Studi',
               tahunAkademik: selectedTahun,
+              indikatorList,
             })
           }}
           className="brand-btn btn-action-print"
@@ -306,7 +277,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {BERAKHLAK_DIMENSIONS.map((dim) => {
+              {berakhlakDimensions.map((dim) => {
                 const score = Number(myEvaluation[dim.key] || 0)
                 const percent = (score / 4) * 100
                 return (
@@ -425,6 +396,7 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
           dosenNip={user.nip || '-'}
           dosenProdi={user.prodi || 'Universitas Bhakti Kencana'}
           tahunAkademik={selectedTahun}
+          indikatorList={indikatorList}
         />
       )}
     </div>

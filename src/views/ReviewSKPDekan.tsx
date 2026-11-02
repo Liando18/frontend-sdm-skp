@@ -11,6 +11,8 @@ import {
   Filter,
   Search,
   Sparkles,
+  Calendar,
+  Loader2,
 } from 'lucide-react'
 import { PengajuanSKP, Dosen, UserSession, ProgramStudi, Fakultas, Psdku } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -54,6 +56,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   const [dekanNotes, setDekanNotes] = useState('')
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [confirmReject, setConfirmReject] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
 
   const availableYears = useMemo(() => {
@@ -248,21 +251,29 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
     reader.readAsDataURL(file)
   }
 
-  const handleExecuteApprove = () => {
-    if (currentReviewSKP) {
-      onApproveByDekan(currentReviewSKP.id, dekanNotes, ttdPreview)
+  const handleExecuteApprove = async () => {
+    if (!currentReviewSKP || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onApproveByDekan(currentReviewSKP.id, dekanNotes, ttdPreview)
       setConfirmApprove(false)
       setViewMode('list')
       onShowToast(`SKP Ka Prodi ${currentReviewSKP.dosenNama} telah disetujui & disahkan ${roleLabel} dengan TTD digital!`)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleExecuteReject = () => {
-    if (currentReviewSKP) {
-      onRejectByDekan(currentReviewSKP.id, dekanNotes)
+  const handleExecuteReject = async () => {
+    if (!currentReviewSKP || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await onRejectByDekan(currentReviewSKP.id, dekanNotes)
       setConfirmReject(false)
       setViewMode('list')
       onShowToast(`SKP Ka Prodi ${currentReviewSKP.dosenNama} dikembalikan untuk revisi.`)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -294,8 +305,9 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             {currentReviewSKP.tanggalPengajuan && (
-              <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                📅 Pengajuan Terbaru: {currentReviewSKP.tanggalPengajuan}
+              <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Calendar size={12} />
+                <span>Pengajuan Terbaru: {currentReviewSKP.tanggalPengajuan}</span>
               </span>
             )}
             {(() => {
@@ -473,7 +485,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                 title="Isi otomatis catatan dekan dummy"
               >
                 <Sparkles size={11} className="text-amber-600 animate-pulse" />
-                <span>⚡ Isi Catatan Otomatis</span>
+                <span>Isi Catatan Otomatis</span>
               </button>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: 12 }}>
@@ -554,7 +566,13 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               <button
                 onClick={() => setConfirmReject(true)}
                 className="brand-btn btn-action-delete"
-                style={{ flex: 1, padding: '10px 14px' }}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  opacity: isSubmitting ? 0.6 : 1,
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                }}
+                disabled={isSubmitting}
               >
                 <XCircle size={15} />
                 <span>Minta Revisi</span>
@@ -562,10 +580,16 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               <button
                 onClick={() => setConfirmApprove(true)}
                 className="brand-btn btn-action-add"
-                style={{ flex: 2, padding: '10px 16px' }}
+                style={{
+                  flex: 2,
+                  padding: '10px 16px',
+                  opacity: isSubmitting ? 0.6 : 1,
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                }}
+                disabled={isSubmitting}
               >
-                <CheckCircle size={15} />
-                <span>Sahkan &amp; TTD {roleLabel}</span>
+                {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
+                <span>{isSubmitting ? 'Memproses...' : `Sahkan & TTD ${roleLabel}`}</span>
               </button>
             </div>
           </div>

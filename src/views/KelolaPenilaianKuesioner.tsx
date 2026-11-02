@@ -3,6 +3,7 @@ import { Search, Eye, X, RotateCcw, AlertCircle, Building2 } from 'lucide-react'
 import { PenilaianKuesioner, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
 
 interface KelolaPenilaianKuesionerProps {
   penilaianList: PenilaianKuesioner[]
@@ -30,9 +31,7 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
     return Array.from(
       new Set([
         ...penilaianList.map((p) => p.tahun).filter(Boolean),
-        '2026/2027',
-        '2025/2026',
-        '2024/2025',
+        ...DEFAULT_TAHUN_AJARAN_OPTIONS,
       ])
     ).sort().reverse()
   }, [penilaianList])

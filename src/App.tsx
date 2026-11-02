@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Role, UserSession, Dosen, KomponenSKP, PengajuanSKP, IndikatorKuesioner, PenilaianKuesioner, NotificationItem, ProgramStudi, JabatanKampus, Fakultas, Psdku } from './types'
 import { useViewTransition } from './utils/animations'
 import { api } from './services/api'
-import { DEMO_USERS } from './data'
+import { DEMO_USERS } from './constants/demoUsers'
+import { useToast } from './context/ToastContext'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { CommandPalette } from './components/CommandPalette'
@@ -34,30 +35,33 @@ const PanduanView = React.lazy(() => import('./views/PanduanView').then(m => ({ 
 import { HelpModal } from './components/HelpModal'
 import { DashboardSkeleton } from './components/Skeleton'
 import { AlertTriangle } from 'lucide-react'
-import { getNavIdFromPath, getPathFromNavId } from './utils/routes'
+import { getNavIdFromPath, getPathFromNavId, ROUTE_ALIASES } from './utils/routes'
 import { deriveRealNotifications } from './utils/notifications'
 import { fetchOfficialRektor } from './utils/rektorData'
+import {
+  getStoredAuthToken,
+  getStoredUserSession,
+  getStoredCurrentRole,
+  saveUserSession,
+  clearAuthData,
+  onUnauthorized,
+} from './utils/authStorage'
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
-    const token = localStorage.getItem('ubk_auth_token')
-    const savedSession = localStorage.getItem('ubk_user_session')
-    return Boolean(token || savedSession)
+    const token = getStoredAuthToken()
+    const savedSession = getStoredUserSession()
+    return Boolean(token && savedSession)
   })
 
   const [currentRole, setCurrentRole] = useState<Role>(() => {
     if (typeof window === 'undefined') return 'sdm'
-    const savedSession = localStorage.getItem('ubk_user_session')
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession)
-        if (parsed?.role && ['sdm', 'dosen', 'kaprodi', 'dekan'].includes(parsed.role)) {
-          return parsed.role
-        }
-      } catch {}
+    const savedSession = getStoredUserSession()
+    if (savedSession?.role && ['sdm', 'dosen', 'kaprodi', 'dekan'].includes(savedSession.role)) {
+      return savedSession.role
     }
-    const saved = localStorage.getItem('ubk_current_role') as Role | null
+    const saved = getStoredCurrentRole()
     if (saved && ['sdm', 'dosen', 'kaprodi', 'dekan'].includes(saved)) {
       return saved
     }
@@ -66,14 +70,9 @@ export default function App() {
 
   const [currentUser, setCurrentUser] = useState<UserSession>(() => {
     if (typeof window === 'undefined') return DEMO_USERS['sdm']
-    const savedSession = localStorage.getItem('ubk_user_session')
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession)
-        if (parsed?.name && parsed?.role) return parsed
-      } catch {}
-    }
-    const savedRole = (localStorage.getItem('ubk_current_role') as Role) || 'sdm'
+    const savedSession = getStoredUserSession()
+    if (savedSession?.name && savedSession?.role) return savedSession
+    const savedRole = getStoredCurrentRole() || 'sdm'
     return DEMO_USERS[savedRole] || DEMO_USERS['sdm']
   })
 
@@ -88,10 +87,8 @@ export default function App() {
   const mainRef = useRef<HTMLElement>(null)
   useViewTransition(mainRef, [activeNav, currentRole])
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [toastType, setToastType] = useState<'success' | 'error' | 'warning' | 'info'>('success')
+  const { showToast } = useToast()
 
-  const [demoUsers, setDemoUsers] = useState<Record<string, UserSession>>(DEMO_USERS)
   const [dosenList, setDosenList] = useState<Dosen[]>([])
   const [prodiList, setProdiList] = useState<ProgramStudi[]>([])
   const [fakultasList, setFakultasList] = useState<Fakultas[]>([])
@@ -105,11 +102,55 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'offline'>('checking')
   const [selectedSKPForReview, setSelectedSKPForReview] = useState<PengajuanSKP | null>(null)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const isLoggingOutRef = useRef(false)
+  const justLoggedInRef = useRef(false)
 
-  // URL state synchronization with clean paths (/dashboard, /profil, /data-dosen, etc.)
+  const handleLogout = useCallback(async (isAutoExpired = false, customMsg?: string) => {
+    if (isLoggingOutRef.current) return
+    isLoggingOutRef.current = true
+
+    try {
+      if (!isAutoExpired && getStoredAuthToken()) {
+        await api.auth.logout().catch(() => {})
+      }
+    } finally {
+      clearAuthData()
+      setIsLoggedIn(false)
+      setDosenList([])
+      setSkpList([])
+      setPenilaianList([])
+      setKomponenList([])
+      setIndikatorList([])
+      setNotifications([])
+      setCurrentUser(DEMO_USERS['sdm'])
+      setCurrentRole('sdm')
+      window.history.pushState({ nav: 'login' }, '', '/login')
+      isLoggingOutRef.current = false
+
+      if (!isAutoExpired) {
+        showToast('Anda telah keluar dari sistem portal.', 'info')
+      } else {
+        showToast(customMsg || 'Sesi Anda telah berakhir, silakan masuk kembali.', 'warning')
+      }
+    }
+  }, [showToast])
+
+  // Tangkap sinyal 401 Unauthorized secara global dari interceptor API
+  useEffect(() => {
+    const unsubscribe = onUnauthorized((msg) => {
+      if (!isLoggingOutRef.current) {
+        handleLogout(true, msg)
+      }
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [handleLogout])
+
+  // URL state synchronization with clean paths (/dashboard, /akun/profil, /manajemen/dosen, etc.)
   const updateUrl = (nav: string) => {
     if (typeof window === 'undefined') return
-    const targetPath = getPathFromNavId(nav)
+    const targetPath = getPathFromNavId(nav, currentRole)
     if (window.location.pathname !== targetPath) {
       window.history.pushState({ nav }, '', targetPath)
     }
@@ -118,14 +159,19 @@ export default function App() {
   // Handle browser back and forward navigation
   useEffect(() => {
     const handlePopState = () => {
+      const p = window.location.pathname
+      if (ROUTE_ALIASES[p]) {
+        const canonical = ROUTE_ALIASES[p]
+        window.history.replaceState({ nav: activeNav }, '', canonical)
+      }
       const n = getNavIdFromPath(window.location.pathname, currentRole)
       setActiveNav(n)
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [currentRole])
+  }, [currentRole, activeNav])
 
-  // Sync initial URL with authentication status
+  // Sync initial URL with authentication status and redirect legacy aliases
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!isLoggedIn) {
@@ -133,10 +179,15 @@ export default function App() {
         window.history.replaceState({ nav: 'login' }, '', '/login')
       }
     } else {
-      if (window.location.pathname === '/login' || window.location.pathname === '/') {
+      const p = window.location.pathname
+      if (p === '/login' || p === '/') {
         window.history.replaceState({ nav: 'dashboard' }, '', '/dashboard')
         setActiveNav('dashboard')
       } else {
+        if (ROUTE_ALIASES[p]) {
+          const canonical = ROUTE_ALIASES[p]
+          window.history.replaceState({ nav: activeNav }, '', canonical)
+        }
         const detected = getNavIdFromPath(window.location.pathname, currentRole)
         setActiveNav(detected)
       }
@@ -148,12 +199,7 @@ export default function App() {
     let isMounted = true
     const initDataFromApi = async () => {
       try {
-        const token = localStorage.getItem('ubk_auth_token')
-        // Ambil demo users untuk demo switcher & identitas awal
-        const demoUsersData = await api.auth.getDemoUsers().catch(() => null)
-        if (isMounted && demoUsersData && typeof demoUsersData === 'object' && Object.keys(demoUsersData).length > 0) {
-          setDemoUsers(demoUsersData as Record<string, UserSession>)
-        }
+        const token = getStoredAuthToken()
 
         // Muat data dinamis Rektor resmi dari database ke cache pracetak
         fetchOfficialRektor().catch(() => null)
@@ -167,29 +213,51 @@ export default function App() {
           return
         }
 
+        // Validasi Kredensial Pengguna:
+        // Jika pengguna baru saja terverifikasi melalui handleLogin, gunakan data sesi yang valid tanpa panggilan API ganda.
+        let meUser: UserSession | null = null
+        if (justLoggedInRef.current && currentUser && currentUser.name) {
+          justLoggedInRef.current = false
+          meUser = currentUser
+        } else {
+          try {
+            meUser = await api.auth.me()
+          } catch {
+            if (isMounted) {
+              handleLogout(true, 'Sesi Anda telah berakhir, silakan masuk kembali.')
+              setIsInitialLoading(false)
+            }
+            return
+          }
+        }
+
+        if (!meUser || !meUser.name) {
+          if (isMounted) {
+            handleLogout(true, 'Sesi Anda telah berakhir, silakan masuk kembali.')
+            setIsInitialLoading(false)
+          }
+          return
+        }
+
+        if (!isMounted) return
+
+        setCurrentUser(meUser)
+        if (meUser.role) setCurrentRole(meUser.role)
+        saveUserSession(meUser, meUser.role)
+        if (meUser.mustChangePassword) {
+          setActiveNav('profil')
+          updateUrl('profil')
+        }
+        setBackendStatus('connected')
+
         // Optimasi Skalabilitas (Pencegahan Boot Waterfall & SQLite I/O Congestion):
-        // Fase 1: Muat Sesi Autentikasi Pengguna & Master Data Referensi Inti Terlebih Dahulu
-        const [meUser, prodiData, fakultasData, psdkuData, jabatanData] = await Promise.all([
-          api.auth.me().catch(() => null),
+        // Fase 1: Muat Master Data Referensi Inti (hanya setelah terautentikasi resmi)
+        const [prodiData, fakultasData, psdkuData, jabatanData] = await Promise.all([
           api.prodi.list().catch(() => null),
           api.fakultas.list().catch(() => null),
           api.psdku.list().catch(() => null),
           api.jabatan.list().catch(() => null),
         ])
-
-        if (!isMounted) return
-
-        if (meUser && meUser.name) {
-          setCurrentUser(meUser)
-          if (meUser.role) setCurrentRole(meUser.role)
-          localStorage.setItem('ubk_user_session', JSON.stringify(meUser))
-          localStorage.setItem('ubk_current_role', meUser.role)
-          if (meUser.mustChangePassword) {
-            setActiveNav('profil')
-            updateUrl('profil')
-          }
-          setBackendStatus('connected')
-        }
 
         if (prodiData && Array.isArray(prodiData)) setProdiList(prodiData)
         if (fakultasData && Array.isArray(fakultasData)) setFakultasList(fakultasData)
@@ -252,6 +320,8 @@ export default function App() {
 
   // Synchronize notifications per actor/role dynamically using real database & state data
   useEffect(() => {
+    if (!isLoggedIn || !getStoredAuthToken()) return
+
     // 1. Immediately compute real notifications for zero latency & offline resilience
     const realNotifs = deriveRealNotifications(
       currentRole,
@@ -283,15 +353,7 @@ export default function App() {
       .catch(() => {
         // Fallback to real notifications already computed
       })
-  }, [currentRole, currentUser, skpList, penilaianList, dosenList, readNotifIds])
-
-  const showToast = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
-    setToastMessage(msg)
-    setToastType(type)
-    setTimeout(() => {
-      setToastMessage(null)
-    }, 3500)
-  }
+  }, [isLoggedIn, currentRole, currentUser, skpList, penilaianList, dosenList, readNotifIds])
 
   const handleNavigate = (navId: string) => {
     setActiveNav(navId)
@@ -339,7 +401,7 @@ export default function App() {
 
       let res: { token: string; user: UserSession } | null = null
       try {
-        res = await api.auth.login(payload)
+        res = await api.auth.login(payload, rememberMe)
       } catch (backendErr: any) {
         const errMsg = backendErr?.message || ''
         const userMsg = errMsg.includes('kredensial') || errMsg.includes('401') || errMsg.includes('tidak dikenali')
@@ -351,8 +413,10 @@ export default function App() {
 
       if (res?.user) {
         const loggedUser = res.user
+        justLoggedInRef.current = true
         setCurrentUser(loggedUser)
         setCurrentRole(loggedUser.role)
+        saveUserSession(loggedUser, loggedUser.role, rememberMe)
         if (loggedUser.mustChangePassword) {
           setActiveNav('profil')
           updateUrl('profil')
@@ -363,10 +427,6 @@ export default function App() {
           showToast(`Selamat datang di portal UBK, ${loggedUser.name}!`, 'success')
         }
         setIsLoggedIn(true)
-        if (rememberMe) {
-          localStorage.setItem('ubk_user_session', JSON.stringify(loggedUser))
-          localStorage.setItem('ubk_current_role', loggedUser.role)
-        }
         return { success: true }
       } else {
         const failMsg = 'Gagal masuk ke sistem. Periksa kembali NIP/Email dan kata sandi.'
@@ -378,24 +438,6 @@ export default function App() {
       showToast(errText, 'error')
       return { success: false, message: errText }
     }
-  }
-
-  const handleLogout = () => {
-    setIsLoggedIn(false)
-    localStorage.removeItem('ubk_user_session')
-    localStorage.removeItem('ubk_auth_token')
-    localStorage.removeItem('ubk_current_role')
-    setDosenList([])
-    setSkpList([])
-    setPenilaianList([])
-    setKomponenList([])
-    setIndikatorList([])
-    setNotifications([])
-    setCurrentUser(DEMO_USERS['sdm'])
-    setCurrentRole('sdm')
-    window.history.pushState({ nav: 'login' }, '', '/login')
-    api.auth.logout().catch(() => {})
-    showToast('Anda telah keluar dari sistem portal.', 'info')
   }
 
   const handleAddDosen = async (dosen: Dosen) => {
@@ -456,8 +498,7 @@ export default function App() {
         }
         setCurrentUser(freshUser)
         setCurrentRole(updatedRole)
-        localStorage.setItem('ubk_user_session', JSON.stringify(freshUser))
-        localStorage.setItem('ubk_current_role', updatedRole)
+        saveUserSession(freshUser, updatedRole)
       }
 
       showToast(`Data dosen "${saved.nama}" berhasil diperbarui di basis data!`, 'success')
@@ -789,10 +830,10 @@ export default function App() {
       return
     }
 
-    // Resolusi TTD Penilai (Kaprodi) dan Dosen yang dinilai otomatis dari profil
-    const reviewerTtd = ttdUrl || currentUser.signatureUrl || existing.ttdKaprodiUrl || demoUsers.kaprodi?.signatureUrl
+    // Resolusi TTD Penilai (Kaprodi) dan Dosen yang dinilai murni dari profil database
+    const reviewerTtd = ttdUrl || currentUser.signatureUrl || existing.ttdKaprodiUrl || undefined
     const dosenObj = dosenList.find((d) => d.id === existing.dosenId || d.nip === existing.dosenNip)
-    const dosenTtd = existing.ttdDosenUrl || dosenObj?.signatureUrl || demoUsers.dosen?.signatureUrl
+    const dosenTtd = existing.ttdDosenUrl || dosenObj?.signatureUrl || undefined
 
     try {
       const res = await api.skp.reviewKaprodi(skpId, 'approve', notes, reviewerTtd)
@@ -853,10 +894,10 @@ export default function App() {
       return
     }
 
-    // Resolusi TTD Penilai (Dekan) dan Dosen/Ka.Prodi yang dinilai otomatis dari profil
-    const reviewerTtd = ttdUrl || currentUser.signatureUrl || existing.ttdDekanUrl || demoUsers.dekan?.signatureUrl
+    // Resolusi TTD Penilai (Dekan) dan Dosen/Ka.Prodi yang dinilai murni dari profil database
+    const reviewerTtd = ttdUrl || currentUser.signatureUrl || existing.ttdDekanUrl || undefined
     const dosenObj = dosenList.find((d) => d.id === existing.dosenId || d.nip === existing.dosenNip)
-    const dosenTtd = existing.ttdDosenUrl || dosenObj?.signatureUrl || demoUsers.kaprodi?.signatureUrl || demoUsers.dosen?.signatureUrl
+    const dosenTtd = existing.ttdDosenUrl || dosenObj?.signatureUrl || undefined
 
     try {
       const res = await api.skp.reviewDekan(skpId, 'approve', notes, reviewerTtd)
@@ -1032,28 +1073,29 @@ export default function App() {
 
   // Rute Cetak Standalone Resmi (Tab Baru / _blank)
   if (typeof window !== 'undefined') {
-    if (window.location.pathname.startsWith('/cetak-skp')) {
+    const p = window.location.pathname
+    if (p.startsWith('/cetak/skp') || p.startsWith('/cetak-skp')) {
       return (
         <React.Suspense fallback={<DashboardSkeleton />}>
           <CetakSKPStandaloneView />
         </React.Suspense>
       )
     }
-    if (window.location.pathname.startsWith('/cetak-output-final')) {
+    if (p.startsWith('/cetak/output-final') || p.startsWith('/cetak-output-final')) {
       return (
         <React.Suspense fallback={<DashboardSkeleton />}>
           <CetakOutputFinalStandaloneView />
         </React.Suspense>
       )
     }
-    if (window.location.pathname.startsWith('/cetak-transkrip')) {
+    if (p.startsWith('/cetak/transkrip') || p.startsWith('/cetak-transkrip')) {
       return (
         <React.Suspense fallback={<DashboardSkeleton />}>
           <CetakTranskripStandaloneView />
         </React.Suspense>
       )
     }
-    if (window.location.pathname.startsWith('/cetak-panduan')) {
+    if (p.startsWith('/cetak/panduan') || p.startsWith('/cetak-panduan')) {
       return (
         <React.Suspense fallback={<DashboardSkeleton />}>
           <CetakPanduanStandaloneView />
@@ -1161,12 +1203,8 @@ export default function App() {
                   onShowToast={showToast}
                   onUpdateUser={(updated) => {
                     setCurrentUser(updated)
-                    setDemoUsers((prev) => ({
-                      ...prev,
-                      [updated.role]: updated,
-                    }))
                     try {
-                      localStorage.setItem('ubk_user_session', JSON.stringify(updated))
+                      saveUserSession(updated)
                     } catch {}
                   }}
                 />
@@ -1223,6 +1261,7 @@ export default function App() {
                 <HasilKinerjaTahunanSelf
                   user={currentUser}
                   penilaianList={penilaianList}
+                  indikatorList={indikatorList}
                   onShowToast={showToast}
                 />
               )}
@@ -1335,6 +1374,7 @@ export default function App() {
                 <HasilKinerjaTahunanSelf
                   user={currentUser}
                   penilaianList={penilaianList}
+                  indikatorList={indikatorList}
                   onShowToast={showToast}
                 />
               )}
@@ -1407,6 +1447,7 @@ export default function App() {
                 <HasilKinerjaTahunanSelf
                   user={currentUser}
                   penilaianList={penilaianList}
+                  indikatorList={indikatorList}
                   onShowToast={showToast}
                 />
               )}
@@ -1485,6 +1526,7 @@ export default function App() {
                 <HasilKinerjaTahunanSelf
                   user={currentUser}
                   penilaianList={penilaianList}
+                  indikatorList={indikatorList}
                   onShowToast={showToast}
                 />
               )}
@@ -1508,13 +1550,6 @@ export default function App() {
         onNavigateToPanduan={() => handleNavigate('panduan')}
       />
 
-      {toastMessage && (
-        <Toast
-          message={toastMessage}
-          type={toastType}
-          onClose={() => setToastMessage(null)}
-        />
-      )}
     </div>
   )
 }

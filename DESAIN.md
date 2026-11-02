@@ -479,7 +479,200 @@ Antarmuka kepegawaian harus menyajikan informasi yang proporsional, ramah penggu
 
 ---
 
-## 15. Checklist Kepatuhan Pengembang (*Delivery Gate*)
+## 15. Arsitektur Frontend Modular, Single Source of Truth (SSOT) & Anti-Duplikasi (DRY)
+
+Untuk menjamin kode frontend mudah dipelihara, dinamis, dan tidak terjadi penumpukan kode ribuan baris di satu file:
+
+### 1. Direktori Konstanta Institusi Terpusat (`src/constants/`)
+Dilarang keras melakukan hardcode data identitas institusi atau konfigurasi berulang di dalam file view atau komponen:
+- **`src/constants/institution.ts`**:
+  Menyimpan seluruh data identitas resmi Universitas Bhakti Kencana: nama yayasan (`YAYASAN BHAKTI KENCANA`), nama perguruan tinggi (`UNIVERSITAS BHAKTI KENCANA`), alamat kampus (`Jl. Soekarno-Hatta No. 754 Cibiru, Kota Bandung, Jawa Barat 40614`), nomor telepon, email resmi, URL website, dan path aset resmi (`/logo.svg`, `/user.svg`). Jika ada perubahan data kontak institusi, perubahan HANYA dilakukan pada file ini.
+- **`src/constants/academic.ts`**:
+  Menyimpan default tahun akademik, semester, kategori beban kerja Tridharma, dan hook `useAcademicYears` yang sinkron dengan API backend `/reference/tahun-akademik`. Dilarang menulis array manual `TAHUN_AJARAN_OPTIONS` secara terpisah di setiap view.
+- **`src/constants/statusConfig.ts`**:
+  Menyimpan konfigurasi terpusat untuk warna background, warna teks, border, label bahasa Indonesia, dan ikon SVG dari `lucide-react` untuk seluruh status SKP (`Draft`, `Diajukan`, `Dinilai Kaprodi`, `Dinilai Dekan`, `Disahkan`, `Perlu Revisi`) serta predikat kuesioner (`Sangat Baik`, `Baik`, `Cukup`, `Kurang`).
+- **`src/constants/demoUsers.ts`**:
+  Menampung profil pengguna demo untuk tombol cepat login pada environment pengujian (~30 baris). Seluruh mock data mati di `data.ts` (1.300+ baris) wajib dihapus dari bundle produksi.
+
+### 2. Fungsi Utilitas Format Tunggal (`src/utils/formatters.ts`)
+Dilarang menulis ulang format tanggal JavaScript secara mentah di berbagai file. Seluruh pemformatan wajib memanggil fungsi utilitas terpusat:
+- `formatIndonesianDate(date: string | Date | null | undefined): string`: Menghasilkan format resmi Indonesia (contoh: `02 November 2026`). Menggantikan 15 potongan kode `toLocaleDateString` yang tersebar di codebase.
+- `formatNumber(value: number, decimals?: number): string`: Menghasilkan representasi angka tabular rapi (`tabular-nums`).
+- `formatSKS(value: number): string`: Format beban kerja SKS terstandarisasi.
+
+---
+
+## 16. Standardisasi Komponen Form Input Dinamis (`src/components/common/forms/`)
+
+Seluruh formulir input di dalam aplikasi wajib menggunakan komponen bersama (*reusable form components*) yang konsisten, beraksesibilitas tinggi, dan dinamis. Dilarang menulis elemen `<input className="w-full px-3 py-2 border border-slate-300..." />` secara mentah dan berulang di modal-modal view.
+
+### 1. Komponen `TextInput` (`src/components/common/forms/TextInput.tsx`)
+- **Properti Wajib**: `label`, `name`, `value`, `onChange`, `placeholder`, `error`, `helperText`, `required`, `disabled`, `leftIcon`, `rightElement`.
+- **Standar Visual**:
+  - Tinggi target sentuh minimal 42px - 44px.
+  - Border default: `1px solid var(--hair-strong)` (`#cbd5e1`).
+  - Border hover: `1px solid var(--faint)` (`#94a3b8`).
+  - Cincin fokus aktif: `box-shadow: var(--focus-ring)` dengan border `var(--brand-600)`.
+  - Pesan error validasi: Huruf merah (`var(--status-danger-ink)`), font 12px, disertai ikon peringatan mikro di bawah input.
+
+### 2. Komponen `SelectDropdown` (`src/components/common/forms/SelectDropdown.tsx`)
+- **Properti Wajib**: `label`, `name`, `options` (array of `{ value, label, disabled? }`), `value`, `onChange`, `placeholder`, `error`, `disabled`.
+- **Standar Visual**:
+  - Menggunakan ikon chevron down resmiinstitusi dari Lucide.
+  - Opsi terpilih memiliki kontras tinggi dan tidak terpotong pada layar mobile.
+  - Mendukung pengelompokan opsi (*optgroup*) jika memiliki sub-kategori (misal: pengelompokan prodi per fakultas).
+
+### 3. Komponen `TextareaInput` (`src/components/common/forms/TextareaInput.tsx`)
+- Digunakan untuk catatan verifikasi Kaprodi, catatan evaluasi Dekan, catatan revisi, dan uraian kegiatan SKP.
+- Dilengkapi penghitung karakter (*character counter*) otomatis dan batas maksimal karakter (*maxlength*).
+- Memiliki tinggi minimal 90px dengan properti resize vertikal proporsional (`resize-y`).
+
+### 4. Komponen `NumberInput` (`src/components/common/forms/NumberInput.tsx`)
+- Wajib menyertakan atribut CSS `font-variant-numeric: tabular-nums` agar seluruh angka sejajar secara vertikal.
+- Memiliki validasi batas minimal (`min`), batas maksimal (`max`), dan presisi desimal (`step`).
+
+---
+
+## 17. Standardisasi Komponen Unggah Berkas & Media Dinamis (`src/components/common/upload/`)
+
+Unggah berkas bukti Tridharma, foto profil resmi, dan tanda tangan digital wajib menggunakan komponen khusus yang menangani validasi MIME type, preview gambar, dan batas ukuran berkas secara otomatis.
+
+### 1. Komponen `AvatarUploader` (`src/components/common/upload/AvatarUploader.tsx`)
+- **Fungsi**: Mengelola unggah dan pergantian foto profil resmi pegawai/dosen.
+- **Standar & Validasi**:
+  - Format yang diterima: `image/png`, `image/jpeg`, `image/webp`.
+  - Batas ukuran maksimal: 2 MB. Menampilkan notifikasi error instan jika berkas melebihi ukuran.
+  - Preview visual: Lingkaran halus dengan border `2px solid var(--hair)` dan tombol kamera/pensil overlay.
+  - Fallback aman: Menampilkan `/user.svg` secara default jika pengguna belum memiliki foto. Dilarang keras memakai gambar Unsplash eksternal.
+  - Tombol Reset: Menyediakan tombol "Kembalikan ke Default" yang menghapus berkas di storage server dan mengembalikan tampilan ke `/user.svg`.
+
+### 2. Komponen `SignatureUploader` (`src/components/common/upload/SignatureUploader.tsx`)
+- **Fungsi**: Mengelola tanda tangan digital resmi pejabat (Rektor, Dekan, Kaprodi) dan dosen pengaju.
+- **Standar & Validasi**:
+  - Wadah pratinjau: Kotak bergaris putus-putus (*dashed border*) `#94a3b8` dengan background `#f8fafc`.
+  - Menampilkan status sah: Jika tanda tangan sudah tersimpan, tampilkan tanda centang hijau dan tombol "Ganti Tanda Tangan".
+  - Dukungan format: PNG transparan beresolusi tinggi, JPG, atau WEBP.
+  - Sinkronisasi otomatis: Saat pejabat mengunggah tanda tangan baru, tanda tangan tersebut langsung disinkronkan ke seluruh dokumen SKP terkait.
+
+### 3. Komponen `FileUploadDropzone` (`src/components/common/upload/FileUploadDropzone.tsx`)
+- **Fungsi**: Wadah drag-and-drop dokumen bukti luaran Tridharma (SK Mengajar, Sertifikat, Laporan Pengabdian, Jurnal).
+- Dilengkapi indikator progress unggah (*loading bar shimmer*) dan tombol pembatalan.
+
+---
+
+## 18. Standardisasi Komponen Dialog, Modal & Drawer (`src/components/common/modals/`)
+
+Dilarang membuat kode modal dari nol dengan markup `fixed inset-0 bg-black/50` di setiap halaman view. Gunakan pembungkus modal standar berikut:
+
+### 1. Komponen `Modal` (`src/components/common/modals/Modal.tsx`)
+- **Fitur Aksesibilitas Wajib**:
+  - Menutup otomatis saat tombol `Escape` ditekan.
+  - Menutup saat backdrop abu-abu di-klik (*click outside*), kecuali jika properti `closeOnOverlayClick={false}` diaktifkan.
+  - Mengunci scrolling halaman belakang (`overflow: hidden` pada body) selama modal aktif.
+  - Memiliki header dengan judul tegas, tombol `X` di sudut kanan atas, dan pembatas garis `var(--hair)`.
+  - Animasi transisi masuk halus (150ms `cubic-bezier(0.2, 0.8, 0.2, 1)`).
+
+### 2. Komponen `ConfirmDialog` (`src/components/common/modals/ConfirmDialog.tsx`)
+- Digunakan untuk seluruh aksi destruktif atau penting (misal: Menghapus Dosen, Menghapus Komponen SKP, Mengembalikan Berkas untuk Revisi).
+- Memiliki judul pertanyaan yang jelas, deskripsi konsekuensi tindakan, tombol "Batal", dan tombol konfirmasi berwarna semantik (Merah untuk Hapus, Terracotta untuk Simpan/Kirim).
+- Dilarang menggunakan fungsi bawaan browser `window.confirm()` yang kaku dan tidak beridentitas.
+
+### 3. Komponen `Drawer` (`src/components/common/modals/Drawer.tsx`)
+- Panel geser dari sisi kanan layar (*slide-over*) dengan lebar 400px - 560px.
+- Digunakan untuk melihat pratinjau detail dosen atau riwayat catatan evaluasi tanpa memindahkan pengguna dari halaman utama.
+
+---
+
+## 19. Standardisasi Komponen Tabel Data, Paginasi & State Antarmuka (`src/components/common/tables/`)
+
+### 1. Pembungkus Tabel `TableContainer` (`src/components/common/tables/TableContainer.tsx`)
+- Wajib memiliki `overflow-x: auto` terisolasi agar tabel dengan kolom banyak tidak merusak layout aplikasi pada layar tablet dan ponsel.
+- Kepala tabel (`thead th`) berstatus `position: sticky; top: 0;` dengan background `#f1f5f9` dan z-index aman.
+- Setiap baris memiliki transisi hover halus (`background-color: #f8fafc`).
+
+### 2. Komponen `Pagination` (`src/components/common/tables/Pagination.tsx`)
+- Kontrol navigasi halaman seragam: Menampilkan keterangan *"Menampilkan 1-10 dari 45 data"*, tombol halaman aktif, tombol Selanjutnya/Sebelumnya, dan pemilih jumlah baris (*10, 25, 50, 100 per halaman*).
+
+### 3. Komponen `TableEmptyState` (`src/components/common/tables/TableEmptyState.tsx`)
+- Digunakan saat tabel tidak memiliki data atau saat pencarian tidak menemukan hasil.
+- Dilengkapi ilustrasi ikon monokromatik Lucide, pesan ramah, dan tombol "Reset Filter".
+
+---
+
+## 20. Manajemen State Global, Toast Context & Eliminasi God Component
+
+### 1. Sistem Notifikasi `ToastContext` (`src/context/ToastContext.tsx`)
+- **Larangan Prop-Drilling**: Dilarang keras mengoper prop `onShowToast` dari `App.tsx` ke dalam view dan komponen anak.
+- Seluruh komponen memanggil notifikasi via custom hook:
+  ```tsx
+  const { showToast } = useToast()
+  showToast('Pengajuan SKP berhasil dikirim ke Ketua Prodi.', 'success')
+  ```
+- Wadah toast dipasang pada root aplikasi dan mendukung varian `success`, `error`, `warning`, dan `info` dengan ikon SVG resmi.
+
+### 2. Perampingan `App.tsx` (Maksimal < 150 Baris)
+- `App.tsx` hanya bertindak sebagai pengatur rute (*Router*), penjaga otentikasi (*Session Guard*), dan pembungkus layout shell (`Shell`, `Header`, `Sidebar`).
+- Dilarang menumpuk seluruh state data entitas (`dosenList`, `skpList`, `penilaianList`, dll) dan handler CRUD di `App.tsx`. Setiap halaman view atau custom hook bertanggung jawab atas data fetching modulnya sendiri.
+
+### 3. Perampingan View Raksasa
+- View yang melebihi 1.000 baris (seperti `KelolaDataDosen.tsx` dan `KelolaSKPDosenSelf.tsx`) wajib dipecah menjadi modul-modul kecil:
+  - Form modal dipindahkan ke `components/dosen/DosenFormModal.tsx`.
+  - Drawer detail dipindahkan ke `components/dosen/DosenDetailDrawer.tsx`.
+  - Matriks tabel dipindahkan ke `components/skp/SkpMatrixTable.tsx`.
+  - Modal tambah kegiatan Tridharma dipindahkan ke `components/skp/SkpItemModal.tsx`.
+
+---
+
+## 21. Standardisasi Arsitektur URL Bersih & Parameter Enkripsi (Semantic Routing)
+
+Sistem mengadopsi arsitektur URL modern berstandar enterprise yang bersih dari query string berantakan dan melindungi privasi data kepegawaian:
+
+### 1. Struktur Rute Hierarkis Berbasis Modul (*Nested Sub-routes*)
+- **Modul Kinerja Pegawai**:
+  - `/kinerja/skp-saya` (Pengisian & pemantauan SKP dosen)
+  - `/kinerja/evaluasi-tahunan` (Hasil capaian N = 70% S + 30% P)
+- **Modul Verifikasi Pimpinan (Kaprodi & Dekan)**:
+  - `/verifikasi/skp` (Pemeriksaan & pengesahan SKP bawahan)
+  - `/verifikasi/perilaku` (Penilaian kuesioner BerAKHLAK bawahan)
+- **Modul Manajemen Biro SDM**:
+  - `/manajemen/dosen` (Master data kepegawaian & akun)
+  - `/manajemen/monitoring-skp` (Pengawasan pengajuan seluruh unit)
+  - `/manajemen/monitoring-kinerja` (Rekapitulasi tahunan SPMI)
+  - `/manajemen/komponen-skp` (Master beban kerja Tridharma)
+  - `/manajemen/indikator` (Master dimensi BerAKHLAK)
+  - `/manajemen/laporan` (Rekapitulasi eksekutif & export data)
+- **Modul Akun & Panduan**:
+  - `/akun/profil` (Biodata, foto, dan tanda tangan digital)
+  - `/akun/keamanan` (Perubahan kata sandi)
+  - `/bantuan/panduan` (Buku pedoman SPMI & tata cara SKP)
+
+### 2. Enkripsi Parameter URL Dokumen Cetak (*Tokenized Route*)
+- Dilarang keras menggunakan query string mentah yang mengekspos NIP atau ID database seperti `/cetak-skp?id=skp-123&nip=0412038401`.
+- Seluruh modul cetak wajib menggunakan path parameter bertoken URL-safe:
+  - `/cetak/skp/:token`
+  - `/cetak/output-final/:token`
+  - `/cetak/transkrip/:token`
+  - `/cetak/panduan`
+- Token dibentuk menggunakan utilitas `urlSecurity.ts` (Base64URL safe payload membungkus `{ id, ta, nip, timestamp }` yang tahan terhadap manipulasi/tampering).
+- Sistem wajib menyediakan fallback pembacaan query lama (`?id=...`) untuk menjamin kompatibilitas tautan riwayat browser.
+- Utilitas cetak wajib menerapkan pembersihan berkala (*auto-purge*) pada `localStorage` agar tidak terjadi penumpukan cache melebihi kuota 5MB.
+
+---
+
+## 22. Standardisasi Komponen Dokumen Cetak Formal A4 (`src/components/print/`)
+
+Seluruh modul cetak standalone wajib menggunakan komponen bersama berikut:
+1. **`KopSuratUBK` (`src/components/print/KopSuratUBK.tsx`)**: Komponen tunggal resmi kop surat institusi (logo + yayasan + universitas + kontak).
+2. **`TandaTanganBlock` (`src/components/print/TandaTanganBlock.tsx`)**: Komponen modular tanda tangan pegawai dan Pejabat Penilai formal (Rektor/Dekan) dengan proteksi `avoid-break`.
+3. **`PrintPageContainer` (`src/components/print/PrintPageContainer.tsx`)**:
+   - Pembungkus lembar kertas A4 (lebar 210mm x tinggi 297mm).
+   - Menyediakan floating toolbar pratinjau (tombol Kembali, Cetak / Simpan PDF, dan Unduh Excel).
+   - Pada mode tampilan layar (*screen preview*), menampilkan visualisasi pemisah lembar fisik (*Sheet Separation Divider*) per 297mm sehingga pengguna mengetahui persis batas halaman 1 dan halaman 2 sebelum menekan tombol cetak browser.
+   - Pada mode `@media print`, otomatis menyembunyikan toolbar dan mengaktifkan paginasi kertas fisik tanpa margin bocor.
+
+---
+
+## 23. Checklist Kepatuhan Pengembang (*Delivery Gate*)
 
 Sebelum mengajukan perubahan kode atau merilis modul baru, pastikan seluruh pertanyaan berikut bernilai **YA**:
 
@@ -499,3 +692,13 @@ Sebelum mengajukan perubahan kode atau merilis modul baru, pastikan seluruh pert
 - [ ] Apakah komponen grafis dibatasi dimensinya dan tidak ada bar chart yang melompat keluar dari kartu?
 - [ ] Apakah tampilan responsif dan rapi pada resolusi ponsel 375px hingga layar lebar 1680px?
 - [ ] Apakah rasio kontras teks terhadap latar belakang memenuhi standar WCAG AA (minimal 4.5:1)?
+- [ ] Apakah antarmuka 100% bebas dari emoji dekoratif (🌟, 🏛️, 📍, 🔑, 📅, 💡, ⚡, ★, ✅, ⚠️, ❌) dan menggunakan ikon SVG Lucide?
+- [ ] Apakah seluruh data institusi (nama kampus, kontak, logo) diambil dari `src/constants/institution.ts`?
+- [ ] Apakah opsi tahun akademik diambil dari hook `useAcademicYears` dan tidak ada array hardcoded berulang?
+- [ ] Apakah seluruh badge status menggunakan komponen `<StatusBadge />` dari `src/constants/statusConfig.ts`?
+- [ ] Apakah notifikasi menggunakan `useToast()` dan tidak ada lagi prop-drilling `onShowToast`?
+- [ ] Apakah format tanggal Indonesia menggunakan `formatIndonesianDate()` dari `src/utils/formatters.ts`?
+- [ ] Apakah URL dokumen cetak menggunakan path bertoken aman (`/cetak/skp/:token`) tanpa query string mentah?
+- [ ] Apakah file view tidak ada yang menumpuk ribuan baris, dan komponen form/tabel telah dipecah secara modular?
+- [ ] Apakah `App.tsx` ramping (< 150 baris) dan tidak menampung seluruh state entitas secara terpusat (*No God Component*)?
+- [ ] Apakah file `data.ts` telah dibersihkan dari mock data mati dan build `npm run build` lulus 100% tanpa error?

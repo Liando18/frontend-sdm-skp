@@ -1,11 +1,12 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { Printer, X } from 'lucide-react'
-import { PenilaianKuesioner } from '../types'
+import { PenilaianKuesioner, IndikatorKuesioner } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { printDocument } from '../utils/printDocument'
 import { api } from '../services/api'
 import { resolveStorageUrl } from '../utils/security'
 import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
+import { getBerakhlakDimensions, extractDimensionScore, getEkspektasiKualifikasi } from '../utils/berakhlak'
 
 interface CetakTranskripKuesionerProps {
   penilaian: PenilaianKuesioner | any
@@ -20,52 +21,8 @@ interface CetakTranskripKuesionerProps {
   onClose: () => void
   dosenSignatureUrl?: string
   rektor?: RektorData
+  indikatorList?: IndikatorKuesioner[]
 }
-
-const BERAKHLAK_ITEMS = [
-  {
-    no: '1.',
-    key: 'berorientasiPelayanan',
-    label: 'Berorientasi Pelayanan',
-    desc: 'Komitmen memberikan pelayanan prima demi kepuasan mahasiswa, rekan kerja, dan sivitas akademika.',
-  },
-  {
-    no: '2.',
-    key: 'akuntabel',
-    label: 'Akuntabel',
-    desc: 'Bertanggung jawab atas kepercayaan yang diberikan, jujur, berintegritas tinggi, dan transparan.',
-  },
-  {
-    no: '3.',
-    key: 'kompeten',
-    label: 'Kompeten',
-    desc: 'Terus belajar dan mengembangkan kapabilitas akademik, riset, serta pengabdian masyarakat.',
-  },
-  {
-    no: '4.',
-    key: 'harmonis',
-    label: 'Harmonis',
-    desc: 'Saling peduli dan menghargai perbedaan latar belakang, membangun lingkungan kerja yang kondusif.',
-  },
-  {
-    no: '5.',
-    key: 'loyal',
-    label: 'Loyal',
-    desc: 'Berdedikasi dan mengutamakan kepentingan bangsa, negara, dan institusi perguruan tinggi.',
-  },
-  {
-    no: '6.',
-    key: 'adaptif',
-    label: 'Adaptif',
-    desc: 'Terus berinovasi dan antusias dalam menggerakkan ataupun menghadapi perubahan teknologi dan kurikulum.',
-  },
-  {
-    no: '7.',
-    key: 'kolaboratif',
-    label: 'Kolaboratif',
-    desc: 'Membangun kerja sama yang sinergis antar program studi, fakultas, maupun mitra eksternal.',
-  },
-]
 
 export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = ({
   penilaian,
@@ -80,9 +37,15 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
   onClose,
   dosenSignatureUrl,
   rektor: initialRektorProp,
+  indikatorList,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+
+  const berakhlakDimensions = useMemo(
+    () => getBerakhlakDimensions(indikatorList),
+    [indikatorList]
+  )
 
   // Data Rektor Pejabat Penilai formal (100% dinamis dari database)
   const [rektor, setRektor] = useState<RektorData>(() => {
@@ -133,25 +96,8 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
     }
   }
 
-  const getScore = (key: string): number => {
-    if (key === 'berorientasiPelayanan') return Number(penilaian.nilaiPelayanan ?? penilaian.berorientasiPelayanan ?? 0)
-    if (key === 'akuntabel') return Number(penilaian.nilaiAkuntabel ?? penilaian.akuntabel ?? 0)
-    if (key === 'kompeten') return Number(penilaian.nilaiKompeten ?? penilaian.kompeten ?? 0)
-    if (key === 'harmonis') return Number(penilaian.nilaiHarmonis ?? penilaian.harmonis ?? 0)
-    if (key === 'loyal') return Number(penilaian.nilaiLoyal ?? penilaian.loyal ?? 0)
-    if (key === 'adaptif') return Number(penilaian.nilaiAdaptif ?? penilaian.adaptif ?? 0)
-    if (key === 'kolaboratif') return Number(penilaian.nilaiKolaboratif ?? penilaian.kolaboratif ?? 0)
-    return Number(penilaian[key] || 0)
-  }
-
   const rataRata = Number(penilaian.rataRata) || 0
   const skala100 = (rataRata / 4) * 100
-
-  const getKualifikasi = (score: number) => {
-    if (score >= 3.8) return 'Di Atas Ekspektasi'
-    if (score >= 3.0) return 'Sesuai Ekspektasi'
-    return 'Di Bawah Ekspektasi'
-  }
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 110 }}>
@@ -314,15 +260,15 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
                 </tr>
               </thead>
               <tbody>
-                {BERAKHLAK_ITEMS.map((item, idx) => {
-                  const score = getScore(item.key)
+                {berakhlakDimensions.map((item, idx) => {
+                  const score = extractDimensionScore(penilaian, item.key)
                   const pct = (score / 4) * 100
                   return (
-                    <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
-                      <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 600 }}>{item.no}</td>
+                    <tr key={item.key || idx} style={{ borderBottom: '1px solid #000000' }}>
+                      <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 600 }}>{item.no}.</td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px' }}>
-                        <div style={{ fontWeight: 700 }}>{item.label}</div>
-                        <div style={{ fontSize: '10px', color: '#475569', marginTop: 1 }}>{item.desc}</div>
+                        <div style={{ fontWeight: 700 }}>{item.title}</div>
+                        <div style={{ fontSize: '10px', color: '#475569', marginTop: 1 }}>{item.sub}</div>
                       </td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800, fontSize: '12px' }}>
                         {score.toFixed(1)}
@@ -331,7 +277,7 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
                         {pct.toFixed(0)}%
                       </td>
                       <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontSize: '10.5px', color: '#0369a1', fontWeight: 600 }}>
-                        {getKualifikasi(score)}
+                        {getEkspektasiKualifikasi(score)}
                       </td>
                     </tr>
                   )

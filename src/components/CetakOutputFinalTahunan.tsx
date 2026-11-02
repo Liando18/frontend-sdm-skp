@@ -302,7 +302,7 @@ const PolaDistribusiLineChart: React.FC<{ predikat: string }> = ({ predikat }) =
                     fontWeight="800"
                     fontFamily="sans-serif"
                   >
-                    ★ Capaian: {predikat}
+                    Capaian: {predikat}
                   </text>
                   <polygon
                     points={`${p.x - 4},${Math.max(4, p.y - 25) + 18} ${p.x + 4},${Math.max(4, p.y - 25) + 18} ${p.x},${Math.max(4, p.y - 25) + 22}`}

@@ -26,11 +26,14 @@ import {
   Camera,
   RotateCcw,
   X,
+  Lightbulb,
+  Info,
   Image as ImageIcon,
 } from 'lucide-react'
 import { UserSession } from '../types'
 import { api } from '../services/api'
 import { resolveStorageUrl, getAvatarSrc } from '../utils/security'
+import { getStoredUserSession, saveUserSession } from '../utils/authStorage'
 
 interface ProfilViewProps {
   user: UserSession
@@ -333,12 +336,11 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
         ...user,
         mustChangePassword: false,
       })
-      const stored = localStorage.getItem('ubk_user_session')
+      const stored = getStoredUserSession()
       if (stored) {
         try {
-          const parsed = JSON.parse(stored)
-          parsed.mustChangePassword = false
-          localStorage.setItem('ubk_user_session', JSON.stringify(parsed))
+          stored.mustChangePassword = false
+          saveUserSession(stored)
         } catch {}
       }
 
@@ -812,7 +814,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 title="Isi otomatis data password dummy untuk pengujian"
               >
                 <Sparkles size={13} className="text-amber-600 animate-pulse" />
-                <span>⚡ Isi Dummy Password</span>
+                <span>Isi Dummy Password</span>
               </button>
             </div>
 
@@ -1119,7 +1121,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 title="Gunakan contoh preset tanda tangan institusi resmi"
               >
                 <Sparkles size={13} className="text-amber-600 animate-pulse" />
-                <span>⚡ Gunakan Preset TTD</span>
+                <span>Gunakan Preset TTD</span>
               </button>
             </div>
 
@@ -1331,8 +1333,11 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
             </div>
 
             {/* Rekomendasi Format */}
-            <div style={{ fontSize: '11.5px', color: 'var(--muted)', lineHeight: 1.5 }}>
-              💡 <strong>Tips Hasil Terbaik:</strong> Disarankan menggunakan gambar dengan latar belakang transparan (format PNG/WEBP) dengan resolusi tajam agar hasil verifikasi dan cetak SKP terlihat rapi dan elegan.
+            <div style={{ fontSize: '11.5px', color: 'var(--muted)', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <Lightbulb size={14} color="#d97706" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <strong>Tips Hasil Terbaik:</strong> Disarankan menggunakan gambar dengan latar belakang transparan (format PNG/WEBP) dengan resolusi tajam agar hasil verifikasi dan cetak SKP terlihat rapi dan elegan.
+              </div>
             </div>
 
             {/* Tombol Simpan ke Server */}
@@ -1590,11 +1595,13 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 </div>
 
                 <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5 }}>
-                  <p style={{ margin: 0 }}>
-                    💡 <strong>Ketentuan Berkas:</strong> Format diperbolehkan <code>PNG</code>, <code>JPG</code>, <code>JPEG</code>, atau <code>WEBP</code> dengan ukuran berkas maksimal <strong>2MB</strong>.
+                  <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Lightbulb size={14} color="#d97706" style={{ flexShrink: 0 }} />
+                    <span><strong>Ketentuan Berkas:</strong> Format diperbolehkan <code>PNG</code>, <code>JPG</code>, <code>JPEG</code>, atau <code>WEBP</code> dengan ukuran berkas maksimal <strong>2MB</strong>.</span>
                   </p>
-                  <p style={{ margin: '4px 0 0 0' }}>
-                    ℹ️ Jika belum ada foto yang diunggah atau direset, sistem secara otomatis menampilkan avatar profil bawaan institusi.
+                  <p style={{ margin: '6px 0 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Info size={14} color="var(--brand-600)" style={{ flexShrink: 0 }} />
+                    <span>Jika belum ada foto yang diunggah atau direset, sistem secara otomatis menampilkan avatar profil bawaan institusi.</span>
                   </p>
                 </div>
               </div>
