@@ -7,8 +7,13 @@ import {
   XCircle,
   ExternalLink,
   ArrowLeft,
+  Clock,
+  RotateCcw,
+  AlertCircle,
+  Building2,
+  Send,
 } from 'lucide-react'
-import { PengajuanSKP } from '../types'
+import { PengajuanSKP, Dosen, Fakultas } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { openPrintSKP } from '../utils/printSKP'
@@ -18,6 +23,8 @@ import { TablePagination } from '../components/TablePagination'
 
 interface KelolaSKPDosenProps {
   skpList: PengajuanSKP[]
+  dosenList?: Dosen[]
+  fakultasList?: Fakultas[]
   prodiList?: string[]
   onApproveSKP: (id: string, notes: string) => void
   onRejectSKP: (id: string, notes: string) => void
@@ -25,21 +32,38 @@ interface KelolaSKPDosenProps {
   onShowToast: (msg: string) => void
 }
 
+interface MonitoringSKPItem {
+  id: string
+  dosenId: string
+  dosenNama: string
+  dosenNip: string
+  dosenJabatan: string
+  dosenProdi: string
+  dosenFakultas: string
+  dosenKampus: string
+  semester: string
+  tahunAkademik: string
+  totalSksRealisasi: number
+  nilaiKinerjaSKP: number
+  status: string
+  hasTtd: boolean
+  skp: PengajuanSKP | null
+}
+
 export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   skpList,
+  dosenList,
+  fakultasList,
   prodiList: prodiListProp,
   initialSelectedSKP,
   onApproveSKP,
   onRejectSKP,
   onShowToast,
 }) => {
-  const availableProdis = prodiListProp && prodiListProp.length > 0
-    ? (prodiListProp[0] === 'Semua Program Studi' ? prodiListProp : ['Semua Program Studi', ...prodiListProp])
-    : ['Semua Program Studi', ...Array.from(new Set(skpList.map((s) => s.dosenProdi).filter(Boolean)))]
   const [viewMode, setViewMode] = useState<'list' | 'review'>(initialSelectedSKP ? 'review' : 'list')
   const [selectedSKP, setSelectedSKP] = useState<PengajuanSKP | null>(initialSelectedSKP || null)
 
-  // Selalu rujuk ke data SKP paling mutakhir dari skpList (agar jika dosen mengupdate SKP, verifikator SDM langsung melihat versi baru)
+  // Selalu rujuk ke data SKP paling mutakhir dari skpList
   const currentSelectedSKP = useMemo(() => {
     if (!selectedSKP) return null
     return skpList.find((s) => s.id === selectedSKP.id) || selectedSKP
@@ -59,6 +83,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
     setViewMode('review')
   }
 
+  // Opsi Tahun Akademik
   const availableYears = useMemo(() => {
     const years = Array.from(
       new Set([
@@ -71,37 +96,230 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
     return years.sort().reverse()
   }, [skpList])
 
-  const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2026/2027')
+  // Opsi Fakultas Dinamis
+  const availableFakultas = useMemo(() => {
+    const set = new Set<string>()
+    if (fakultasList && fakultasList.length > 0) {
+      fakultasList.forEach((f) => {
+        if (f.nama) set.add(f.nama)
+      })
+    }
+    if (dosenList && dosenList.length > 0) {
+      dosenList.forEach((d) => {
+        if (d.fakultas) set.add(d.fakultas)
+      })
+    }
+    return Array.from(set).sort()
+  }, [fakultasList, dosenList])
+
+  // Opsi Program Studi Dinamis
+  const availableProdis = useMemo(() => {
+    if (prodiListProp && prodiListProp.length > 0) {
+      return prodiListProp[0] === 'Semua Program Studi' ? prodiListProp.slice(1) : prodiListProp
+    }
+    const set = new Set<string>()
+    skpList.forEach((s) => {
+      if (s.dosenProdi) set.add(s.dosenProdi)
+    })
+    if (dosenList) {
+      dosenList.forEach((d) => {
+        if (d.prodi) set.add(d.prodi)
+      })
+    }
+    return Array.from(set).sort()
+  }, [prodiListProp, skpList, dosenList])
+
+  // State Filter
+  const [selectedTahun, setSelectedTahun] = useState<string>('Semua')
   const [selectedSemester, setSelectedSemester] = useState<string>('Semua')
-  const [selectedStatus, setSelectedStatus] = useState<string>('Semua')
+  const [selectedFakultas, setSelectedFakultas] = useState<string>('Semua')
   const [selectedProdi, setSelectedProdi] = useState<string>('Semua Program Studi')
+  const [selectedStatus, setSelectedStatus] = useState<string>('Semua')
+  const [selectedSksBeban, setSelectedSksBeban] = useState<string>('Semua')
+  const [selectedTtd, setSelectedTtd] = useState<string>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
   const tahunList = ['Semua', ...availableYears]
-  const statusList = ['Semua', 'Sah & Terbit', 'Diajukan', 'Perlu Revisi']
+  const statusOptions = [
+    { value: 'Semua', label: 'Semua Status' },
+    { value: 'Belum Mengajukan', label: 'Belum Mengajukan' },
+    { value: 'Diajukan', label: 'Diajukan Dosen' },
+    { value: 'Dinilai Kaprodi / Dekan', label: 'Dinilai Kaprodi / Dekan' },
+    { value: 'Sah & Terbit', label: 'Sah & Terbit Resmi' },
+    { value: 'Perlu Revisi', label: 'Perlu Revisi' },
+  ]
 
-  const filteredList = skpList.filter((skp) => {
-    // Sembunyikan SKP yang masih Draft dari monitoring/verifikasi
-    if (!skp.status || skp.status === 'Draft') return false
+  // Bangun data pemantauan: dosen yang belum mengajukan tetap tampil dengan status 'Belum Mengajukan'
+  const allItems: MonitoringSKPItem[] = useMemo(() => {
+    if (dosenList && dosenList.length > 0) {
+      const items: MonitoringSKPItem[] = []
 
-    const matchTahun = selectedTahun === 'Semua' || skp.tahunAkademik === selectedTahun
-    const matchSemester = selectedSemester === 'Semua' || skp.semester === selectedSemester
-    const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(skp.status)
-    const matchStatus =
-      selectedStatus === 'Semua' ||
-      (selectedStatus === 'Sah & Terbit' ? isSah : skp.status === selectedStatus)
-    const matchProdi = selectedProdi === 'Semua Program Studi' || skp.dosenProdi === selectedProdi
-    const q = (searchQuery || '').trim().toLowerCase()
-    if (!q) return matchTahun && matchSemester && matchStatus && matchProdi
-    const matchSearch =
-      (skp.dosenNama || '').toLowerCase().includes(q) ||
-      (skp.dosenNip || '').toLowerCase().includes(q) ||
-      (skp.dosenProdi || '').toLowerCase().includes(q)
-    return matchTahun && matchSemester && matchStatus && matchProdi && matchSearch
-  })
+      dosenList.forEach((dosen) => {
+        // Cari pengajuan SKP non-Draft milik dosen ini
+        const userSkps = skpList.filter(
+          (s) => (s.dosenId === dosen.id || s.dosenNip === dosen.nip) && s.status && s.status !== 'Draft'
+        )
+
+        if (userSkps.length > 0) {
+          userSkps.forEach((skp) => {
+            items.push({
+              id: skp.id,
+              dosenId: dosen.id,
+              dosenNama: skp.dosenNama || dosen.nama,
+              dosenNip: skp.dosenNip || dosen.nip,
+              dosenJabatan: skp.dosenJabatan || dosen.jafung,
+              dosenProdi: skp.dosenProdi || dosen.prodi,
+              dosenFakultas: dosen.fakultas || '',
+              dosenKampus: dosen.kampus || '',
+              semester: skp.semester,
+              tahunAkademik: skp.tahunAkademik,
+              totalSksRealisasi: skp.totalSksRealisasi || 0,
+              nilaiKinerjaSKP: skp.nilaiKinerjaSKP || 0,
+              status: skp.status,
+              hasTtd: Boolean(skp.ttdKaprodiUrl || skp.ttdDekanUrl),
+              skp: skp,
+            })
+          })
+        } else {
+          // Dosen belum mengajukan SKP apapun pada periode berjalan (atau masih tersimpan di Draft)
+          items.push({
+            id: `belum-${dosen.id}`,
+            dosenId: dosen.id,
+            dosenNama: dosen.nama,
+            dosenNip: dosen.nip,
+            dosenJabatan: dosen.jafung,
+            dosenProdi: dosen.prodi,
+            dosenFakultas: dosen.fakultas || '',
+            dosenKampus: dosen.kampus || '',
+            semester: selectedSemester !== 'Semua' ? selectedSemester : 'Ganjil',
+            tahunAkademik: selectedTahun !== 'Semua' ? selectedTahun : (availableYears[0] || '2026/2027'),
+            totalSksRealisasi: 0,
+            nilaiKinerjaSKP: 0,
+            status: 'Belum Mengajukan',
+            hasTtd: false,
+            skp: null,
+          })
+        }
+      })
+
+      return items
+    }
+
+    // Fallback jika dosenList tidak tersedia: map dari skpList (non-draft)
+    return skpList
+      .filter((s) => s.status && s.status !== 'Draft')
+      .map((skp) => ({
+        id: skp.id,
+        dosenId: skp.dosenId,
+        dosenNama: skp.dosenNama,
+        dosenNip: skp.dosenNip,
+        dosenJabatan: skp.dosenJabatan,
+        dosenProdi: skp.dosenProdi,
+        dosenFakultas: '',
+        dosenKampus: '',
+        semester: skp.semester,
+        tahunAkademik: skp.tahunAkademik,
+        totalSksRealisasi: skp.totalSksRealisasi || 0,
+        nilaiKinerjaSKP: skp.nilaiKinerjaSKP || 0,
+        status: skp.status,
+        hasTtd: Boolean(skp.ttdKaprodiUrl || skp.ttdDekanUrl),
+        skp: skp,
+      }))
+  }, [dosenList, skpList, selectedSemester, selectedTahun, availableYears])
+
+  const isFiltered =
+    selectedTahun !== 'Semua' ||
+    selectedSemester !== 'Semua' ||
+    selectedFakultas !== 'Semua' ||
+    selectedProdi !== 'Semua Program Studi' ||
+    selectedStatus !== 'Semua' ||
+    selectedSksBeban !== 'Semua' ||
+    selectedTtd !== 'Semua' ||
+    searchQuery.trim() !== ''
+
+  const handleResetFilters = () => {
+    setSelectedTahun('Semua')
+    setSelectedSemester('Semua')
+    setSelectedFakultas('Semua')
+    setSelectedProdi('Semua Program Studi')
+    setSelectedStatus('Semua')
+    setSelectedSksBeban('Semua')
+    setSelectedTtd('Semua')
+    setSearchQuery('')
+    setPage(1)
+  }
+
+  const filteredList = useMemo(() => {
+    return allItems.filter((item) => {
+      if (selectedTahun !== 'Semua' && item.tahunAkademik !== selectedTahun) return false
+      if (selectedSemester !== 'Semua' && item.semester !== selectedSemester) return false
+      if (selectedFakultas !== 'Semua' && item.dosenFakultas !== selectedFakultas) return false
+      if (selectedProdi !== 'Semua Program Studi' && item.dosenProdi !== selectedProdi) return false
+
+      if (selectedStatus !== 'Semua') {
+        const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM'].includes(item.status)
+        const isReviewPimpinan = ['Dinilai Kaprodi', 'Dinilai Dekan'].includes(item.status)
+
+        if (selectedStatus === 'Sah & Terbit') {
+          if (!isSah) return false
+        } else if (selectedStatus === 'Dinilai Kaprodi / Dekan') {
+          if (!isReviewPimpinan) return false
+        } else if (item.status !== selectedStatus) {
+          return false
+        }
+      }
+
+      if (selectedSksBeban !== 'Semua') {
+        if (selectedSksBeban === 'standar' && (item.totalSksRealisasi < 12 || item.totalSksRealisasi > 16)) return false
+        if (selectedSksBeban === 'kurang' && item.totalSksRealisasi >= 12) return false
+        if (selectedSksBeban === 'lebih' && item.totalSksRealisasi <= 16) return false
+      }
+
+      if (selectedTtd !== 'Semua') {
+        if (selectedTtd === 'ada' && !item.hasTtd) return false
+        if (selectedTtd === 'belum' && item.hasTtd) return false
+      }
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase()
+        const matchNama = (item.dosenNama || '').toLowerCase().includes(q)
+        const matchNip = (item.dosenNip || '').toLowerCase().includes(q)
+        const matchProdi = (item.dosenProdi || '').toLowerCase().includes(q)
+        const matchJabatan = (item.dosenJabatan || '').toLowerCase().includes(q)
+        const matchFakultas = (item.dosenFakultas || '').toLowerCase().includes(q)
+        if (!matchNama && !matchNip && !matchProdi && !matchJabatan && !matchFakultas) return false
+      }
+
+      return true
+    })
+  }, [
+    allItems,
+    selectedTahun,
+    selectedSemester,
+    selectedFakultas,
+    selectedProdi,
+    selectedStatus,
+    selectedSksBeban,
+    selectedTtd,
+    searchQuery,
+  ])
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+
+  // Reset page to 1 when filters change
+  React.useEffect(() => {
+    setPage(1)
+  }, [
+    selectedTahun,
+    selectedSemester,
+    selectedFakultas,
+    selectedProdi,
+    selectedStatus,
+    selectedSksBeban,
+    selectedTtd,
+    searchQuery,
+  ])
 
   const paginatedList = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -109,7 +327,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
   }, [filteredList, page, pageSize])
 
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode], { y: 8, stagger: 0.04 })
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [viewMode, page, filteredList.length], { y: 8, stagger: 0.04 })
 
   const handleOpenReview = (skp: PengajuanSKP) => {
     setSelectedSKP(skp)
@@ -153,7 +371,8 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {currentSelectedSKP.tanggalPengajuan && (
               <span className="badge-pill badge-pill--orange" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                📅 Pengajuan Terbaru: {currentSelectedSKP.tanggalPengajuan}
+                <Clock size={12} />
+                <span>Pengajuan Terbaru: {currentSelectedSKP.tanggalPengajuan}</span>
               </span>
             )}
             {(() => {
@@ -318,126 +537,74 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           </div>
 
           {/* Catatan Persetujuan & Verifikasi Pimpinan */}
-          <div style={{ padding: '16px 20px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-              Catatan Persetujuan &amp; Verifikasi dari {currentSelectedSKP.penilaiJabatan || 'Pimpinan'}:
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: 4, fontStyle: 'italic', lineHeight: 1.5 }}>
-              "{currentSelectedSKP.catatanKaprodi || 'Seluruh luaran tridharma telah sesuai dengan standar SPMI UBK dan telah diverifikasi lengkap.'}"
-            </div>
-            {currentSelectedSKP.ttdKaprodiUrl && (
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="badge-pill badge-pill--green" style={{ fontSize: '11px' }}>
-                  Tanda Tangan Digital Ka Prodi Terverifikasi
-                </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ padding: '14px 18px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>Catatan Penilai (Ka Prodi / Dekan)</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink-secondary)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
+                "{currentSelectedSKP.catatanKaprodi || 'Belum ada catatan khusus dari penilai langsung.'}"
               </div>
-            )}
+            </div>
+
+            <div style={{ padding: '14px 18px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>Catatan Evaluasi Verifikator SDM</div>
+              <textarea
+                className="input-field"
+                rows={3}
+                placeholder="Tuliskan catatan verifikasi bukti dokumen atau alasan pembatalan jika ada berkas yang perlu direvisi..."
+                value={sdmNotes}
+                onChange={(e) => setSdmNotes(e.target.value)}
+                style={{ marginTop: 6, width: '100%', fontSize: '12.5px' }}
+              />
+            </div>
           </div>
 
-          {/* Form Catatan SDM */}
-          <div className="form-field">
-            <label className="form-label">Catatan Verifikasi / Alasan Pembatalan Terbit oleh SDM</label>
-            <textarea
-              rows={3}
-              className="custom-input"
-              value={sdmNotes}
-              onChange={(e) => setSdmNotes(e.target.value)}
-              placeholder="Tuliskan catatan verifikasi fisik BKD atau alasan pembatalan jika memerlukan perbaikan..."
-              style={{ resize: 'vertical' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, paddingTop: 10 }}>
-            {['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(currentSelectedSKP.status) ? (
-              <>
-                <button
-                  type="button"
-                  className="brand-btn btn-action-delete"
-                  onClick={() => setConfirmReject(true)}
-                  title="Batalkan status terbit SKP dan kembalikan ke Dosen untuk revisi"
-                >
-                  <XCircle size={15} />
-                  <span>Batalkan Terbit SKP (Minta Revisi)</span>
-                </button>
-                <button
-                  type="button"
-                  className="brand-btn btn-action-print"
-                  onClick={() => openPrintSKP(currentSelectedSKP, currentSelectedSKP.ttdDosenUrl)}
-                  title="Cetak Formulir SKP Resmi di Tab Baru"
-                >
-                  <Printer size={15} />
-                  <span>Cetak Lembar SKP</span>
-                </button>
-                <button
-                  type="button"
-                  className="brand-btn btn-action-add"
-                  onClick={() => setConfirmApprove(true)}
-                  title="Simpan catatan verifikasi Biro SDM"
-                >
-                  <CheckCircle size={15} />
-                  <span>Konfirmasi Validasi SDM</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="brand-btn btn-action-delete"
-                  onClick={() => setConfirmReject(true)}
-                >
-                  <XCircle size={15} />
-                  <span>Minta Revisi Berkas</span>
-                </button>
-                <button
-                  type="button"
-                  className="brand-btn btn-action-add"
-                  onClick={() => setConfirmApprove(true)}
-                >
-                  <CheckCircle size={15} />
-                  <span>Sahkan &amp; Terbitkan Kembali</span>
-                </button>
-              </>
-            )}
+          {/* Action Buttons for Review */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--hair)', paddingTop: 16 }}>
+            <button className="btn-back" onClick={() => setViewMode('list')}>
+              <span>Batal</span>
+            </button>
+            <button
+              className="brand-btn"
+              style={{ background: '#ef4444', color: '#ffffff', borderColor: '#ef4444' }}
+              onClick={() => setConfirmReject(true)}
+            >
+              <XCircle size={15} />
+              <span>Kembalikan (Perlu Revisi)</span>
+            </button>
+            <button className="brand-btn" onClick={() => setConfirmApprove(true)}>
+              <CheckCircle size={15} />
+              <span>Sahkan &amp; Terbitkan SKP</span>
+            </button>
           </div>
         </div>
 
+        {/* Dialog Konfirmasi Sahkan */}
         <ConfirmDialog
           isOpen={confirmApprove}
-          title="Konfirmasi Validasi SDM"
-          message={`Konfirmasi verifikasi berkas SKP atas nama ${currentSelectedSKP.dosenNama}? Catatan verifikasi SDM akan disimpan pada pangkalan data.`}
-          confirmText="Simpan Validasi"
-          cancelText="Batal"
+          title="Konfirmasi Pengesahan SKP Dosen"
+          message={`Apakah Anda yakin seluruh berkas Tridharma dosen ${currentSelectedSKP.dosenNama} telah lengkap dan layak untuk disahkan dan diterbitkan secara resmi?`}
+          confirmText="Ya, Sahkan SKP"
           onConfirm={handleExecuteApprove}
           onCancel={() => setConfirmApprove(false)}
         />
 
+        {/* Dialog Konfirmasi Kembalikan */}
         <ConfirmDialog
           isOpen={confirmReject}
-          title="Batalkan Penerbitan SKP"
-          message={`Apakah Anda yakin ingin MEMBATALKAN status terbit SKP atas nama ${currentSelectedSKP.dosenNama}? Berkas akan dikembalikan ke status Perlu Revisi agar dosen dan prodi dapat memperbaiki luaran sesuai catatan Anda.`}
-          confirmText="Ya, Batalkan Terbit"
-          cancelText="Kembali"
-          isDestructive={true}
+          title="Konfirmasi Pengembalian Berkas SKP"
+          message={`Apakah Anda yakin ingin membatalkan/mengembalikan berkas SKP dosen ${currentSelectedSKP.dosenNama} untuk direvisi? Pastikan Anda telah menuliskan catatan perbaikan.`}
+          confirmText="Ya, Kembalikan Berkas"
+          isDestructive
           onConfirm={handleExecuteReject}
           onCancel={() => setConfirmReject(false)}
         />
-
-        {/* Modal Cetak Format Resmi UBK */}
-        {printSKPTarget && (
-          <FormulirCetakSKP
-            skp={printSKPTarget}
-            isOpen={Boolean(printSKPTarget)}
-            dosenSignatureUrl={printSKPTarget.ttdDosenUrl}
-            onClose={() => setPrintSKPTarget(null)}
-          />
-        )}
       </div>
     )
   }
 
   return (
     <div className="page-container" ref={containerRef}>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
           <h1 className="page-title">Monitoring &amp; Verifikasi SKP Pegawai</h1>
           <p className="page-desc">
@@ -446,7 +613,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
         </div>
       </div>
 
-      {/* Filter Toolbar */}
+      {/* Filter Toolbar: Diperkaya, Seragam & Search Bar Lebar Penuh di Bawah */}
       <div
         style={{
           background: 'var(--card)',
@@ -455,97 +622,294 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
           border: '1px solid var(--hair)',
           boxShadow: 'var(--shadow-xs)',
           display: 'flex',
-          gap: 14,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: 'column',
+          gap: 12,
+          marginBottom: 16,
         }}
       >
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Filter Tahun Akademik */}
-          <select
-            className="custom-select"
-            value={selectedTahun}
-            onChange={(e) => setSelectedTahun(e.target.value)}
-            style={{
-              width: 'auto',
-              minWidth: 165,
-              height: 38,
-              fontSize: '13px',
-              fontWeight: 600,
-              border: '1px solid var(--hair-strong)',
-              background: '#ffffff',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            {tahunList.map((thn, idx) => (
-              <option key={idx} value={thn}>
-                {thn === 'Semua' ? 'Semua Tahun Ajaran' : `Tahun ${thn}`}
-              </option>
-            ))}
-          </select>
-
-          {/* Filter Semester */}
-          <div style={{ display: 'flex', gap: 4, background: 'var(--panel-hover)', padding: 3, borderRadius: 'var(--r-md)' }}>
-            {['Semua', 'Genap', 'Ganjil'].map((sem, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedSemester(sem)}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 'var(--r-sm)',
-                  border: 'none',
-                  background: selectedSemester === sem ? 'var(--navy-900)' : 'transparent',
-                  color: selectedSemester === sem ? '#ffffff' : 'var(--muted)',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {sem === 'Semua' ? 'Semua Semester' : `Semester ${sem}`}
-              </button>
-            ))}
+        {/* Baris 1: Header Filter & Tombol Reset */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>
+              Filter Berkas Pengajuan SKP
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: 'var(--brand-700)',
+                background: 'var(--brand-100)',
+                padding: '2px 8px',
+                borderRadius: 'var(--r-full)',
+              }}
+            >
+              Menampilkan {filteredList.length} dari {allItems.length} Pegawai
+            </span>
           </div>
 
-          {/* Filter Status */}
-          <select
-            className="custom-select"
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            style={{ width: 'auto', minWidth: 170, height: 38, fontSize: '13px', fontWeight: 600 }}
-          >
-            {statusList.map((st, idx) => (
-              <option key={idx} value={st}>
-                Status: {st}
-              </option>
-            ))}
-          </select>
-
-          {/* Filter Prodi */}
-          <select
-            className="custom-select"
-            value={selectedProdi}
-            onChange={(e) => setSelectedProdi(e.target.value)}
-            style={{ width: 'auto', minWidth: 200, height: 38, fontSize: '13px', fontWeight: 600 }}
-          >
-            {availableProdis.map((p, idx) => (
-              <option key={idx} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              style={{
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                borderRadius: 'var(--r-sm)',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--status-danger-ink)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="Reset seluruh filter ke kondisi awal"
+            >
+              <RotateCcw size={12} />
+              <span>Reset Filter</span>
+            </button>
+          )}
         </div>
 
-        <div className="search" style={{ minWidth: 240, maxWidth: 320 }}>
-          <Search size={15} color="var(--muted)" />
+        {/* Baris 2: Kumpulan Dropdown Filter Seragam Termasuk Fakultas */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+            gap: 10,
+            alignItems: 'center',
+          }}
+        >
+          {/* 1. Tahun Akademik */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Tahun Akademik</label>
+            <select
+              className="custom-select"
+              value={selectedTahun}
+              onChange={(e) => setSelectedTahun(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 600,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+              }}
+            >
+              {tahunList.map((thn, idx) => (
+                <option key={idx} value={thn}>
+                  {thn === 'Semua' ? 'Semua Tahun' : `TA ${thn}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Semester */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Semester</label>
+            <select
+              className="custom-select"
+              value={selectedSemester}
+              onChange={(e) => setSelectedSemester(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 600,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+              }}
+            >
+              <option value="Semua">Semua Semester</option>
+              <option value="Ganjil">Semester Ganjil</option>
+              <option value="Genap">Semester Genap</option>
+            </select>
+          </div>
+
+          {/* 3. Fakultas (Wajib Sesuai Permintaan) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Fakultas</label>
+            <select
+              className="custom-select"
+              value={selectedFakultas}
+              onChange={(e) => setSelectedFakultas(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Fakultas</option>
+              {availableFakultas.map((fak) => (
+                <option key={fak} value={fak} title={fak}>
+                  {fak}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Program Studi */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Program Studi</label>
+            <select
+              className="custom-select"
+              value={selectedProdi}
+              onChange={(e) => setSelectedProdi(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua Program Studi">Semua Program Studi</option>
+              {availableProdis.map((p, idx) => (
+                <option key={idx} value={p} title={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5. Status Berkas */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Status Berkas</label>
+            <select
+              className="custom-select"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 600,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {statusOptions.map((st, idx) => (
+                <option key={idx} value={st.value}>
+                  {st.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 6. Kesesuaian Beban SKS SPMI */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Beban Kerja SKS</label>
+            <select
+              className="custom-select"
+              value={selectedSksBeban}
+              onChange={(e) => setSelectedSksBeban(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Beban SKS</option>
+              <option value="standar">Standar BKD (12 - 16 SKS)</option>
+              <option value="kurang">Kurang Beban (&lt; 12 SKS)</option>
+              <option value="lebih">Lebih Beban (&gt; 16 SKS)</option>
+            </select>
+          </div>
+
+          {/* 7. TTD Penilai */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Tanda Tangan Penilai</label>
+            <select
+              className="custom-select"
+              value={selectedTtd}
+              onChange={(e) => setSelectedTtd(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Verifikasi TTD</option>
+              <option value="ada">Sudah Ditandatangani</option>
+              <option value="belum">Belum Ditandatangani</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Baris 3: Search Bar di Bawah Filter dengan Lebar Penuh & Responsif */}
+        <div style={{ position: 'relative', width: '100%', marginTop: 2 }}>
+          <Search
+            size={16}
+            style={{
+              position: 'absolute',
+              left: 14,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: searchQuery ? 'var(--brand-600)' : 'var(--faint)',
+              pointerEvents: 'none',
+              transition: 'color 0.15s ease',
+            }}
+          />
           <input
             type="text"
-            placeholder="Cari nama dosen / NIP..."
+            className="input-field"
+            placeholder="Cari nama dosen, NIP, fakultas, atau program studi..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '100%' }}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              paddingLeft: 42,
+              paddingRight: searchQuery ? 68 : 14,
+              height: 40,
+              fontSize: '13px',
+              borderRadius: 'var(--r-md)',
+              border: '1px solid var(--hair-strong)',
+              background: 'var(--page-bg)',
+            }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'var(--panel-hover)',
+                border: '1px solid var(--hair)',
+                borderRadius: 'var(--r-xs)',
+                padding: '2px 8px',
+                fontSize: '11px',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+              }}
+            >
+              Hapus
+            </button>
+          )}
         </div>
       </div>
 
@@ -556,93 +920,135 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             <tr>
               <th style={{ minWidth: 220 }}>Dosen / Ka Prodi</th>
               <th>Semester &amp; Tahun</th>
-              <th>Program Studi</th>
+              <th>Program Studi &amp; Fakultas</th>
               <th>Realisasi SKS</th>
               <th>Kualitas Mutu</th>
               <th>Status SKP</th>
-              <th>TTD Ka Prodi</th>
-              <th style={{ textAlign: 'right' }}>Aksi SDM</th>
+              <th>TTD Penilai</th>
+              <th style={{ textAlign: 'right' }}>Aksi Dokumen</th>
             </tr>
           </thead>
           <tbody>
             {paginatedList.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
-                  Tidak ada berkas SKP yang cocok dengan filter pencarian.
+                  <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <AlertCircle size={28} style={{ color: 'var(--faint)' }} />
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>
+                      Tidak Ada Data yang Cocok
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                      Silakan sesuaikan kata kunci pencarian atau ubah kriteria filter di atas.
+                    </span>
+                  </div>
                 </td>
               </tr>
             ) : (
-              paginatedList.map((skp) => (
-              <tr key={skp.id}>
-                <td>
-                  <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{skp.dosenNama}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    NIP: {skp.dosenNip} &bull; {skp.dosenJabatan}
-                  </div>
-                </td>
-                <td>
-                  <span style={{ fontWeight: 600 }}>Semester {skp.semester}</span>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{skp.tahunAkademik}</div>
-                </td>
-                <td>{skp.dosenProdi}</td>
-                <td>
-                  <span style={{ fontWeight: 700, color: 'var(--brand-700)' }}>
-                    {skp.totalSksRealisasi} SKS
-                  </span>
-                </td>
-                <td>
-                  <span style={{ fontWeight: 700 }}>{skp.nilaiKinerjaSKP ? `${skp.nilaiKinerjaSKP}%` : '-'}</span>
-                </td>
-                <td>
-                  {(() => {
-                    const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(skp.status)
-                    return (
-                      <span
-                        className={`badge-pill ${
-                          isSah
-                            ? 'badge-pill--green'
-                            : skp.status === 'Diajukan'
-                            ? 'badge-pill--orange'
-                            : 'badge-pill--red'
-                        }`}
-                      >
-                        {isSah ? 'Sah & Terbit' : skp.status === 'Perlu Revisi' ? 'Dibatalkan / Revisi' : skp.status}
-                      </span>
-                    )
-                  })()}
-                </td>
-                <td>
-                  {skp.ttdKaprodiUrl ? (
-                    <span className="badge-pill badge-pill--green" style={{ fontSize: '11px' }}>
-                      Ada TTD
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>-</span>
-                  )}
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <button
-                      className="brand-btn btn-action-view"
-                      style={{ padding: '6px 14px', fontSize: '12px' }}
-                      onClick={() => handleOpenReview(skp)}
-                    >
-                      <FileCheck2 size={13} />
-                      <span>Verifikasi Berkas</span>
-                    </button>
-                    <button
-                      className="brand-btn btn-action-print"
-                      style={{ padding: '6px 10px', fontSize: '12px' }}
-                      title="Cetak Formulir SKP Resmi di Tab Baru"
-                      onClick={() => openPrintSKP(skp, skp.ttdDosenUrl)}
-                    >
-                      <Printer size={13} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )))
-          }
+              paginatedList.map((item) => {
+                const isBelumMengajukan = item.status === 'Belum Mengajukan'
+                const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM'].includes(item.status)
+                const isReviewed = ['Dinilai Kaprodi', 'Dinilai Dekan'].includes(item.status)
+
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{item.dosenNama}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                        NIP: {item.dosenNip || '-'} &bull; {item.dosenJabatan || 'Dosen'}
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>Semester {item.semester}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{item.tahunAkademik}</div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{item.dosenProdi}</div>
+                      {item.dosenFakultas && (
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
+                          <Building2 size={10} />
+                          <span>{item.dosenFakultas}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {isBelumMengajukan ? (
+                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>-</span>
+                      ) : (
+                        <span style={{ fontWeight: 700, color: 'var(--brand-700)', fontVariantNumeric: 'tabular-nums' }}>
+                          {item.totalSksRealisasi} SKS
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {isBelumMengajukan ? (
+                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>-</span>
+                      ) : (
+                        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                          {item.nilaiKinerjaSKP ? `${item.nilaiKinerjaSKP}%` : '-'}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {isBelumMengajukan ? (
+                        <span className="badge-pill badge-pill--gray">
+                          <Clock size={11} />
+                          <span>Belum Mengajukan</span>
+                        </span>
+                      ) : isSah ? (
+                        <span className="badge-pill badge-pill--green">
+                          <CheckCircle size={11} />
+                          <span>Sah &amp; Terbit</span>
+                        </span>
+                      ) : isReviewed ? (
+                        <span className="badge-pill badge-pill--blue">
+                          <span>{item.status}</span>
+                        </span>
+                      ) : item.status === 'Diajukan' ? (
+                        <span className="badge-pill badge-pill--orange">
+                          <span>Diajukan Dosen</span>
+                        </span>
+                      ) : (
+                        <span className="badge-pill badge-pill--red">
+                          <span>{item.status}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {item.hasTtd ? (
+                        <span className="badge-pill badge-pill--green" style={{ fontSize: '11px' }}>
+                          Ada TTD
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {item.skp ? (
+                        <button
+                          className="brand-btn btn-action-print"
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                          title="Cetak Formulir SKP Resmi di Tab Baru"
+                          onClick={() => openPrintSKP(item.skp!, item.skp!.ttdDosenUrl || (item.skp as any)!.dosen?.signatureUrl)}
+                        >
+                          <Printer size={13} />
+                          <span>Cetak SKP</span>
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontStyle: 'italic' }}>
+                          Belum Tersedia
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>

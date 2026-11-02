@@ -215,7 +215,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           {/* Identitas Institusi */}
           <div className="text-center mb-4 sm:mb-5">
             <img
-              src="/logo.png"
+              src="/logo.svg"
               alt="Logo Universitas Bhakti Kencana"
               className="w-10 h-9 object-contain mx-auto mb-1.5 block drop-shadow-sm"
             />

@@ -186,8 +186,8 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
               alt={user.name}
               onError={(e) => {
                 const target = e.currentTarget
-                if (!target.src.endsWith('/user.png')) {
-                  target.src = '/user.png'
+                if (!target.src.endsWith('/user.svg')) {
+                  target.src = '/user.svg'
                 }
               }}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}

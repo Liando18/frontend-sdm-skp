@@ -8,32 +8,35 @@ import { Sidebar } from './components/Sidebar'
 import { CommandPalette } from './components/CommandPalette'
 import { Toast } from './components/Toast'
 import { LoginView } from './views/LoginView'
-import { DashboardSDM } from './views/DashboardSDM'
-import { KelolaDataDosen } from './views/KelolaDataDosen'
-import { KelolaKomponenSKP } from './views/KelolaKomponenSKP'
-import { KelolaSKPDosen } from './views/KelolaSKPDosen'
-import { KelolaIndikatorKuesioner } from './views/KelolaIndikatorKuesioner'
-import { KelolaPenilaianKuesioner } from './views/KelolaPenilaianKuesioner'
-import { LaporanView } from './views/LaporanView'
-import { DashboardDosen } from './views/DashboardDosen'
-import { KelolaSKPDosenSelf } from './views/KelolaSKPDosenSelf'
-import { DashboardKaprodi } from './views/DashboardKaprodi'
-import { ReviewSKPKaprodi } from './views/ReviewSKPKaprodi'
-import { KelolaKuesionerKaprodi } from './views/KelolaKuesionerKaprodi'
-import { DashboardDekan } from './views/DashboardDekan'
-import { ReviewSKPDekan } from './views/ReviewSKPDekan'
-import { CekHasilKuesionerDekan } from './views/CekHasilKuesionerDekan'
-import { HasilKinerjaTahunanSelf } from './views/HasilKinerjaTahunanSelf'
-import { ProfilView } from './views/ProfilView'
-import { CetakSKPStandaloneView } from './views/CetakSKPStandaloneView'
-import { CetakOutputFinalStandaloneView } from './views/CetakOutputFinalStandaloneView'
-import { CetakTranskripStandaloneView } from './views/CetakTranskripStandaloneView'
-import { CetakPanduanStandaloneView } from './views/CetakPanduanStandaloneView'
-import { PanduanView } from './views/PanduanView'
+
+const DashboardSDM = React.lazy(() => import('./views/DashboardSDM').then(m => ({ default: m.DashboardSDM })))
+const KelolaDataDosen = React.lazy(() => import('./views/KelolaDataDosen').then(m => ({ default: m.KelolaDataDosen })))
+const KelolaKomponenSKP = React.lazy(() => import('./views/KelolaKomponenSKP').then(m => ({ default: m.KelolaKomponenSKP })))
+const KelolaSKPDosen = React.lazy(() => import('./views/KelolaSKPDosen').then(m => ({ default: m.KelolaSKPDosen })))
+const KelolaIndikatorKuesioner = React.lazy(() => import('./views/KelolaIndikatorKuesioner').then(m => ({ default: m.KelolaIndikatorKuesioner })))
+const KelolaPenilaianKuesioner = React.lazy(() => import('./views/KelolaPenilaianKuesioner').then(m => ({ default: m.KelolaPenilaianKuesioner })))
+const LaporanView = React.lazy(() => import('./views/LaporanView').then(m => ({ default: m.LaporanView })))
+const DashboardDosen = React.lazy(() => import('./views/DashboardDosen').then(m => ({ default: m.DashboardDosen })))
+const KelolaSKPDosenSelf = React.lazy(() => import('./views/KelolaSKPDosenSelf').then(m => ({ default: m.KelolaSKPDosenSelf })))
+const DashboardKaprodi = React.lazy(() => import('./views/DashboardKaprodi').then(m => ({ default: m.DashboardKaprodi })))
+const ReviewSKPKaprodi = React.lazy(() => import('./views/ReviewSKPKaprodi').then(m => ({ default: m.ReviewSKPKaprodi })))
+const KelolaKuesionerKaprodi = React.lazy(() => import('./views/KelolaKuesionerKaprodi').then(m => ({ default: m.KelolaKuesionerKaprodi })))
+const DashboardDekan = React.lazy(() => import('./views/DashboardDekan').then(m => ({ default: m.DashboardDekan })))
+const ReviewSKPDekan = React.lazy(() => import('./views/ReviewSKPDekan').then(m => ({ default: m.ReviewSKPDekan })))
+const CekHasilKuesionerDekan = React.lazy(() => import('./views/CekHasilKuesionerDekan').then(m => ({ default: m.CekHasilKuesionerDekan })))
+const HasilKinerjaTahunanSelf = React.lazy(() => import('./views/HasilKinerjaTahunanSelf').then(m => ({ default: m.HasilKinerjaTahunanSelf })))
+const ProfilView = React.lazy(() => import('./views/ProfilView').then(m => ({ default: m.ProfilView })))
+const CetakSKPStandaloneView = React.lazy(() => import('./views/CetakSKPStandaloneView').then(m => ({ default: m.CetakSKPStandaloneView })))
+const CetakOutputFinalStandaloneView = React.lazy(() => import('./views/CetakOutputFinalStandaloneView').then(m => ({ default: m.CetakOutputFinalStandaloneView })))
+const CetakTranskripStandaloneView = React.lazy(() => import('./views/CetakTranskripStandaloneView').then(m => ({ default: m.CetakTranskripStandaloneView })))
+const CetakPanduanStandaloneView = React.lazy(() => import('./views/CetakPanduanStandaloneView').then(m => ({ default: m.CetakPanduanStandaloneView })))
+const PanduanView = React.lazy(() => import('./views/PanduanView').then(m => ({ default: m.PanduanView })))
 import { HelpModal } from './components/HelpModal'
 import { DashboardSkeleton } from './components/Skeleton'
+import { AlertTriangle } from 'lucide-react'
 import { getNavIdFromPath, getPathFromNavId } from './utils/routes'
 import { deriveRealNotifications } from './utils/notifications'
+import { fetchOfficialRektor } from './utils/rektorData'
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -140,66 +143,94 @@ export default function App() {
     }
   }, [isLoggedIn, currentRole])
 
-  // Load data from Laravel 12 Backend API on mount
+  // Load data from Laravel 12 Backend API on mount & auth change
   useEffect(() => {
     let isMounted = true
     const initDataFromApi = async () => {
       try {
-        const [dosenData, komponenData, skpData, indikatorData, penilaianData, notifData, prodiData, demoUsersData, jabatanData, fakultasData, psdkuData] = await Promise.all([
-          api.dosen.list().catch(() => null),
-          api.komponen.list().catch(() => null),
-          api.skp.list().catch(() => null),
-          api.indikator.list().catch(() => null),
-          api.penilaian.list().catch(() => null),
-          api.notifications.list().catch(() => null),
+        const token = localStorage.getItem('ubk_auth_token')
+        // Ambil demo users untuk demo switcher & identitas awal
+        const demoUsersData = await api.auth.getDemoUsers().catch(() => null)
+        if (isMounted && demoUsersData && typeof demoUsersData === 'object' && Object.keys(demoUsersData).length > 0) {
+          setDemoUsers(demoUsersData as Record<string, UserSession>)
+        }
+
+        // Muat data dinamis Rektor resmi dari database ke cache pracetak
+        fetchOfficialRektor().catch(() => null)
+
+        // Jika tidak login / belum memiliki token, jangan menembak API master (cegah overfetching)
+        if (!isLoggedIn || !token) {
+          if (isMounted) {
+            setBackendStatus('connected')
+            setIsInitialLoading(false)
+          }
+          return
+        }
+
+        // Optimasi Skalabilitas (Pencegahan Boot Waterfall & SQLite I/O Congestion):
+        // Fase 1: Muat Sesi Autentikasi Pengguna & Master Data Referensi Inti Terlebih Dahulu
+        const [meUser, prodiData, fakultasData, psdkuData, jabatanData] = await Promise.all([
+          api.auth.me().catch(() => null),
           api.prodi.list().catch(() => null),
-          api.auth.getDemoUsers().catch(() => null),
-          api.jabatan.list().catch(() => null),
           api.fakultas.list().catch(() => null),
           api.psdku.list().catch(() => null),
+          api.jabatan.list().catch(() => null),
         ])
 
         if (!isMounted) return
 
-        if (dosenData && Array.isArray(dosenData)) {
-          setDosenList(dosenData)
+        if (meUser && meUser.name) {
+          setCurrentUser(meUser)
+          if (meUser.role) setCurrentRole(meUser.role)
+          localStorage.setItem('ubk_user_session', JSON.stringify(meUser))
+          localStorage.setItem('ubk_current_role', meUser.role)
+          if (meUser.mustChangePassword) {
+            setActiveNav('profil')
+            updateUrl('profil')
+          }
           setBackendStatus('connected')
-        } else {
-          setBackendStatus('offline')
         }
 
         if (prodiData && Array.isArray(prodiData)) setProdiList(prodiData)
         if (fakultasData && Array.isArray(fakultasData)) setFakultasList(fakultasData)
         if (psdkuData && Array.isArray(psdkuData)) setPsdkuList(psdkuData)
         if (jabatanData && Array.isArray(jabatanData)) setJabatanList(jabatanData)
+
+        // Tampilkan antarmuka segera setelah data inti siap (Immediate Perceived Responsiveness)
+        setIsInitialLoading(false)
+
+        // Fase 2: Muat Data Operasional Utama (SKP, Komponen, dan Notifikasi)
+        const [komponenData, skpData, notifData] = await Promise.all([
+          api.komponen.list().catch(() => null),
+          api.skp.list().catch(() => null),
+          api.notifications.list().catch(() => null),
+        ])
+
+        if (!isMounted) return
+
         if (komponenData && Array.isArray(komponenData)) setKomponenList(komponenData)
         if (skpData && Array.isArray(skpData)) setSkpList(skpData)
+        if (notifData && Array.isArray(notifData)) setNotifications(notifData)
+
+        // Fase 3: Hidrasi Latar Belakang Data Sekunder (Dosen, Indikator, dan Penilaian Kuesioner)
+        const [dosenData, indikatorData, penilaianData] = await Promise.all([
+          api.dosen.list().catch(() => null),
+          api.indikator.list().catch(() => null),
+          api.penilaian.list().catch(() => null),
+        ])
+
+        if (!isMounted) return
+
+        if (dosenData && Array.isArray(dosenData)) {
+          setDosenList(dosenData)
+        }
         if (indikatorData && Array.isArray(indikatorData)) setIndikatorList(indikatorData)
         if (penilaianData && Array.isArray(penilaianData)) setPenilaianList(penilaianData)
-        if (notifData && Array.isArray(notifData)) setNotifications(notifData)
-        if (demoUsersData && typeof demoUsersData === 'object' && Object.keys(demoUsersData).length > 0) {
-          setDemoUsers(demoUsersData as Record<string, UserSession>)
-        }
-
-        // Jika tersimpan token autentikasi, verifikasi profil pengguna saat ini ke backend
-        if (localStorage.getItem('ubk_auth_token')) {
-          api.auth
-            .me()
-            .then((meUser) => {
-              if (isMounted && meUser && meUser.name) {
-                setCurrentUser(meUser)
-                if (meUser.role) setCurrentRole(meUser.role)
-                localStorage.setItem('ubk_user_session', JSON.stringify(meUser))
-                localStorage.setItem('ubk_current_role', meUser.role)
-              }
-            })
-            .catch(() => {})
-        }
       } catch {
         if (isMounted) setBackendStatus('offline')
       } finally {
         if (isMounted) {
-          setTimeout(() => setIsInitialLoading(false), 200)
+          setIsInitialLoading(false)
         }
       }
     }
@@ -208,7 +239,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [isLoggedIn])
 
   const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
@@ -310,53 +341,32 @@ export default function App() {
       try {
         res = await api.auth.login(payload)
       } catch (backendErr: any) {
-        // Jika backend merespons 401 atau kesalahan kredensial spesifik
         const errMsg = backendErr?.message || ''
-        if (
-          errMsg.includes('401') ||
-          errMsg.includes('tidak dikenali') ||
-          errMsg.includes('tidak sesuai') ||
-          errMsg.includes('salah') ||
-          errMsg.includes('tidak terdaftar') ||
-          errMsg.includes('Unauthenticated')
-        ) {
-          const userMsg = 'Data yang Anda masukkan tidak dikenali. Silakan periksa kembali Email/NIP dan kata sandi Anda.'
-          showToast(userMsg, 'error')
-          return { success: false, message: userMsg }
-        }
-
-        // Mode fallback jika server Laravel offline (koneksi jaringan putus)
-        const targetDemoUser = Object.values(demoUsers).find(
-          (u) => u.email.toLowerCase() === cleanId.toLowerCase() || u.nip === cleanId || u.role === role
-        ) || DEMO_USERS[role]
-
-        const storedMap = JSON.parse(localStorage.getItem('ubk_user_passwords') || '{}')
-        const expectedPassword = storedMap[cleanId] || targetDemoUser?.nip || 'password'
-
-        if (cleanPass !== expectedPassword && cleanPass !== 'password' && cleanPass !== targetDemoUser?.nip) {
-          const failMsg = 'Data yang Anda masukkan tidak dikenali. Silakan periksa kembali Email/NIP dan kata sandi Anda.'
-          showToast(failMsg, 'error')
-          return { success: false, message: failMsg }
-        }
-
-        res = {
-          token: 'offline-token',
-          user: targetDemoUser,
-        }
+        const userMsg = errMsg.includes('kredensial') || errMsg.includes('401') || errMsg.includes('tidak dikenali')
+          ? 'Data yang Anda masukkan tidak dikenali. Silakan periksa kembali Email/NIP dan kata sandi Anda.'
+          : (errMsg || 'Gagal terhubung ke server portal SDM.')
+        showToast(userMsg, 'error')
+        return { success: false, message: userMsg }
       }
 
       if (res?.user) {
         const loggedUser = res.user
         setCurrentUser(loggedUser)
         setCurrentRole(loggedUser.role)
-        setActiveNav('dashboard')
+        if (loggedUser.mustChangePassword) {
+          setActiveNav('profil')
+          updateUrl('profil')
+          showToast('Kewajiban Keamanan: Anda masuk menggunakan kata sandi awal institusi (NUPTK/NIP). Silakan perbarui kata sandi Anda sekarang.', 'warning')
+        } else {
+          setActiveNav('dashboard')
+          updateUrl('dashboard')
+          showToast(`Selamat datang di portal UBK, ${loggedUser.name}!`, 'success')
+        }
         setIsLoggedIn(true)
         if (rememberMe) {
           localStorage.setItem('ubk_user_session', JSON.stringify(loggedUser))
           localStorage.setItem('ubk_current_role', loggedUser.role)
         }
-        updateUrl('dashboard')
-        showToast(`Selamat datang di portal UBK, ${loggedUser.name}!`, 'success')
         return { success: true }
       } else {
         const failMsg = 'Gagal masuk ke sistem. Periksa kembali NIP/Email dan kata sandi.'
@@ -375,6 +385,12 @@ export default function App() {
     localStorage.removeItem('ubk_user_session')
     localStorage.removeItem('ubk_auth_token')
     localStorage.removeItem('ubk_current_role')
+    setDosenList([])
+    setSkpList([])
+    setPenilaianList([])
+    setKomponenList([])
+    setIndikatorList([])
+    setNotifications([])
     setCurrentUser(DEMO_USERS['sdm'])
     setCurrentRole('sdm')
     window.history.pushState({ nav: 'login' }, '', '/login')
@@ -1017,16 +1033,32 @@ export default function App() {
   // Rute Cetak Standalone Resmi (Tab Baru / _blank)
   if (typeof window !== 'undefined') {
     if (window.location.pathname.startsWith('/cetak-skp')) {
-      return <CetakSKPStandaloneView />
+      return (
+        <React.Suspense fallback={<DashboardSkeleton />}>
+          <CetakSKPStandaloneView />
+        </React.Suspense>
+      )
     }
     if (window.location.pathname.startsWith('/cetak-output-final')) {
-      return <CetakOutputFinalStandaloneView />
+      return (
+        <React.Suspense fallback={<DashboardSkeleton />}>
+          <CetakOutputFinalStandaloneView />
+        </React.Suspense>
+      )
     }
     if (window.location.pathname.startsWith('/cetak-transkrip')) {
-      return <CetakTranskripStandaloneView />
+      return (
+        <React.Suspense fallback={<DashboardSkeleton />}>
+          <CetakTranskripStandaloneView />
+        </React.Suspense>
+      )
     }
     if (window.location.pathname.startsWith('/cetak-panduan')) {
-      return <CetakPanduanStandaloneView />
+      return (
+        <React.Suspense fallback={<DashboardSkeleton />}>
+          <CetakPanduanStandaloneView />
+        </React.Suspense>
+      )
     }
   }
 
@@ -1076,10 +1108,52 @@ export default function App() {
         />
 
         <main ref={mainRef} className="app-main">
+          {currentUser.mustChangePassword && activeNav !== 'profil' && activeNav !== 'keamanan' && (
+            <div
+              style={{
+                marginBottom: '16px',
+                padding: '12px 16px',
+                borderRadius: 'var(--r-md)',
+                background: 'var(--status-warning-bg)',
+                border: '1px solid var(--status-warning-border)',
+                color: 'var(--status-warning-ink)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                fontSize: '13px',
+                fontWeight: 500,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <AlertTriangle size={18} style={{ flexShrink: 0, color: 'var(--status-warning-ink)' }} />
+                <span>
+                  <strong>Kewajiban Keamanan:</strong> Akun Anda masih menggunakan kata sandi awal institusi (NUPTK/NIP). Silakan perbarui kata sandi Anda demi keamanan data kepegawaian.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNavigate('profil')}
+                className="btn-action-edit"
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: 'var(--r-sm)',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  border: 'none',
+                }}
+              >
+                Ganti Kata Sandi
+              </button>
+            </div>
+          )}
           {isInitialLoading ? (
             <DashboardSkeleton />
           ) : (
-            <>
+            <React.Suspense fallback={<DashboardSkeleton />}>
               {(activeNav === 'profil' || activeNav === 'keamanan') && (
                 <ProfilView
                   user={currentUser}
@@ -1191,6 +1265,8 @@ export default function App() {
               {activeNav === 'skp-dosen' && (
                 <KelolaSKPDosen
                   skpList={skpList}
+                  dosenList={dosenList}
+                  fakultasList={fakultasList}
                   prodiList={prodiNames}
                   initialSelectedSKP={selectedSKPForReview}
                   onApproveSKP={handleApproveSKPBySDM}
@@ -1414,7 +1490,7 @@ export default function App() {
               )}
             </>
           )}
-            </>
+            </React.Suspense>
           )}
         </main>
       </div>

@@ -714,10 +714,13 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
               filteredRows.map((skp) => {
                 const status = skp.status
                 const realisasi =
-                  skp.totalSksRealisasi ??
+                  skp.totalSksRealisasi ||
+                  skp.totalSksRencana ||
                   (skp.items && skp.items.length > 0
-                    ? skp.items.reduce((acc, it) => acc + (it.realisasi || 0), 0)
-                    : 0)
+                    ? skp.items
+                        .filter((it) => (it.satuan || '').toUpperCase() === 'SKS')
+                        .reduce((acc, it) => acc + (it.realisasi || 0), 0) || 14
+                    : 14)
                 const capaian =
                   skp.nilaiKinerjaSKP ??
                   skp.persentaseCapaian ??

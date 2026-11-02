@@ -47,18 +47,18 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
   onShowToast,
   onUpdateUser,
 }) => {
-  const defaultInitial = initialTab || (mode === 'keamanan' ? 'keamanan' : 'profil')
+  const defaultInitial = initialTab || (user.mustChangePassword ? 'keamanan' : (mode === 'keamanan' ? 'keamanan' : 'profil'))
   const [activeTab, setActiveTab] = useState<'keamanan' | 'ttd' | 'profil' | 'mitigasi'>(defaultInitial)
 
   React.useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab)
-    } else if (mode === 'keamanan') {
+    } else if (user.mustChangePassword || mode === 'keamanan') {
       setActiveTab((prev) => (prev === 'keamanan' || prev === 'mitigasi' ? prev : 'keamanan'))
     } else {
       setActiveTab((prev) => (prev === 'profil' || prev === 'ttd' ? prev : 'profil'))
     }
-  }, [mode, initialTab])
+  }, [mode, initialTab, user.mustChangePassword])
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -151,7 +151,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
       if (avatarInputRef.current) avatarInputRef.current.value = ''
       onUpdateUser?.({
         ...user,
-        avatar: '/user.png',
+        avatar: '/user.svg',
       })
       onShowToast('Foto profil berhasil dikembalikan ke avatar profil semula.', 'info')
     } catch (err: unknown) {
@@ -329,6 +329,19 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
         onShowToast('Kata sandi baru Anda berhasil diperbarui!', 'success')
       }
 
+      onUpdateUser?.({
+        ...user,
+        mustChangePassword: false,
+      })
+      const stored = localStorage.getItem('ubk_user_session')
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          parsed.mustChangePassword = false
+          localStorage.setItem('ubk_user_session', JSON.stringify(parsed))
+        } catch {}
+      }
+
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -403,8 +416,8 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 alt={user.name}
                 onError={(e) => {
                   const target = e.currentTarget
-                  if (!target.src.endsWith('/user.png')) {
-                    target.src = '/user.png'
+                  if (!target.src.endsWith('/user.svg')) {
+                    target.src = '/user.svg'
                   }
                 }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -744,6 +757,31 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
               boxShadow: 'var(--shadow-xs)',
             }}
           >
+            {user.mustChangePassword && (
+              <div
+                style={{
+                  marginBottom: '18px',
+                  padding: '14px 18px',
+                  borderRadius: 'var(--r-md)',
+                  background: 'var(--status-warning-bg)',
+                  border: '1px solid var(--status-warning-border)',
+                  color: 'var(--status-warning-ink)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  fontSize: '12.5px',
+                  lineHeight: '1.5',
+                }}
+              >
+                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--status-warning-ink)' }} />
+                <div>
+                  <strong style={{ display: 'block', marginBottom: '3px', fontSize: '13px' }}>
+                    Kewajiban Penggantian Kata Sandi Awal Institusi
+                  </strong>
+                  Akun Anda saat ini masih menggunakan kredensial bawaan awal institusi (NUPTK/NIP). Demi menjaga integritas data kepegawaian dan kepatuhan standar keamanan informasi Universitas Bhakti Kencana, Anda diwajibkan untuk membuat kata sandi baru yang unik dan aman.
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: 10 }}>
               <div>
                 <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
@@ -1376,7 +1414,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
 
               {/* Status Badge */}
               <div>
-                {user.avatar && !user.avatar.endsWith('user.png') && user.avatar.length > 5 ? (
+                {user.avatar && !user.avatar.endsWith('user.svg') && !user.avatar.endsWith('user.png') && user.avatar.length > 5 ? (
                   <span
                     style={{
                       background: '#ecfdf5',
@@ -1437,8 +1475,8 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                   alt={user.name}
                   onError={(e) => {
                     const target = e.currentTarget
-                    if (!target.src.endsWith('/user.png')) {
-                      target.src = '/user.png'
+                    if (!target.src.endsWith('/user.svg')) {
+                      target.src = '/user.svg'
                     }
                   }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -1528,7 +1566,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                     </>
                   )}
 
-                  {user.avatar && !user.avatar.endsWith('user.png') && user.avatar.length > 5 && !previewAvatarUrl && (
+                  {user.avatar && !user.avatar.endsWith('user.svg') && !user.avatar.endsWith('user.png') && user.avatar.length > 5 && !previewAvatarUrl && (
                     <button
                       type="button"
                       onClick={handleResetAvatar}

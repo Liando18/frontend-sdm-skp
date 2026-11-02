@@ -20,6 +20,7 @@ export interface UserSession {
   jabatanStruktural?: string
   jabatan_struktural?: string
   jabatanKampusId?: string
+  mustChangePassword?: boolean
 }
 
 export interface Dosen {

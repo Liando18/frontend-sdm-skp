@@ -337,6 +337,16 @@ export const api = {
     getTahunAkademik: () => request<string[]>('/reference/tahun-akademik'),
     getTargetJabatan: () => request<string[]>('/reference/target-jabatan'),
     getKategoriKomponen: () => request<string[]>('/reference/kategori-komponen'),
+    getRektor: () =>
+      request<{
+        nama: string
+        nuptk: string
+        nip?: string
+        pangkat: string
+        jabatan: string
+        unit: string
+        signatureUrl?: string
+      }>('/reference/rektor'),
   },
 }
 

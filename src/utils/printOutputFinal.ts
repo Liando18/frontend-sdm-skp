@@ -1,11 +1,16 @@
 import { OutputFinalData } from '../components/CetakOutputFinalTahunan'
+import { getCachedOfficialRektor } from './rektorData'
 
 /**
  * Utility untuk membuka halaman cetak Standalone Output Final Laporan Tahunan di tab baru (_blank)
  */
 export function openPrintOutputFinal(data: OutputFinalData) {
   try {
-    const payload = JSON.stringify(data)
+    const fullData: OutputFinalData = {
+      ...data,
+      rektor: data.rektor || getCachedOfficialRektor() || undefined,
+    }
+    const payload = JSON.stringify(fullData)
     localStorage.setItem('ubk_print_output_final_data', payload)
     if (data.dosen?.id) {
       localStorage.setItem(`ubk_print_output_final_${data.dosen.id}`, payload)

@@ -24,14 +24,13 @@ import {
 } from 'lucide-react'
 import { Dosen, PengajuanSKP } from '../types'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
-import { TablePagination } from '../components/TablePagination'
 
 interface DashboardSDMProps {
   dosenList: Dosen[]
   skpList: PengajuanSKP[]
   onNavigate: (viewId: string) => void
   onAddDosenModal: () => void
-  onSelectSKPToReview: (skp: PengajuanSKP) => void
+  onSelectSKPToReview?: (skp: PengajuanSKP) => void
   onShowToast: (msg: string) => void
 }
 
@@ -65,40 +64,59 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
     (d) => d.jafung === 'Asisten Ahli' || d.jafung === 'Tenaga Pengajar'
   ).length
 
-  // Table Search, Filter Tabs & Pagination states
-  const [tableSearch, setTableSearch] = useState('')
-  const [filterTab, setFilterTab] = useState<'semua' | 'perlu-sdm' | 'proses' | 'disahkan' | 'revisi'>('semua')
+  // Visual Chart Filter & Quick Menu
   const [chartFilter, setChartFilter] = useState<'aktif' | 'semua'>('aktif')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(5)
   const [showQuickMenu, setShowQuickMenu] = useState(false)
 
   // Dynamically calculate SKS per prodi from database skpList & dosenList
-  const prodis = Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
+  // Strictly filter out non-academic administrative units (Direktorat SDM, Rektorat, Biro, dll.)
+  const nonProdiKeywords = ['direktorat', 'sumber daya manusia', 'sdm', 'rektorat', 'administrasi', 'biro', 'tata usaha']
+  const prodis = useMemo(() => {
+    return Array.from(new Set(dosenList.map((d) => d.prodi).filter(Boolean)))
+      .filter((p) => !nonProdiKeywords.some((kw) => p.toLowerCase().includes(kw)))
+  }, [dosenList])
+
   const latestSkp = skpList[0]
   const activePeriode = latestSkp ? `${latestSkp.semester} ${latestSkp.tahunAkademik}` : 'Semester Genap 2025/2026'
 
   const formatProdiName = (p: string) => {
     return p
+      .replace(/^Sarjana Terapan\s+/i, 'D4 ')
+      .replace(/^Profesi\s+/i, 'Prof. ')
       .replace('Kesehatan Masyarakat', 'Kesmas')
-      .replace('Sarjana Terapan ', '')
-      .replace('Direktorat Sumber Daya Manusia', 'SDM')
+      .replace('Keperawatan Anestesiologi', 'Anestesiologi')
+      .replace('Ilmu Komunikasi', 'Ilkom')
   }
 
   const chartData = useMemo(() => {
     return prodis.map((prodi, idx) => {
       const dosenInProdi = dosenList.filter((d) => d.prodi === prodi).map((d) => d.id)
       const skpInProdi = skpList.filter((s) => dosenInProdi.includes(s.dosenId) || s.dosenProdi === prodi)
+      
       const avgSks =
         skpInProdi.length > 0
-          ? skpInProdi.reduce((acc, curr) => acc + (curr.totalSksRealisasi || curr.totalSksRencana || 0), 0) /
-            skpInProdi.length
+          ? skpInProdi.reduce((acc, curr) => {
+              let val = Number(curr.totalSksRealisasi) || Number(curr.totalSksRencana) || 0
+              // Sanity check: if an anomalous sum (>24) was stored, recalculate strictly from SKS items
+              if (val > 24 && curr.items && curr.items.length > 0) {
+                const sksSum = curr.items
+                  .filter((it) => (it.satuan || '').toUpperCase() === 'SKS')
+                  .reduce((sum, it) => sum + (Number(it.realisasi) || Number(it.rencanaAwal) || 0), 0)
+                val = sksSum > 0 ? sksSum : 14
+              } else if (val > 24) {
+                val = 14
+              }
+              return acc + val
+            }, 0) / skpInProdi.length
           : 0
-      const val = Number(avgSks.toFixed(1))
+
+      const finalVal = Number(avgSks.toFixed(1))
       return {
         label: formatProdiName(prodi),
-        value: val,
+        value: finalVal,
         fullProdi: prodi,
+        dosenCount: dosenInProdi.length,
+        skpCount: skpInProdi.length,
         active: idx < 4,
       }
     })
@@ -126,37 +144,6 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
   const totalSksAll = activeProdisWithData.reduce((acc, d) => acc + d.value, 0)
   const averageSksPt = activeProdisWithData.length > 0 ? totalSksAll / activeProdisWithData.length : 0
 
-  // Filter across whole dataset
-  const filteredSkpList = useMemo(() => {
-    return skpList.filter((s) => {
-      const q = (tableSearch || '').toLowerCase().trim()
-      const matchSearch =
-        q === '' ||
-        (s.dosenNama || '').toLowerCase().includes(q) ||
-        (s.dosenNip || '').toLowerCase().includes(q) ||
-        (s.dosenProdi || '').toLowerCase().includes(q)
-
-      const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM'].includes(s.status)
-      const isPerluSDM = ['Dinilai Kaprodi', 'Dinilai Dekan', 'Diajukan'].includes(s.status)
-      const isProses = ['Diajukan', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(s.status)
-      const isRevisi = s.status === 'Perlu Revisi'
-
-      let matchTab = true
-      if (filterTab === 'perlu-sdm') matchTab = isPerluSDM
-      else if (filterTab === 'proses') matchTab = isProses
-      else if (filterTab === 'disahkan') matchTab = isSah
-      else if (filterTab === 'revisi') matchTab = isRevisi
-
-      return matchSearch && matchTab
-    })
-  }, [skpList, tableSearch, filterTab])
-
-  // Slice for current page
-  const paginatedSkp = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredSkpList.slice(start, start + pageSize)
-  }, [filteredSkpList, page, pageSize])
-
   const handleSendReminder = () => {
     onShowToast('Pengingat batas waktu pengesahan SKP telah disiarkan ke seluruh Dosen dan Ketua Program Studi.')
   }
@@ -177,14 +164,6 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
   useStaggerEntrance(containerRef, '.kpi-card', [], { y: 16, stagger: 0.06 })
   useCountUp(containerRef, '.kpi-count-up', [totalDosen, skpDisetujui, skpMenungguSDM, skpRevisi])
   useInteractiveCards(containerRef, '.kpi-card')
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.04, delay: 0.15 })
-
-  // Helper avatar initials
-  const getInitials = (name: string) => {
-    const parts = name.replace(/(Dr\.|Prof\.|M\.[A-Za-z]+|S\.[A-Za-z]+|Ners|\,)/g, '').trim().split(' ')
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-    return name.slice(0, 2).toUpperCase()
-  }
 
   return (
     <div className="page-container" ref={containerRef}>
@@ -534,11 +513,7 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </span>
             <button
               className="kpi-arrow-btn"
-              onClick={() => {
-                setFilterTab('perlu-sdm')
-                const el = document.getElementById('section-tabel-skp')
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onClick={() => onNavigate('skp-dosen')}
               aria-label="Lihat pengajuan menunggu validasi"
             >
               <ExternalLink size={13} />
@@ -574,11 +549,7 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </span>
             <button
               className="kpi-arrow-btn"
-              onClick={() => {
-                setFilterTab('revisi')
-                const el = document.getElementById('section-tabel-skp')
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onClick={() => onNavigate('skp-dosen')}
               aria-label="Lihat pengajuan perlu revisi"
             >
               <ExternalLink size={13} />
@@ -711,167 +682,221 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
             </span>
           </div>
 
-          {/* Bar Chart Area (Pure React & SVG - Isolated layout, zero overflow collision) */}
+          {/* Bar Chart Area (Pure React & SVG - Robust Isolated Grid, Anti-Collision) */}
           <div
             style={{
               width: '100%',
-              height: 220,
               position: 'relative',
-              overflow: 'hidden',
               marginTop: 4,
             }}
           >
-            {/* Y Axis Guide Lines & Labels (Fixed 135px height) */}
-            <div style={{ position: 'absolute', top: 20, left: 0, right: 0, height: 135, pointerEvents: 'none' }}>
-              {[20, 16, 12, 8, 4, 0].map((val) => {
-                const bottomPct = (val / 20) * 100
-                const isMinSpmi = val === 12
-                const isMaxSpmi = val === 16
-                return (
-                  <div
-                    key={`y-${val}`}
-                    style={{
-                      position: 'absolute',
-                      bottom: `${bottomPct}%`,
-                      left: 0,
-                      right: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        position: 'absolute',
-                        left: 0,
-                        fontSize: '10px',
-                        fontWeight: isMinSpmi || isMaxSpmi ? 700 : 500,
-                        color: isMinSpmi ? '#10b981' : isMaxSpmi ? '#64748b' : '#94a3b8',
-                        fontVariantNumeric: 'tabular-nums',
-                        transform: 'translateY(50%)',
-                        width: 26,
-                        textAlign: 'right',
-                      }}
-                    >
-                      {val}
-                    </span>
-                    <div
-                      style={{
-                        marginLeft: 32,
-                        width: 'calc(100% - 32px)',
-                        borderBottom: isMinSpmi
-                          ? '1.5px dashed #10b981'
-                          : isMaxSpmi
-                          ? '1.5px dashed #94a3b8'
-                          : '1px solid rgba(226, 232, 240, 0.7)',
-                      }}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Scrollable Bars Area (Strictly isolated, guaranteed no overflow leakage) */}
+            {/* Scrollable Container covering both Bars Plot and X-Axis Labels */}
             <div
               style={{
-                marginLeft: 32,
-                height: 220,
-                overflowX: chartFilter === 'semua' ? 'auto' : 'hidden',
+                width: '100%',
+                overflowX: chartFilter === 'semua' || displayChartData.length > 7 ? 'auto' : 'hidden',
                 overflowY: 'hidden',
                 position: 'relative',
-                zIndex: 2,
               }}
             >
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: chartFilter === 'aktif' ? 'center' : 'flex-start',
-                  gap: chartFilter === 'aktif' ? 48 : 12,
-                  minWidth: chartFilter === 'semua' ? displayChartData.length * 68 : '100%',
-                  height: 155,
-                  paddingTop: 20,
+                  minWidth: chartFilter === 'semua' || displayChartData.length > 7
+                    ? Math.max(displayChartData.length * 76 + 40, 600)
+                    : '100%',
+                  position: 'relative',
                 }}
               >
-                {displayChartData.map((d, idx) => {
-                  const clampedVal = Math.min(20, Math.max(0, d.value))
-                  const barHeightPx = Math.max(d.value > 0 ? 8 : 2, (clampedVal / 20) * 135)
-                  const isOverMin = d.value >= 12
-                  return (
-                    <div
-                      key={`bar-${idx}`}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        width: chartFilter === 'aktif' ? 88 : 56,
-                        minWidth: chartFilter === 'aktif' ? 88 : 56,
-                        height: 155,
-                        position: 'relative',
-                      }}
-                      title={`${d.fullProdi}: ${d.value} SKS`}
-                    >
-                      {/* Exact Number Badge floating cleanly above bar */}
-                      {d.value > 0 && (
-                        <span
+                {/* Plot Area with Y-Axis Guidelines & Baseline (140px) */}
+                <div
+                  style={{
+                    position: 'relative',
+                    height: 140,
+                    width: '100%',
+                  }}
+                >
+                  {/* Y Axis Guide Lines & Numeric Labels */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+                    {[20, 16, 12, 8, 4, 0].map((val) => {
+                      const bottomPct = (val / 20) * 100
+                      const isMinSpmi = val === 12
+                      const isMaxSpmi = val === 16
+                      const isZero = val === 0
+                      return (
+                        <div
+                          key={`y-${val}`}
                           style={{
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            color: isOverMin ? '#ea580c' : '#b45309',
-                            marginBottom: 4,
-                            fontVariantNumeric: 'tabular-nums',
+                            position: 'absolute',
+                            bottom: `${bottomPct}%`,
+                            left: 0,
+                            right: 0,
+                            display: 'flex',
+                            alignItems: 'center',
                           }}
                         >
-                          {d.value} SKS
-                        </span>
-                      )}
+                          <span
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              fontSize: '10px',
+                              fontWeight: isMinSpmi || isMaxSpmi ? 700 : 500,
+                              color: isMinSpmi ? '#10b981' : isMaxSpmi ? '#64748b' : '#94a3b8',
+                              fontVariantNumeric: 'tabular-nums',
+                              transform: 'translateY(50%)',
+                              width: 26,
+                              textAlign: 'right',
+                            }}
+                          >
+                            {val}
+                          </span>
+                          <div
+                            style={{
+                              marginLeft: 32,
+                              width: 'calc(100% - 32px)',
+                              borderBottom: isZero
+                                ? '1.5px solid #cbd5e1'
+                                : isMinSpmi
+                                ? '1.5px dashed #10b981'
+                                : isMaxSpmi
+                                ? '1.5px dashed #94a3b8'
+                                : '1px solid rgba(226, 232, 240, 0.7)',
+                            }}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
 
-                      {/* Bar Pill */}
+                  {/* Bars Layer - Bottom Aligned to Y=0 Baseline */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 32,
+                      right: 0,
+                      bottom: 0,
+                      height: 140,
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      justifyContent: chartFilter === 'aktif' && displayChartData.length <= 5 ? 'center' : 'flex-start',
+                      gap: chartFilter === 'aktif' && displayChartData.length <= 5 ? 36 : 14,
+                      paddingLeft: chartFilter === 'semua' ? 8 : 0,
+                      paddingRight: chartFilter === 'semua' ? 8 : 0,
+                    }}
+                  >
+                    {displayChartData.map((d, idx) => {
+                      const clampedVal = Math.min(20, Math.max(0, d.value))
+                      // Max bar height is 108px so it never collides with top or overflows
+                      const barHeightPx = d.value > 0 ? Math.max(8, Math.round((clampedVal / 20) * 108)) : 3
+                      const isOverMin = d.value >= 12
+                      const colWidth = chartFilter === 'aktif' ? (displayChartData.length <= 4 ? 80 : 64) : 58
+
+                      return (
+                        <div
+                          key={`bar-col-${idx}`}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            width: colWidth,
+                            minWidth: colWidth,
+                            height: 140,
+                            position: 'relative',
+                          }}
+                          title={`${d.fullProdi}: ${d.value} SKS (${d.dosenCount || 0} Dosen, ${d.skpCount || 0} Berkas)`}
+                        >
+                          {/* Exact Number Badge floating cleanly above bar */}
+                          {d.value > 0 && (
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                fontWeight: 800,
+                                color: isOverMin ? '#ea580c' : '#b45309',
+                                marginBottom: 4,
+                                fontVariantNumeric: 'tabular-nums',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {d.value} SKS
+                            </span>
+                          )}
+
+                          {/* Bar Pill */}
+                          <div
+                            style={{
+                              width: chartFilter === 'aktif' ? 32 : 22,
+                              height: barHeightPx,
+                              maxHeight: 110,
+                              background: d.value === 0
+                                ? '#e2e8f0'
+                                : isOverMin
+                                ? 'linear-gradient(180deg, #f97316 0%, #ea580c 100%)'
+                                : 'linear-gradient(180deg, #fdba74 0%, #f97316 100%)',
+                              borderRadius: '4px 4px 1px 1px',
+                              boxShadow: d.value > 0 ? '0 2px 4px rgba(234, 88, 12, 0.18)' : 'none',
+                              transition: 'all 0.2s ease',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'scaleY(1.04)'
+                              e.currentTarget.style.filter = 'brightness(1.1)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scaleY(1)'
+                              e.currentTarget.style.filter = 'none'
+                            }}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* X-Axis Labels Row (Strictly separated below Y=0 baseline, zero overlap) */}
+                <div
+                  style={{
+                    position: 'relative',
+                    marginLeft: 32,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: chartFilter === 'aktif' && displayChartData.length <= 5 ? 'center' : 'flex-start',
+                    gap: chartFilter === 'aktif' && displayChartData.length <= 5 ? 36 : 14,
+                    paddingTop: 8,
+                    paddingBottom: 4,
+                    paddingLeft: chartFilter === 'semua' ? 8 : 0,
+                    paddingRight: chartFilter === 'semua' ? 8 : 0,
+                  }}
+                >
+                  {displayChartData.map((d, idx) => {
+                    const colWidth = chartFilter === 'aktif' ? (displayChartData.length <= 4 ? 80 : 64) : 58
+                    return (
                       <div
+                        key={`lbl-col-${idx}`}
                         style={{
-                          width: chartFilter === 'aktif' ? 38 : 24,
-                          height: barHeightPx,
-                          background: d.value === 0
-                            ? '#e2e8f0'
-                            : isOverMin
-                            ? 'linear-gradient(180deg, #f97316 0%, #ea580c 100%)'
-                            : 'linear-gradient(180deg, #fdba74 0%, #f97316 100%)',
-                          borderRadius: '4px 4px 1px 1px',
-                          boxShadow: d.value > 0 ? '0 2px 4px rgba(234, 88, 12, 0.18)' : 'none',
-                          transition: 'all 0.2s ease',
-                          cursor: 'pointer',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scaleY(1.03)'
-                          e.currentTarget.style.filter = 'brightness(1.1)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scaleY(1)'
-                          e.currentTarget.style.filter = 'none'
-                        }}
-                      />
-
-                      {/* X Axis Label */}
-                      <span
-                        style={{
-                          marginTop: 8,
-                          fontSize: '10.5px',
-                          fontWeight: 600,
-                          color: d.value > 0 ? 'var(--ink)' : 'var(--muted)',
+                          width: colWidth,
+                          minWidth: colWidth,
                           textAlign: 'center',
-                          width: '100%',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          lineHeight: 1.2,
                         }}
                         title={d.fullProdi}
                       >
-                        {d.label}
-                      </span>
-                    </div>
-                  )
-                })}
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            color: d.value > 0 ? 'var(--ink)' : 'var(--muted)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          {d.label}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -1113,358 +1138,7 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
         </div>
       </div>
 
-      {/* Action Hub / Recent SKP Table Section */}
-      <div
-        id="section-tabel-skp"
-        className="dashboard-panel"
-        style={{
-          padding: 0,
-          overflow: 'hidden',
-        }}
-      >
-        {/* Table Header & Controls */}
-        <div
-          style={{
-            padding: '14px 18px 12px',
-            borderBottom: '1px solid var(--hair-subtle)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>
-                Pusat Validasi &amp; Pengesahan SKP Dosen
-              </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 1 }}>
-                Daftar pengajuan SKP dosen dari seluruh fakultas untuk diverifikasi dan diterbitkan Direktorat SDM
-              </div>
-            </div>
-
-            {/* Quick Summary Pill */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  color: 'var(--navy-800)',
-                  background: 'var(--navy-100)',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--r-full)',
-                }}
-              >
-                {filteredSkpList.length} Pengajuan Ditemukan
-              </span>
-            </div>
-          </div>
-
-          {/* Filter Tabs & Search Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-            {/* Filter Tabs */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                background: '#f1f5f9',
-                padding: '3px',
-                borderRadius: 'var(--r-md)',
-                flexWrap: 'wrap',
-              }}
-            >
-              {[
-                { id: 'semua', label: 'Semua Status' },
-                { id: 'perlu-sdm', label: 'Perlu Tindakan SDM', badge: skpMenungguSDM },
-                { id: 'disahkan', label: 'Sah & Terbit' },
-                { id: 'revisi', label: 'Perlu Revisi', badge: skpRevisi },
-              ].map((tab) => {
-                const isActive = filterTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setFilterTab(tab.id as any)
-                      setPage(1)
-                    }}
-                    style={{
-                      border: 'none',
-                      background: isActive ? '#ffffff' : 'transparent',
-                      color: isActive ? 'var(--ink)' : 'var(--muted)',
-                      fontWeight: isActive ? 700 : 500,
-                      fontSize: '11.5px',
-                      padding: '5px 10px',
-                      borderRadius: 'var(--r-sm)',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <span>{tab.label}</span>
-                    {tab.badge !== undefined && tab.badge > 0 && (
-                      <span
-                        style={{
-                          background: isActive ? 'var(--brand-600)' : 'rgba(100, 116, 139, 0.2)',
-                          color: isActive ? '#ffffff' : 'var(--muted)',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          padding: '1px 6px',
-                          borderRadius: 'var(--r-full)',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {tab.badge}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Global Search and Reset */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: '#ffffff',
-                  border: '1px solid var(--hair-strong)',
-                  borderRadius: 'var(--r-md)',
-                  padding: '5px 10px',
-                  minWidth: 200,
-                }}
-              >
-                <Search size={13} style={{ color: 'var(--muted)' }} />
-                <input
-                  type="text"
-                  value={tableSearch}
-                  onChange={(e) => {
-                    setTableSearch(e.target.value)
-                    setPage(1)
-                  }}
-                  placeholder="Cari nama dosen, NIP, prodi..."
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    fontSize: '12px',
-                    color: 'var(--ink)',
-                    width: '100%',
-                  }}
-                />
-              </div>
-
-              <button
-                onClick={() => onNavigate('skp-dosen')}
-                className="btn-back"
-                style={{ padding: '6px 12px', fontSize: '12px' }}
-              >
-                <span>Kelola Lengkap</span>
-                <ChevronRight size={13} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="table-container">
-          <table className="custom-table custom-table--sticky-1">
-            <thead>
-              <tr>
-                <th style={{ minWidth: 220 }}>Dosen Pengusul</th>
-                <th>Homebase Program Studi</th>
-                <th>Periode Semester</th>
-                <th>Target SKS</th>
-                <th>Realisasi SKS (SPMI)</th>
-                <th>Status Berkas</th>
-                <th style={{ textAlign: 'right' }}>Aksi SDM</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedSkp.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)' }}>
-                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <AlertCircle size={28} style={{ color: 'var(--faint)' }} />
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>
-                        Tidak Ada Pengajuan SKP yang Cocok
-                      </span>
-                      <span style={{ fontSize: '12.5px', color: 'var(--muted)' }}>
-                        Silakan sesuaikan kata kunci pencarian atau pilih tab status lain di atas.
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedSkp.map((skp) => {
-                  const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM'].includes(skp.status)
-                  const isReviewedKaprodi = ['Dinilai Kaprodi', 'Dinilai Dekan'].includes(skp.status)
-                  const isSubmitted = skp.status === 'Diajukan'
-                  const isRevisi = skp.status === 'Perlu Revisi'
-
-                  const realisasi = skp.totalSksRealisasi || 0
-                  const isSpmiMet = realisasi >= 12 && realisasi <= 16
-                  const isSpmiUnder = realisasi < 12
-                  const isSpmiOver = realisasi > 16
-
-                  return (
-                    <tr key={skp.id}>
-                      {/* Dosen Pengusul with Avatar Initials */}
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div
-                            style={{
-                              width: 38,
-                              height: 38,
-                              borderRadius: 'var(--r-md)',
-                              background: 'var(--navy-100)',
-                              color: 'var(--navy-900)',
-                              fontWeight: 700,
-                              fontSize: '13px',
-                              display: 'grid',
-                              placeItems: 'center',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {getInitials(skp.dosenNama)}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{skp.dosenNama}</div>
-                            <div
-                              style={{
-                                fontSize: '11.5px',
-                                color: 'var(--muted)',
-                                marginTop: 1,
-                                fontVariantNumeric: 'tabular-nums',
-                              }}
-                            >
-                              NIP: {skp.dosenNip || '-'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Homebase Prodi */}
-                      <td>
-                        <span
-                          style={{
-                            fontWeight: 600,
-                            color: 'var(--ink-secondary)',
-                            display: 'inline-block',
-                            background: '#f8fafc',
-                            padding: '3px 8px',
-                            borderRadius: 'var(--r-xs)',
-                            border: '1px solid var(--hair)',
-                            fontSize: '12.5px',
-                          }}
-                        >
-                          {skp.dosenProdi}
-                        </span>
-                      </td>
-
-                      {/* Periode */}
-                      <td style={{ fontSize: '13px', color: 'var(--ink-secondary)' }}>
-                        {skp.semester} {skp.tahunAkademik}
-                      </td>
-
-                      {/* Target SKS */}
-                      <td style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                        {skp.totalSksRencana || 0} SKS
-                      </td>
-
-                      {/* Realisasi SKS with SPMI Pill */}
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              fontVariantNumeric: 'tabular-nums',
-                              fontSize: '13.5px',
-                              color: isSpmiMet ? 'var(--status-success-ink)' : isSpmiUnder ? 'var(--status-danger-ink)' : 'var(--brand-700)',
-                            }}
-                          >
-                            {realisasi} SKS
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '10.5px',
-                              fontWeight: 700,
-                              padding: '2px 6px',
-                              borderRadius: 'var(--r-xs)',
-                              background: isSpmiMet ? 'var(--status-success-bg)' : isSpmiUnder ? 'var(--status-danger-bg)' : 'var(--brand-100)',
-                              color: isSpmiMet ? 'var(--status-success-ink)' : isSpmiUnder ? 'var(--status-danger-ink)' : 'var(--brand-700)',
-                            }}
-                          >
-                            {isSpmiMet ? 'Standar' : isSpmiUnder ? '< 12 SKS' : '> 16 SKS'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Status Berkas */}
-                      <td>
-                        {isSah ? (
-                          <span className="badge-pill badge-pill--green">
-                            <CheckCircle2 size={12} />
-                            <span>Sah &amp; Terbit</span>
-                          </span>
-                        ) : isReviewedKaprodi ? (
-                          <span className="badge-pill badge-pill--blue">
-                            <CheckCircle size={12} />
-                            <span>Dinilai Kaprodi / Dekan</span>
-                          </span>
-                        ) : isSubmitted ? (
-                          <span className="badge-pill badge-pill--orange">
-                            <Clock size={12} />
-                            <span>Diajukan Dosen</span>
-                          </span>
-                        ) : isRevisi ? (
-                          <span className="badge-pill badge-pill--red">
-                            <AlertCircle size={12} />
-                            <span>Perlu Revisi</span>
-                          </span>
-                        ) : (
-                          <span className="badge-pill badge-pill--gray">
-                            <span>{skp.status}</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Action Button */}
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className={isReviewedKaprodi ? 'brand-btn' : 'btn-action-view'}
-                          style={{
-                            padding: '6px 14px',
-                            fontSize: '12.5px',
-                            borderRadius: 'var(--r-sm)',
-                          }}
-                          onClick={() => onSelectSKPToReview(skp)}
-                        >
-                          <span>{isReviewedKaprodi ? 'Sahkan SKP' : 'Periksa'}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Reusable Pagination */}
-        <TablePagination
-          totalItems={filteredSkpList.length}
-          currentPage={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          pageSizeOptions={[5, 10, 20]}
-        />
-      </div>
+      {/* End of Main Content Grid */}
     </div>
   )
 }

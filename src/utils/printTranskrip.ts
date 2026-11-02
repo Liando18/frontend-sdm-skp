@@ -1,4 +1,5 @@
 import { PenilaianKuesioner } from '../types'
+import { getCachedOfficialRektor, RektorData } from './rektorData'
 
 export interface TranskripPrintData {
   penilaian: PenilaianKuesioner
@@ -9,6 +10,8 @@ export interface TranskripPrintData {
   dosenJafung?: string
   dosenGolongan?: string
   tahunAkademik: string
+  dosenSignatureUrl?: string
+  rektor?: RektorData
 }
 
 /**
@@ -16,7 +19,11 @@ export interface TranskripPrintData {
  */
 export function openPrintTranskrip(data: TranskripPrintData) {
   try {
-    const payload = JSON.stringify(data)
+    const fullData: TranskripPrintData = {
+      ...data,
+      rektor: data.rektor || getCachedOfficialRektor() || undefined,
+    }
+    const payload = JSON.stringify(fullData)
     localStorage.setItem('ubk_print_transkrip_data', payload)
     if (data.dosenNip) {
       localStorage.setItem(`ubk_print_transkrip_${data.dosenNip}`, payload)

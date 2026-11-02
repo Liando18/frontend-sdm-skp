@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { OutputFinalData, CetakOutputFinalTahunan } from '../components/CetakOutputFinalTahunan'
+import { fetchOfficialRektor, getCachedOfficialRektor } from '../utils/rektorData'
 
 export const CetakOutputFinalStandaloneView: React.FC = () => {
   const [data, setData] = useState<OutputFinalData | null>(null)
@@ -33,24 +34,49 @@ export const CetakOutputFinalStandaloneView: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    let isMounted = true
     const urlParams = new URLSearchParams(window.location.search)
     const dosenId = urlParams.get('id')
 
+    let currentParsed: OutputFinalData | null = null
     try {
       const raw = dosenId
         ? localStorage.getItem(`ubk_print_output_final_${dosenId}`) || localStorage.getItem('ubk_print_output_final_data')
         : localStorage.getItem('ubk_print_output_final_data')
 
       if (raw) {
-        const parsed = JSON.parse(raw) as OutputFinalData
-        if (parsed?.dosen) {
-          setData(parsed)
+        currentParsed = JSON.parse(raw) as OutputFinalData
+        if (currentParsed?.dosen) {
+          setData(currentParsed)
         }
       }
     } catch (e) {
       console.warn('Gagal memuat cache Output Final:', e)
-    } finally {
-      setIsLoading(false)
+    }
+
+    // Pastikan data dinamis Rektor dari database terhubung
+    fetchOfficialRektor()
+      .then((dynamicRektor) => {
+        if (!isMounted) return
+        if (dynamicRektor && dynamicRektor.nama && dynamicRektor.nama !== '-') {
+          setData((prev) => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              rektor: dynamicRektor,
+            }
+          })
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
     }
   }, [])
 

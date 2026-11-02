@@ -9,19 +9,24 @@ import {
   CheckCircle2,
   AlertCircle,
   FileText,
-  Award,
   ChevronDown,
   ChevronRight,
   Printer,
-  Sparkles,
-  HelpCircle,
-  CheckSquare,
   Clock,
   Layers,
   Scale,
-  RotateCcw,
   Check,
   AlertTriangle,
+  ExternalLink,
+  Compass,
+  HelpCircle,
+  CheckCircle,
+  ArrowRight,
+  Sparkles,
+  Info,
+  Share2,
+  FileSpreadsheet,
+  Eye,
 } from 'lucide-react'
 import { Role, UserSession } from '../types'
 import { getAvatarSrc } from '../utils/security'
@@ -34,30 +39,34 @@ interface PanduanViewProps {
   onShowToast?: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void
 }
 
-type TabCategory = 'alur' | 'standar' | 'checklist' | 'regulasi' | 'faq'
+type TabCategory = 'alur' | 'fitur' | 'standar' | 'faq'
+
+interface StepItem {
+  step: number
+  title: string
+  menuPath: string
+  actor: string
+  desc: string
+  actionLabel?: string
+  actionNav?: string
+  tips: string
+  keyPoints: string[]
+}
+
+interface FeatureItem {
+  id: string
+  title: string
+  menuName: string
+  navId?: string
+  desc: string
+  badgeText: string
+  badgeType: 'blue' | 'green' | 'orange' | 'purple'
+}
 
 interface FAQItem {
   q: string
   a: string
   tag: string
-}
-
-interface StepItem {
-  step: number
-  title: string
-  actor: string
-  deadline: string
-  desc: string
-  actionLabel?: string
-  actionNav?: string
-  tips: string
-}
-
-interface ChecklistItem {
-  id: string
-  label: string
-  desc: string
-  mandatory: boolean
 }
 
 export const PanduanView: React.FC<PanduanViewProps> = ({
@@ -66,43 +75,11 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
   onNavigate,
   onShowToast,
 }) => {
-  // Panduan 100% terkunci eksklusif sesuai peran pengguna yang login
+  // Panduan dikunci eksklusif sesuai peran pengguna yang sedang aktif login
   const selectedRole: Role = currentRole
   const [activeCategory, setActiveCategory] = useState<TabCategory>('alur')
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(0)
-
-  // Local state for interactive checklist per user NIP / ID
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') return {}
-    try {
-      const storageKey = `ubk_panduan_chk_${currentUser.nip || currentUser.id || 'user'}_${selectedRole}`
-      const saved = localStorage.getItem(storageKey)
-      return saved ? JSON.parse(saved) : {}
-    } catch {
-      return {}
-    }
-  })
-
-  const handleToggleChecklist = (id: string) => {
-    setCheckedItems((prev) => {
-      const next = { ...prev, [id]: !prev[id] }
-      try {
-        const storageKey = `ubk_panduan_chk_${currentUser.nip || currentUser.id || 'user'}_${selectedRole}`
-        localStorage.setItem(storageKey, JSON.stringify(next))
-      } catch {}
-      return next
-    })
-  }
-
-  const handleResetChecklist = () => {
-    setCheckedItems({})
-    try {
-      const storageKey = `ubk_panduan_chk_${currentUser.nip || currentUser.id || 'user'}_${selectedRole}`
-      localStorage.removeItem(storageKey)
-    } catch {}
-    if (onShowToast) onShowToast('Daftar checklist berhasil direset.', 'info')
-  }
 
   const containerRef = useRef<HTMLDivElement>(null)
   useStaggerEntrance(containerRef, '.guide-card', [selectedRole, activeCategory], { y: 10, stagger: 0.04 })
@@ -120,456 +97,588 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
       color: string
       bgColor: string
       borderColor: string
-      targetAudience: string
       scopeDesc: string
     }
   > = {
     dosen: {
-      title: 'Panduan Dosen (Pendidik & Peneliti)',
+      title: 'Dosen (Pendidik & Peneliti)',
       roleBadge: 'Pendidik & Peneliti',
-      headline: `Panduan Khusus Dosen: Penyusunan SKP Tridharma & BKD ${currentUser.prodi || 'Program Studi'}`,
-      shortDesc: 'Pedoman penyusunan beban 12-16 SKS per semester, pengunggahan dokumen bukti fisik luaran, serta evaluasi perilaku kerja BerAKHLAK.',
+      headline: `Panduan Penggunaan Sistem bagi Dosen: Pengisian SKP & Pelaporan Tridharma`,
+      shortDesc: 'Panduan operasional aplikasi bagi Dosen untuk merencanakan beban kerja 12 hingga 16 SKS, mengunggah bukti fisik Google Drive, memantau verifikasi, dan mencetak dokumen sah.',
       icon: GraduationCap,
       color: 'var(--brand-600)',
       bgColor: 'var(--brand-50)',
       borderColor: 'var(--brand-100)',
-      targetAudience: 'Dosen Tetap Yayasan, PNS DPK, Dosen Kontrak & Dosen Khusus UBK',
       scopeDesc: `Program Studi ${currentUser.prodi || 'Homebase Dosen'}`,
     },
     kaprodi: {
-      title: 'Panduan Ketua Program Studi (Kaprodi)',
+      title: 'Ketua Program Studi (Kaprodi)',
       roleBadge: 'Verifikator Tahap I & Penilai',
-      headline: `Panduan Khusus Kaprodi: Verifikasi SKP & Evaluasi Dosen Homebase ${currentUser.prodi || 'Program Studi'}`,
-      shortDesc: 'Pedoman verifikasi kepatuhan Tridharma dosen homebase, pengisian instrumen kuesioner BerAKHLAK tahunan, dan penyusunan SKP mandiri.',
+      headline: `Panduan Penggunaan Sistem bagi Kaprodi: Verifikasi SKP & Evaluasi Perilaku Dosen`,
+      shortDesc: 'Panduan operasional bagi Kaprodi untuk memantau keterisian kinerja dosen homebase, memverifikasi butir Tridharma, mengisi evaluasi BerAKHLAK, dan menyusun SKP jabatan prodi.',
       icon: Users,
       color: '#0284c7',
       bgColor: '#f0f9ff',
       borderColor: '#bae6fd',
-      targetAudience: 'Ketua & Sekretaris Program Studi Kampus Pusat dan PSDKU',
       scopeDesc: `Manajemen Dosen Program Studi ${currentUser.prodi || 'Homebase'}`,
     },
     dekan: {
-      title: 'Panduan Dekanat / Pimpinan Fakultas & Cabang',
-      roleBadge: 'Pimpinan & Verifikator Tahap II',
-      headline: `Panduan Khusus Dekanat: Supervisi Fakultas & Verifikasi SKP Ketua Program Studi`,
-      shortDesc: 'Pedoman penelaahan kinerja Ketua Program Studi, evaluasi perilaku manajerial Kaprodi, dan penerbitan disposisi beban lebih.',
+      title: 'Dekanat / Pimpinan Fakultas',
+      roleBadge: 'Supervisi & Verifikator Tahap II',
+      headline: `Panduan Penggunaan Sistem bagi Dekanat: Supervisi Fakultas & Verifikasi Kaprodi`,
+      shortDesc: 'Panduan operasional Dekan dan Wakil Dekan untuk mengawasi progres fakultas, memvalidasi SKP manajerial Ketua Program Studi, mengevaluasi BerAKHLAK, dan mengesahkan izin beban lebih.',
       icon: Building2,
       color: '#7c3aed',
       bgColor: '#faf5ff',
       borderColor: '#e9d5ff',
-      targetAudience: 'Dekan, Wakil Dekan, dan Kepala Cabang PSDKU Universitas Bhakti Kencana',
       scopeDesc: currentUser.fakultas || currentUser.kampus || 'Wilayah Fakultas / PSDKU',
     },
     sdm: {
-      title: 'Panduan Direktorat Sumber Daya Manusia (Administrator)',
+      title: 'Direktorat SDM (Administrator)',
       roleBadge: 'Administrator & Pengesah Akhir',
-      headline: 'Panduan Khusus Administrator: Tata Kelola SPMI Kepegawaian & Pengesahan SKP Institusi',
-      shortDesc: 'Pedoman tata kelola master data kepegawaian, konfigurasi standar komponen Tridharma, pengesahan akhir, dan pelaporan akreditasi.',
+      headline: 'Panduan Penggunaan Sistem bagi Direktorat SDM: Pengelolaan Master & Pengesahan Institusi',
+      shortDesc: 'Panduan operasional administrator kepegawaian untuk mengelola master data dosen, menetapkan standar komponen SPMI, mengesahkan SKP final ber-barcode, dan mengekspor rekapitulasi.',
       icon: ShieldCheck,
       color: 'var(--navy-900)',
       bgColor: 'var(--navy-100)',
       borderColor: 'var(--hair-strong)',
-      targetAudience: 'Pengelola Data Kepegawaian & Pimpinan Direktorat SDM Universitas Bhakti Kencana',
       scopeDesc: 'Tingkat Institusi Universitas Bhakti Kencana (Pusat & PSDKU)',
     },
   }
 
-  // Stepper workflow per role
+  // Stepper workflow per role (Langkah demi Langkah Cara Pakai Aplikasi)
   const workflowData: Record<Role, StepItem[]> = {
     dosen: [
       {
         step: 1,
-        title: 'Penyusunan Rencana SKP (Awal Semester)',
-        actor: currentUser.name || 'Dosen Bersangkutan',
-        deadline: 'Pekan ke-1 s.d. ke-3 Perkuliahan',
-        desc: `Pilih komponen Tridharma dari katalog standar SPMI UBK pada Program Studi ${currentUser.prodi || 'Homebase'}. Tentukan target kuantitas serta beban SKS agar total akumulasi rencana memenuhi rentang 12 hingga 16 SKS per semester.`,
-        actionLabel: 'Buka Halaman SKP Saya',
+        title: 'Buka Halaman SKP Saya & Pilih Periode Semester',
+        menuPath: 'Kinerja Saya > Sasaran Kinerja Pegawai',
+        actor: 'Dosen Mandiri',
+        desc: 'Masuk melalui sidebar menu "Kinerja Saya" lalu pilih "Sasaran Kinerja Pegawai". Pada bagian atas, pastikan semester aktif terpilih sesuai periode tahun akademik berjalan.',
+        actionLabel: 'Buka Menu SKP Saya',
         actionNav: 'skp-dosen-self',
-        tips: 'Simpan terlebih dahulu sebagai Draft apabila dokumen penugasan atau jadwal ajar masih dalam proses finalisasi.',
+        tips: 'Jika belum memiliki draf pengajuan pada semester aktif, klik tombol "Buat Pengajuan SKP Baru" untuk memulai.',
+        keyPoints: [
+          'Pastikan identitas homebase prodi dan jabatan fungsional sudah sesuai di profil.',
+          'Status awal pengajuan adalah "Draft" sehingga Anda bebas mengedit kapan saja.',
+        ],
       },
       {
         step: 2,
-        title: 'Pengajuan Resmi ke Ketua Program Studi',
-        actor: 'Dosen -> Ketua Program Studi',
-        deadline: 'Batas Akhir Pekan ke-4 Semester',
-        desc: 'Setelah seluruh target SKS diperiksa dan memenuhi batas minimal BKD, klik tombol "Ajukan SKP". Berkas akan terkunci dari perubahan dan notifikasi otomatis diteruskan ke akun Ketua Program Studi homebase Anda.',
-        tips: 'Pastikan total SKS tidak kurang dari 12 SKS agar sistem tidak menolak pengajuan pengesahan.',
+        title: 'Input Butir Rencana Kinerja Tridharma (12 - 16 SKS)',
+        menuPath: 'Formulir SKP > Tambah Butir Kegiatan',
+        actor: 'Dosen Mandiri',
+        desc: 'Klik tombol "Tambah Butir Kegiatan". Pilih kategori Tridharma yang ingin diisi: Pendidikan & Pengajaran (wajib minimal 4 SKS), Penelitian, Pengabdian kepada Masyarakat (PKM), atau Penunjang (maksimal 3 SKS). Tentukan target kuantitas output, mutu capaian, dan estimasi waktu pelaksanaan.',
+        tips: 'Perhatikan indikator akumulasi SKS di bagian atas formulir. Sistem secara otomatis mengkalkulasi beban dan memberi penanda jika beban Anda kurang dari 12 SKS atau lebih dari 16 SKS.',
+        keyPoints: [
+          'Beban standar SPMI adalah 12 sampai 16 SKS per semester.',
+          'Jika Anda menjabat tugas struktural, masukkan butir penugasan pada kategori Penunjang/Tugas Tambahan.',
+        ],
       },
       {
         step: 3,
-        title: 'Pemenuhan Bukti Fisik & Laporan Realisasi Akhir',
-        actor: currentUser.name || 'Dosen Bersangkutan',
-        deadline: 'Sebelum Periode Ujian Akhir Semester (UAS)',
-        desc: 'Masukkan capaian realisasi kegiatan dan nilai mutu. Wajib melampirkan tautan URL dokumen bukti otentik (Google Drive / Repository UBK) dengan izin akses terbuka (Siapa saja yang memiliki link dapat melihat).',
-        tips: 'Dokumen bukti fisik yang tidak dapat dibuka oleh penilai akan dikembalikan dengan status Perlu Revisi.',
+        title: 'Tautkan Link Bukti Fisik Dokumen (Google Drive Terbuka)',
+        menuPath: 'Formulir SKP > Kolom Link Dokumen Bukti',
+        actor: 'Dosen Mandiri',
+        desc: 'Pada setiap butir kegiatan yang telah dilaksanakan, masukkan URL dokumen bukti fisik (seperti SK mengajar, RPS, jurnal artikel, atau laporan pengabdian). Dokumen diunggah ke Google Drive institusi atau Google Drive pribadi.',
+        tips: 'Wajib memastikan izin berbagi Google Drive telah diatur ke "Siapa saja yang memiliki link dapat melihat" (Anyone with the link can view) agar verifikator dapat langsung memvalidasi tanpa izin manual.',
+        keyPoints: [
+          'Gunakan tautan lengkap berformat HTTPS.',
+          'Sistem menyediakan tombol cek tautan otomatis untuk memverifikasi akses dokumen Anda.',
+        ],
       },
       {
         step: 4,
-        title: 'Penerbitan Hasil Evaluasi & Cetak Dokumen Sah',
-        actor: 'Dosen (Mandiri)',
-        deadline: 'Pasca Validasi Direktorat SDM',
-        desc: 'Setelah SKP dinilai Kaprodi, disetujui Dekan, dan disahkan oleh Direktorat SDM, status berubah menjadi "Terbit". Nilai akhir diintegrasikan dengan Kuesioner BerAKHLAK (70% SKP + 30% Perilaku) dan dapat diunduh dengan barcode sah.',
+        title: 'Kirim Pengajuan SKP ke Ketua Program Studi',
+        menuPath: 'Formulir SKP > Tombol Ajukan SKP',
+        actor: 'Dosen Mandiri',
+        desc: 'Setelah seluruh butir kegiatan terisi dan beban SKS memenuhi batas minimal 12 SKS, klik tombol hijau "Ajukan SKP". Sistem akan memvalidasi kelengkapan berkas dan memindahkan status dari "Draft" menjadi "Diajukan".',
+        tips: 'Setelah diajukan, berkas akan terkunci dari pengeditan sementara waktu agar Kaprodi dapat memeriksa tanpa adanya benturan perubahan data.',
+        keyPoints: [
+          'Notifikasi verifikasi otomatis masuk ke antrean tugas Ketua Program Studi Anda.',
+          'Anda dapat memantau status berkas secara realtime melalui Dashboard Dosen.',
+        ],
+      },
+      {
+        step: 5,
+        title: 'Tangani Catatan Revisi (Bila Ada Pengembalian Berkas)',
+        menuPath: 'Kinerja Saya > SKP Dosen > Notifikasi Revisi',
+        actor: 'Dosen Mandiri',
+        desc: 'Jika verifikator (Kaprodi atau Dekan) menemukan kekurangan berkas atau SKS tidak sesuai, berkas dikembalikan dengan status "Perlu Revisi". Buka formulir SKP Anda, baca pesan pada kotak "Catatan Verifikator" di bagian atas, lakukan koreksi butir yang diminta, lalu klik "Ajukan Ulang SKP".',
+        tips: 'Perbaiki hanya butir kegiatan yang diminta pada catatan revisi agar proses penilaian ulang berjalan cepat.',
+        keyPoints: [
+          'Kolom catatan verifikator merinci dokumen apa yang perlu diperbaiki.',
+          'Setelah klik Ajukan Ulang, status berkas kembali ke "Diajukan".',
+        ],
+      },
+      {
+        step: 6,
+        title: 'Cetak Dokumen Resmi SKP & Transkrip Nilai Tahunan',
+        menuPath: 'Kinerja Saya > Hasil Kinerja Tahunan / Cetak SKP',
+        actor: 'Dosen Mandiri',
+        desc: 'Ketika status berkas telah mencapai "Terbit" atau "Disahkan", tombol cetak resmi akan aktif. Anda dapat membuka formulir cetak SKP lengkap dengan barcode verifikasi dokumen sah, serta mencetak Transkrip Capaian Kinerja Tahunan (kombinasi 70% SKP + 30% Kuesioner BerAKHLAK).',
         actionLabel: 'Lihat Hasil Kinerja Tahunan',
         actionNav: 'hasil-kinerja-dosen',
-        tips: 'Unduh dan simpan salinan PDF formulir SKP dan Transkrip Nilai sebagai arsip portofolio BKD dan kenaikan jabatan fungsional.',
+        tips: 'Dokumen pratinjau cetak dapat langsung disimpan sebagai file PDF melalui menu Print browser (Ctrl+P atau Cmd+P lalu pilih Save as PDF).',
+        keyPoints: [
+          'Format cetak telah disesuaikan dengan standar A4 instansi Universitas Bhakti Kencana.',
+          'Daftar tanda tangan pejabat penilai dan Rektor tercantum secara otomatis sesuai data kepegawaian.',
+        ],
       },
     ],
     kaprodi: [
       {
         step: 1,
-        title: `Monitoring Keterisian SKP Dosen Homebase ${currentUser.prodi || ''}`,
+        title: 'Pantau Keterisian Kinerja Dosen di Dashboard Kaprodi',
+        menuPath: 'Beranda / Dashboard Kaprodi',
         actor: 'Ketua Program Studi',
-        deadline: 'Pekan ke-2 s.d. ke-4 Semester',
-        desc: `Pantau pengajuan rencana SKP seluruh dosen homebase Program Studi ${currentUser.prodi || ''} melalui Dashboard Kaprodi. Identifikasi dosen yang belum mengajukan atau masih berstatus Draft, dan berikan pengingat berkala.`,
+        desc: 'Buka dashboard utama untuk melihat ringkasan statistik keterisian SKP seluruh dosen homebase program studi Anda. Periksa jumlah dosen yang berstatus Draft, Diajukan, Perlu Tindakan, dan Selesai.',
         actionLabel: 'Buka Dashboard Kaprodi',
         actionNav: 'dashboard',
-        tips: 'Gunakan filter status pada tabel dashboard untuk menyaring dosen yang butuh tindakan segera.',
+        tips: 'Gunakan kartu metrik di dashboard untuk melihat dosen mana saja yang belum mengajukan rencana kerja hingga batas waktu yang ditentukan.',
+        keyPoints: [
+          'Data statistik diperbarui secara realtime dari database institusi.',
+          'Memudahkan identifikasi dosen yang memerlukan bimbingan pengisian.',
+        ],
       },
       {
         step: 2,
-        title: 'Verifikasi Beban Tridharma & Keabsahan Bukti',
+        title: 'Periksa & Verifikasi Berkas SKP Dosen Homebase',
+        menuPath: 'Monitoring & Verifikasi > Verifikasi SKP Dosen',
         actor: 'Ketua Program Studi',
-        deadline: 'Maksimal 14 Hari Pasca Pengajuan',
-        desc: 'Masuk ke menu "Verifikasi SKP Dosen". Teliti setiap butir kegiatan Tridharma dosen homebase. Pastikan rentang 12-16 SKS terpenuhi. Buka tautan bukti fisik untuk memverifikasi keabsahan SK mengajar, RPS, artikel jurnal, atau laporan PKM.',
-        actionLabel: 'Menu Verifikasi SKP Dosen',
+        desc: 'Masuk ke menu "Verifikasi SKP Dosen". Pilih nama dosen yang berstatus "Diajukan". Klik tombol "Periksa Berkas". Teliti kesesuaian butir Tridharma, beban SKS (12-16 SKS), dan klik tautan Google Drive untuk memastikan bukti fisik dapat dibuka dan valid.',
+        actionLabel: 'Buka Verifikasi SKP Dosen',
         actionNav: 'review-skp-kaprodi',
-        tips: 'Bila terdapat beban SKS kurang atau bukti tidak valid, klik "Kembalikan" dan tuliskan catatan perbaikan spesifik.',
+        tips: 'Jika berkas valid, klik "Setujui SKP" sehingga status naik menjadi "Dinilai Kaprodi". Jika terdapat kekurangan bukti, klik "Kembalikan" dan tuliskan instruksi perbaikan yang jelas di kotak catatan.',
+        keyPoints: [
+          'Pastikan pengajaran minimal 4 SKS telah dipenuhi oleh dosen biasa.',
+          'Catatan revisi wajib diisi jika Anda memilih mengembalikan pengajuan.',
+        ],
       },
       {
         step: 3,
-        title: 'Penilaian Kuesioner Perilaku BerAKHLAK Tahunan',
+        title: 'Isi Penilaian Kuesioner Perilaku Kerja BerAKHLAK Dosen',
+        menuPath: 'Evaluasi Kinerja > Penilaian Kuesioner Dosen',
         actor: 'Ketua Program Studi',
-        deadline: 'Periode Evaluasi Akhir Tahun Akademik',
-        desc: 'Masuk ke menu "Evaluasi Kinerja Dosen". Berikan penilaian obyektif skala 1 (Kurang) sampai 4 (Sangat Baik) pada 7 pilar BerAKHLAK. Perhatikan bahwa Indikator No. 1 pada setiap aspek adalah Critical Point yang wajib dipenuhi minimal skor 3.',
-        actionLabel: 'Evaluasi Kuesioner Dosen',
+        desc: 'Buka menu "Penilaian Kuesioner Dosen" pada akhir tahun akademik. Pilih dosen homebase, lalu berikan penilaian obyektif pada 7 dimensi BerAKHLAK (Berorientasi Pelayanan, Akuntabel, Kompeten, Harmonis, Loyal, Adaptif, Kolaboratif) menggunakan skala 1 (Kurang) hingga 4 (Sangat Baik).',
+        actionLabel: 'Buka Penilaian Kuesioner',
         actionNav: 'kuesioner-kaprodi',
-        tips: 'Nilai perilaku ini menyumbang bobot 30% pada Nilai Akhir Kinerja Pegawai.',
+        tips: 'Indikator nomor 1 pada setiap aspek merupakan Poin Kritis (Critical Point). Pastikan indikator ini dinilai dengan cermat karena menjadi prasyarat predikat Baik.',
+        keyPoints: [
+          'Penilaian perilaku BerAKHLAK berkontribusi 30% terhadap Nilai Akhir Kinerja.',
+          'Sistem secara otomatis menghitung total skor, rata-rata, dan konversi predikat.',
+        ],
       },
       {
         step: 4,
-        title: 'Penyusunan SKP Tugas Jabatan Kaprodi Mandiri',
+        title: 'Susun SKP Tugas Jabatan Mandiri Kaprodi ke Dekan',
+        menuPath: 'Kinerja Saya > Sasaran Kinerja Pegawai',
         actor: 'Kaprodi (Sebagai Pegawai)',
-        deadline: 'Mengikuti Jadwal Pengajuan SKP',
-        desc: 'Sebagai Ketua Program Studi, Anda juga wajib mengisi SKP pribadi yang mencakup tugas manajerial prodi serta beban Tridharma mandiri. SKP tugas jabatan Anda akan diverifikasi dan dinilai langsung oleh Dekan Fakultas.',
-        actionLabel: 'Isi SKP Tugas Jabatan Kaprodi',
+        desc: 'Sebagai Ketua Program Studi, Anda juga memiliki kewajiban menyusun SKP pribadi yang mencakup tugas Tridharma serta butir kepemimpinan manajerial program studi. Kirimkan SKP Anda ke Dekanat untuk diverifikasi langsung oleh Dekan Fakultas.',
+        actionLabel: 'Isi SKP Mandiri Kaprodi',
         actionNav: 'skp-kaprodi-self',
-        tips: 'Komponen kepemimpinan program studi tersedia di kategori Penunjang/Tugas Tambahan SPMI.',
+        tips: 'Butir kegiatan manajerial prodi (pengembangan kurikulum, akreditasi, koordinasi pengajaran) dapat dimasukkan pada kategori Tugas Tambahan/Penunjang.',
+        keyPoints: [
+          'SKP Kaprodi akan dinilai pada verifikasi Tahap II oleh Dekan Fakultas.',
+          'Evaluasi BerAKHLAK Anda juga dinilai secara langsung oleh Dekan.',
+        ],
       },
     ],
     dekan: [
       {
         step: 1,
-        title: 'Supervisi Capaian Tridharma Lintas Program Studi',
+        title: 'Supervisi Capaian Tridharma Lintas Program Studi Fakultas',
+        menuPath: 'Beranda / Dashboard Dekan',
         actor: 'Dekan / Pimpinan Fakultas',
-        deadline: 'Awal & Tengah Semester',
-        desc: `Pantau agregat keterisian SKP dan pemenuhan BKD di seluruh program studi di lingkungan ${currentUser.fakultas || currentUser.kampus || 'Fakultas'}. Periksa rasio dosen yang telah mengajukan dan yang telah diverifikasi Kaprodi.`,
-        actionLabel: 'Buka Dashboard Dekan',
+        desc: 'Akses Dashboard Dekan untuk mengamati perkembangan pengajuan SKP di seluruh program studi di bawah naungan fakultas. Pantau perbandingan persentase penyelesaian verifikasi antar program studi.',
+        actionLabel: 'Buka Dashboard Dekanat',
         actionNav: 'dashboard',
-        tips: 'Identifikasi program studi yang lambat dalam proses verifikasi untuk diberikan arahan koordinasi.',
+        tips: 'Gunakan filter prodi di dashboard jika ingin melihat analisis performa per unit kerja secara spesifik.',
+        keyPoints: [
+          'Memberikan visibilitas menyeluruh terhadap tingkat kepatuhan dosen fakultas.',
+          'Membantu mendeteksi kendala administratif pada program studi tertentu.',
+        ],
       },
       {
         step: 2,
-        title: 'Verifikasi & Pengesahan SKP Ketua Program Studi',
+        title: 'Verifikasi & Persetujuan SKP Ketua Program Studi',
+        menuPath: 'Monitoring & Verifikasi > Verifikasi SKP Ka.Prodi',
         actor: 'Dekan / Pimpinan Fakultas',
-        deadline: 'Pekan ke-4 s.d. ke-6 Semester',
-        desc: 'Masuk ke menu "Verifikasi SKP Ketua Program Studi". Tinjau sasaran kinerja kepemimpinan akademik dan Tridharma masing-masing Kaprodi. Berikan persetujuan validasi Tahap II tingkat Fakultas atau kembalikan jika memerlukan perbaikan.',
-        actionLabel: 'Verifikasi SKP Ka.Prodi',
+        desc: 'Masuk ke menu "Verifikasi SKP Ka.Prodi". Buka pengajuan kinerja para Ketua Program Studi. Teliti sasaran manajerial program studi dan ketercapaian Tridharma. Klik "Setujui" untuk menaikkan status menjadi "Dinilai Dekan" agar siap disahkan oleh Direktorat SDM.',
+        actionLabel: 'Buka Verifikasi Ka.Prodi',
         actionNav: 'review-skp-dekan',
-        tips: 'Persetujuan Dekan menjadi prasyarat sebelum berkas dapat diteruskan ke pengesahan final Direktorat SDM.',
+        tips: 'Dekan juga dapat mengembalikan berkas Kaprodi dengan catatan revisi apabila indikator kinerja program studi belum terlampir dengan lengkap.',
+        keyPoints: [
+          'Persetujuan Dekanat adalah syarat mutlak sebelum berkas diterbitkan oleh SDM.',
+          'Pastikan target program studi selaras dengan Renstra Fakultas.',
+        ],
       },
       {
         step: 3,
-        title: 'Evaluasi Perilaku Kepemimpinan BerAKHLAK Kaprodi',
+        title: 'Evaluasi Kuesioner Kepemimpinan BerAKHLAK Kaprodi',
+        menuPath: 'Evaluasi Kinerja > Evaluasi Kinerja Ka.Prodi',
         actor: 'Dekan / Pimpinan Fakultas',
-        deadline: 'Akhir Semester Genap (Tahunan)',
-        desc: 'Buka menu "Evaluasi Kinerja Ketua Program Studi". Lakukan penilaian 7 dimensi perilaku kerja terhadap seluruh Kaprodi dengan menitikberatkan pada aspek Akuntabilitas manajerial dan Kolaboratif tingkat fakultas.',
-        actionLabel: 'Evaluasi Kuesioner Ka.Prodi',
+        desc: 'Buka menu evaluasi kinerja Kaprodi untuk memberikan penilaian 7 aspek BerAKHLAK dengan fokus pada kepemimpinan, koordinasi kurikulum, akuntabilitas anggaran prodi, dan kolaborasi antar unit.',
+        actionLabel: 'Evaluasi BerAKHLAK Ka.Prodi',
         actionNav: 'kuesioner-dekan',
-        tips: 'Gunakan catatan evaluasi konstruktif untuk memotivasi peningkatan mutu program studi.',
+        tips: 'Sertakan catatan pembinaan manajerial pada kolom evaluasi untuk mendukung pengembangan kepemimpinan Kaprodi.',
+        keyPoints: [
+          'Nilai perilaku ini menyumbang 30% dari capaian akhir kinerja Kaprodi.',
+          'Dapat diakses pada jendela evaluasi tahunan universitas.',
+        ],
       },
       {
         step: 4,
-        title: 'Disposisi Kelebihan Beban Kerja (> 16 SKS)',
+        title: 'Pengesahan Disposisi Kelebihan Beban Dosen (> 16 SKS)',
+        menuPath: 'Administrasi Fakultas / Disposisi SKS',
         actor: 'Dekan Fakultas',
-        deadline: 'Insidental / Sesuai Pengajuan',
-        desc: 'Dosen yang memiliki beban Tridharma melebihi batas maksimal 16 SKS karena kondisi penugasan mendesak (misal akreditasi prodi, riset strategis) wajib mendapatkan surat disposisi persetujuan Dekan sebelum diakui oleh SDM.',
-        tips: 'Disposisi dicatat secara formal dalam dokumen berita acara fakultas.',
+        desc: 'Bagi dosen yang mengampu penugasan strategis mendesak sehingga beban mengajarnya melampaui 16 SKS (misal persiapan akreditasi internasional atau riset khusus), Dekan menandatangani surat disposisi resmi agar kelebihan SKS diakui oleh SDM.',
+        tips: 'Surat disposisi diarsipkan dan dicatat dalam berita acara pengesahan tingkat fakultas.',
+        keyPoints: [
+          'Mencegah status berkas dosen terhambat saat verifikasi institusi.',
+          'Berlaku selama satu semester penugasan khusus.',
+        ],
       },
     ],
     sdm: [
       {
         step: 1,
-        title: 'Pemutakhiran Master Data & Struktur Organisasi',
-        actor: 'Direktorat SDM',
-        deadline: 'Sebelum Semester Dimulai',
-        desc: 'Kelola master data kepegawaian dosen (NIP, NUPTK, Jafung, Golongan, Status Ikatan Kerja), master Program Studi, Fakultas, PSDKU, dan pemetaan pejabat struktural (Dekan, Kaprodi, Kepala Cabang).',
-        actionLabel: 'Kelola Data Kepegawaian',
+        title: 'Kelola Master Data Kepegawaian Dosen & Pejabat',
+        menuPath: 'Master & Laporan > Data Kepegawaian Dosen',
+        actor: 'Administrator SDM',
+        desc: 'Masuk ke menu "Data Kepegawaian Dosen". Tambah dosen baru atau perbarui profil data dosen yang ada (NIP, NUPTK, Nama, Homebase Prodi, Kampus/PSDKU, Jabatan Fungsional, Pangkat/Golongan, Status Kepegawaian, dan Jabatan Kampus). Gunakan filter multi-kriteria untuk pencarian cepat serta unduh data via Ekspor XLSX.',
+        actionLabel: 'Kelola Data Dosen',
         actionNav: 'data-dosen',
-        tips: 'Pastikan penugasan Kaprodi dan Dekan telah disinkronkan dengan basis data kepegawaian.',
+        tips: 'Setiap penugasan jabatan tunggal (seperti Kaprodi atau Dekan) dilindungi sistem agar tidak terjadi penetapan ganda tanpa pelepasan jabatan sebelumnya.',
+        keyPoints: [
+          'Filter data dosen mencakup Fakultas, Prodi, Kampus, Jabatan, Pangkat, dan Status.',
+          'Ekspor XLSX menghasilkan data rekapitulasi yang sesuai dengan filter yang aktif.',
+        ],
       },
       {
         step: 2,
-        title: 'Konfigurasi Komponen SKP & Indikator Kuesioner',
-        actor: 'Direktorat SDM',
-        deadline: 'Awal Tahun Akademik',
-        desc: 'Kelola standar bobot SKS komponen Tridharma berdasarkan pedoman SPMI UBK No. 03.07.00/PD/SDM-SPMI. Atur 7 indikator pilar BerAKHLAK dan pastikan status Critical Point (Poin Kritis) terkonfigurasi dengan benar.',
+        title: 'Konfigurasi Master Komponen SKP & Indikator Kuesioner',
+        menuPath: 'Master & Laporan > Komponen SKP & Indikator Kinerja',
+        actor: 'Administrator SDM',
+        desc: 'Kelola katalog komponen kegiatan Tridharma (bobot SKS, bukti fisik wajib, dan batas SKS maksimum) sesuai standar SPMI terbaru. Atur pula indikator kuesioner BerAKHLAK dan tetapkan status Poin Kritis (Critical Point) pada butir indikator utama.',
         actionLabel: 'Master Komponen SKP',
         actionNav: 'komponen-skp',
-        tips: 'Perubahan pada komponen tidak mempengaruhi SKP periode terdahulu yang sudah terbit.',
+        tips: 'Penyesuaian komponen hanya berlaku untuk pengajuan SKP baru dan tidak akan merusak arsip SKP terdahulu yang sudah terbit.',
+        keyPoints: [
+          'Memastikan seluruh dosen memilih butir kegiatan yang telah terstandarisasi.',
+          'Konfigurasi bobot penilaian tersimpan aman di database institusi.',
+        ],
       },
       {
         step: 3,
-        title: 'Monitoring & Final Approval Pengesahan SKP',
-        actor: 'Direktorat SDM',
-        deadline: 'Pasca Review Dekan',
-        desc: 'Periksa pengajuan SKP yang telah berstatus "Dinilai Dekan". Validasi kecukupan dokumen dan kepatuhan beban institusional, lalu bubuhkan status "Disetujui SDM / Terbit" dengan tanda tangan digital resmi institusi.',
-        actionLabel: 'Monitoring SKP Institusi',
+        title: 'Validasi Akhir & Penerbitan Dokumen SKP Terbit Sah',
+        menuPath: 'Monitoring & Verifikasi > Pusat Validasi & Pengesahan SKP',
+        actor: 'Administrator SDM',
+        desc: 'Masuk ke menu "Pusat Validasi & Pengesahan SKP Dosen". Buka daftar pengajuan yang telah disetujui Dekan (status "Dinilai Dekan"). Periksa kepatuhan akhir, lalu klik "Sahkan SKP". Status berkas otomatis berubah menjadi "Sah & Terbit Resmi" dengan TTD Digital Rektor dan barcode keabsahan.',
+        actionLabel: 'Buka Pengesahan SKP',
         actionNav: 'skp-dosen',
-        tips: 'SKP yang telah disetujui SDM secara otomatis menghasilkan dokumen cetak ber-barcode sah.',
+        tips: 'Setelah SKP disahkan oleh SDM, dosen bersangkutan dan pimpinan dapat langsung mencetak formulir resmi ber-kop universitas.',
+        keyPoints: [
+          'Dokumen sah memuat nama Rektor yang aktif secara dinamis dari database.',
+          'Barcode keabsahan menjamin keotentikan dokumen cetak saat diajukan untuk BKD atau akreditasi.',
+        ],
       },
       {
         step: 4,
-        title: 'Penarikan Laporan Eksekutif & Arsip Akreditasi',
-        actor: 'Direktorat SDM',
-        deadline: 'Akhir Periode Evaluasi',
-        desc: 'Unduh laporan rekapitulasi kinerja seluruh unit kerja, analisis sebaran predikat (Sangat Baik, Baik, Cukup, Kurang), dan ekspor data ke Excel atau PDF untuk audit BAN-PT, LAM-PTKes, serta Yayasan.',
-        actionLabel: 'Buka Laporan & Rekapitulasi',
+        title: 'Penarikan Laporan Rekapitulasi & Ekspor Akreditasi',
+        menuPath: 'Master & Laporan > Laporan & Rekapitulasi Institusi',
+        actor: 'Administrator SDM',
+        desc: 'Buka menu "Laporan & Rekapitulasi Institusi". Pilih tahun akademik dan filter berdasarkan fakultas atau unit kerja. Lihat sebaran predikat kinerja institusi (Sangat Baik, Baik, Cukup, Kurang) dan unduh file Excel komprehensif untuk pelaporan ke Yayasan, LLDIKTI, BAN-PT, maupun LAM-PTKes.',
+        actionLabel: 'Buka Laporan Institusi',
         actionNav: 'laporan',
-        tips: 'Laporan dapat difilter per fakultas, program studi, status kepegawaian, maupun jenjang jabatan.',
+        tips: 'Laporan ini dapat digunakan sebagai dasar pertimbangan insentif kinerja dosen dan evaluasi perpanjangan kontrak.',
+        keyPoints: [
+          'Menyajikan grafik distribusi kinerja dan rata-rata SKS Tridharma.',
+          'Ekspor format spreadsheet rapi dengan format tabular angka resmi.',
+        ],
       },
     ],
   }
 
-  // Interactive Checklist per role
-  const checklistData: Record<Role, ChecklistItem[]> = {
+  // Peta Fitur & Menu Aplikasi per Role
+  const featureList: Record<Role, FeatureItem[]> = {
     dosen: [
       {
-        id: 'chk_dosen_1',
-        label: 'Memenuhi Beban Tridharma 12 - 16 SKS',
-        desc: 'Total rencana beban kerja per semester wajib berada di batas regulasi (12 sampai 16 SKS).',
-        mandatory: true,
+        id: 'feat_dosen_1',
+        title: 'Dashboard Kinerja Dosen',
+        menuName: 'Beranda / Dashboard',
+        navId: 'dashboard',
+        desc: 'Pusat informasi status SKP semester aktif, akumulasi total SKS rencana vs realisasi, notifikasi revisi berkas, dan grafik capaian Tridharma.',
+        badgeText: 'Navigasi Utama',
+        badgeType: 'blue',
       },
       {
-        id: 'chk_dosen_2',
-        label: 'Memenuhi Minimal Unsur Pendidikan & Pengajaran (4 SKS)',
-        desc: `Dosen non-pejabat struktural wajib mengampu pengajaran minimal 4 SKS di Program Studi ${currentUser.prodi || 'Homebase'}.`,
-        mandatory: true,
+        id: 'feat_dosen_2',
+        title: 'Formulir Sasaran Kinerja Pegawai (SKP)',
+        menuName: 'Kinerja Saya > Sasaran Kinerja Pegawai',
+        navId: 'skp-dosen-self',
+        desc: 'Antarmuka pengisian rencana kegiatan Tridharma, input SKS, tautan bukti Google Drive terbuka, dan pengajuan ke Ketua Program Studi.',
+        badgeText: 'Fitur Inti',
+        badgeType: 'green',
       },
       {
-        id: 'chk_dosen_3',
-        label: 'Melampirkan Tautan Bukti Fisik Google Drive Terbuka',
-        desc: 'URL Google Drive / Cloud harus dapat diakses publik oleh penilai tanpa perlu login akun lain.',
-        mandatory: true,
+        id: 'feat_dosen_3',
+        title: 'Hasil Kinerja Tahunan & Transkrip',
+        menuName: 'Kinerja Saya > Hasil Kinerja Tahunan',
+        navId: 'hasil-kinerja-dosen',
+        desc: 'Rekapitulasi nilai akhir gabungan 70% capaian SKP dan 30% kuesioner BerAKHLAK beserta predikat kinerja resmi dan arsip semester terdahulu.',
+        badgeText: 'Capaian Mutu',
+        badgeType: 'purple',
       },
       {
-        id: 'chk_dosen_4',
-        label: 'Menyelesaikan Pengisian Realisasi & Capaian Mutu',
-        desc: 'Input angka realisasi akhir semester dan persentase capaian mutu sebelum batas penutupan sistem.',
-        mandatory: true,
-      },
-      {
-        id: 'chk_dosen_5',
-        label: 'Mengunduh & Mengarsipkan Cetak SKP Sah',
-        desc: 'Simpan file PDF SKP ber-barcode dan Transkrip Evaluasi BerAKHLAK untuk portofolio BKD.',
-        mandatory: false,
+        id: 'feat_dosen_4',
+        title: 'Pratinjau & Cetak Dokumen Ber-Barcode',
+        menuName: 'Tombol Cetak pada Formulir & Transkrip',
+        desc: 'Halaman cetak berstandar format A4 resmi Universitas Bhakti Kencana lengkap dengan barcode verifikasi dokumen sah dan tanda tangan digital.',
+        badgeText: 'Dokumen Sah',
+        badgeType: 'orange',
       },
     ],
     kaprodi: [
       {
-        id: 'chk_kaprodi_1',
-        label: `100% Dosen Homebase ${currentUser.prodi || ''} Mengajukan SKP`,
-        desc: 'Memastikan seluruh dosen tetap dan kontrak di program studi telah mengajukan rencana SKP tepat waktu.',
-        mandatory: true,
+        id: 'feat_kaprodi_1',
+        title: 'Dashboard Monitoring Homebase',
+        menuName: 'Beranda / Dashboard Kaprodi',
+        navId: 'dashboard',
+        desc: 'Monitoring agregat keterisian SKP seluruh dosen di program studi, grafik pemenuhan batas 12-16 SKS, dan tabel dosen yang perlu ditindaklanjuti.',
+        badgeText: 'Supervisi Prodi',
+        badgeType: 'blue',
       },
       {
-        id: 'chk_kaprodi_2',
-        label: 'Verifikasi Beban Tridharma Dosen (12 - 16 SKS)',
-        desc: 'Meneliti rincian kegiatan dan memastikan tidak ada dosen yang berada di bawah 12 SKS tanpa izin.',
-        mandatory: true,
+        id: 'feat_kaprodi_2',
+        title: 'Verifikasi & Catatan Revisi SKP Dosen',
+        menuName: 'Monitoring & Verifikasi > Verifikasi SKP Dosen',
+        navId: 'review-skp-kaprodi',
+        desc: 'Pusat pemeriksaan butir kegiatan, validasi keabsahan dokumen bukti fisik Google Drive, persetujuan pengajuan, atau pengembalian dengan catatan revisi.',
+        badgeText: 'Verifikasi Tahap I',
+        badgeType: 'green',
       },
       {
-        id: 'chk_kaprodi_3',
-        label: 'Uji Validitas Tautan Dokumen Bukti Fisik Dosen',
-        desc: 'Membuka dan memvalidasi berkas SK mengajar, RPS, modul, jurnal, dan laporan PKM dosen homebase.',
-        mandatory: true,
+        id: 'feat_kaprodi_3',
+        title: 'Instrumen Penilaian Kuesioner BerAKHLAK',
+        menuName: 'Evaluasi Kinerja > Penilaian Kuesioner Dosen',
+        navId: 'kuesioner-kaprodi',
+        desc: 'Formulir penilaian 7 dimensi perilaku kerja dosen homebase dengan penanda Poin Kritis dan kalkulasi otomatis nilai perilaku 30%.',
+        badgeText: 'Evaluasi Perilaku',
+        badgeType: 'purple',
       },
       {
-        id: 'chk_kaprodi_4',
-        label: 'Tuntas Penilaian Kuesioner BerAKHLAK Seluruh Dosen',
-        desc: 'Menuntaskan pengisian 7 pilar kuesioner perilaku kerja dosen homebase dengan memperhatikan Critical Point.',
-        mandatory: true,
-      },
-      {
-        id: 'chk_kaprodi_5',
-        label: 'Penyusunan SKP Tugas Jabatan Kaprodi Mandiri',
-        desc: 'Menyusun dan mengajukan SKP tugas tambahan manajerial Kaprodi ke Dekan Fakultas.',
-        mandatory: true,
+        id: 'feat_kaprodi_4',
+        title: 'Pengisian SKP Tugas Jabatan Kaprodi',
+        menuName: 'Kinerja Saya > Sasaran Kinerja Pegawai',
+        navId: 'skp-kaprodi-self',
+        desc: 'Pengajuan SKP pribadi tugas tambahan manajerial dan Tridharma Kaprodi untuk diverifikasi dan dinilai langsung oleh Dekan Fakultas.',
+        badgeText: 'Kinerja Mandiri',
+        badgeType: 'orange',
       },
     ],
     dekan: [
       {
-        id: 'chk_dekan_1',
-        label: 'Supervisi Keterisian SKP Seluruh Prodi Fakultas',
-        desc: `Memastikan tidak ada program studi di lingkungan ${currentUser.fakultas || currentUser.kampus || 'Fakultas'} yang tertinggal dalam proses SKP.`,
-        mandatory: true,
+        id: 'feat_dekan_1',
+        title: 'Dashboard Eksekutif Fakultas',
+        menuName: 'Beranda / Dashboard Dekan',
+        navId: 'dashboard',
+        desc: 'Pemantauan komprehensif tingkat kepatuhan SKP lintas program studi di fakultas, grafik sebaran beban kerja, dan ringkasan persetujuan.',
+        badgeText: 'Supervisi Fakultas',
+        badgeType: 'blue',
       },
       {
-        id: 'chk_dekan_2',
-        label: 'Verifikasi & Persetujuan SKP Seluruh Kaprodi',
-        desc: 'Memvalidasi kelayakan sasaran kinerja dan ketercapaian manajerial seluruh Ketua Program Studi.',
-        mandatory: true,
+        id: 'feat_dekan_2',
+        title: 'Verifikasi SKP Ketua Program Studi',
+        menuName: 'Monitoring & Verifikasi > Verifikasi SKP Ka.Prodi',
+        navId: 'review-skp-dekan',
+        desc: 'Penelaahan sasaran kinerja kepemimpinan akademik dan Tridharma para Kaprodi untuk memberikan persetujuan Tahap II tingkat Fakultas.',
+        badgeText: 'Verifikasi Tahap II',
+        badgeType: 'green',
       },
       {
-        id: 'chk_dekan_3',
-        label: 'Pengisian Kuesioner BerAKHLAK Para Kaprodi',
-        desc: 'Memberikan penilaian perilaku kepemimpinan berkala kepada para pejabat struktural prodi.',
-        mandatory: true,
+        id: 'feat_dekan_3',
+        title: 'Evaluasi Kuesioner Kepemimpinan Kaprodi',
+        menuName: 'Evaluasi Kinerja > Evaluasi Kinerja Ka.Prodi',
+        navId: 'kuesioner-dekan',
+        desc: 'Penilaian 7 pilar perilaku kepemimpinan para Ketua Program Studi dalam mengelola program studi dan mengawal kurikulum.',
+        badgeText: 'Evaluasi Pimpinan',
+        badgeType: 'purple',
       },
       {
-        id: 'chk_dekan_4',
-        label: 'Penerbitan Disposisi Beban Lebih Bila Ada (> 16 SKS)',
-        desc: 'Menandatangani disposisi jika ada dosen dengan beban penugasan mendesak melebihi standar maksimal.',
-        mandatory: false,
+        id: 'feat_dekan_4',
+        title: 'Pengesahan Disposisi Beban Lebih',
+        menuName: 'Administrasi Fakultas / Disposisi SKS',
+        desc: 'Pengesahan persetujuan bagi dosen yang mengampu tugas strategis khusus dengan beban kerja melebihi 16 SKS.',
+        badgeText: 'Otoritas Khusus',
+        badgeType: 'orange',
       },
     ],
     sdm: [
       {
-        id: 'chk_sdm_1',
-        label: 'Sinkronisasi Master Data Dosen & Pejabat Struktural',
-        desc: 'Memastikan NIP, NUPTK, JAFUNG, dan pemetaan Prodi/Fakultas terbarui di basis data institusi.',
-        mandatory: true,
+        id: 'feat_sdm_1',
+        title: 'Dashboard Analitik SDM Institusi',
+        menuName: 'Beranda / Dashboard SDM',
+        navId: 'dashboard',
+        desc: 'Panel eksekutif pemantauan kepatuhan institusi, KPI beban rata-rata SKS, grafik sebaran jabatan fungsional dosen, dan notifikasi pengesahan.',
+        badgeText: 'Analitik Institusi',
+        badgeType: 'blue',
       },
       {
-        id: 'chk_sdm_2',
-        label: 'Pembaruan Standar Komponen SKP & Bobot SPMI',
-        desc: 'Menetapkan standar komponen Tridharma dan batas maksimal SKS sesuai kalender akademik terbaru.',
-        mandatory: true,
+        id: 'feat_sdm_2',
+        title: 'Pusat Pengesahan & Penerbitan SKP',
+        menuName: 'Monitoring & Verifikasi > Pusat Pengesahan SKP Dosen',
+        navId: 'skp-dosen',
+        desc: 'Validasi akhir pengajuan yang telah disetujui Dekanat untuk diterbitkan status resmi "Terbit" dengan tanda tangan Rektor dan barcode sah.',
+        badgeText: 'Pengesahan Final',
+        badgeType: 'green',
       },
       {
-        id: 'chk_sdm_3',
-        label: 'Validasi Akhir (Final Approval) SKP Universitas',
-        desc: 'Mengesahkan seluruh SKP yang telah disetujui Dekan menjadi status Terbit/Sah ber-barcode.',
-        mandatory: true,
+        id: 'feat_sdm_3',
+        title: 'Kelola Master Data Kepegawaian Dosen',
+        menuName: 'Master & Laporan > Data Kepegawaian Dosen',
+        navId: 'data-dosen',
+        desc: 'Manajemen basis data dosen, mutasi jabatan struktural tunggal berproteksi, filter multi-kriteria seragam, dan ekspor data XLSX realtime.',
+        badgeText: 'Master Pegawai',
+        badgeType: 'purple',
       },
       {
-        id: 'chk_sdm_4',
-        label: 'Penerbitan Rekapitulasi & Ekspor Laporan Akreditasi',
-        desc: 'Menghasilkan dokumen rekapitulasi nilai tahunan untuk pelaporan BAN-PT, LAM-PTKes, dan Yayasan.',
-        mandatory: true,
+        id: 'feat_sdm_4',
+        title: 'Master Standar Komponen & Rekapitulasi',
+        menuName: 'Master & Laporan > Komponen SKP & Laporan Institusi',
+        navId: 'laporan',
+        desc: 'Konfigurasi bobot komponen Tridharma dan ekspor rekapitulasi data kinerja universitas untuk pelaporan akreditasi BAN-PT / LAM-PTKes.',
+        badgeText: 'Laporan & Ekspor',
+        badgeType: 'orange',
       },
     ],
   }
 
-  // FAQ per role
+  // FAQ cara pakai dan kendala teknis operasional
   const faqData: Record<Role, FAQItem[]> = {
     dosen: [
       {
-        q: 'Bagaimana jika total beban kerja saya kurang dari 12 SKS atau lebih dari 16 SKS?',
-        a: 'Sesuai Pedoman Operasional BKD Dikti dan Standar SPMI UBK No. 03.07.00/PD/SDM-SPMI, beban kerja dosen per semester minimal 12 SKS dan maksimal 16 SKS. Jika beban Anda kurang dari 12 SKS, sistem akan memberi tanda peringatan dan pengajuan tidak dapat disahkan. Jika lebih dari 16 SKS karena penugasan khusus, Anda wajib melampirkan surat disposisi persetujuan dari Dekan Fakultas.',
-        tag: 'Beban SKS',
+        q: 'Bagaimana cara menambahkan butir kegiatan Tridharma di formulir SKP?',
+        a: 'Masuk ke menu "Kinerja Saya > Sasaran Kinerja Pegawai". Pada tabel butir kegiatan, klik tombol hijau "+ Tambah Butir Kegiatan". Pilih salah satu unsur Tridharma (Pendidikan, Penelitian, Pengabdian, atau Penunjang), pilih nama kegiatan, masukkan target kuantitas, satuan output, target waktu, dan persentase mutu (100%). Total SKS akan otomatis terakumulasi.',
+        tag: 'Input Kegiatan',
       },
       {
-        q: 'Apa yang harus dilakukan jika SKP saya berstatus "Perlu Revisi"?',
-        a: 'Jika status SKP berubah menjadi Perlu Revisi, buka menu SKP Saya. Perhatikan kotak Catatan Verifikator di bagian atas formulir. Lakukan koreksi butir kegiatan yang diminta, perbarui tautan bukti fisik jika diperlukan, lalu klik tombol "Ajukan Ulang SKP". Status akan kembali ke Diajukan untuk ditinjau ulang oleh Kaprodi atau Dekan.',
-        tag: 'Revisi SKP',
+        q: 'Mengapa tombol "Ajukan SKP" berwarna abu-abu / tidak bisa diklik?',
+        a: 'Tombol Ajukan SKP hanya akan aktif jika total beban SKS Anda berada di rentang standar SPMI (antara 12.00 sampai 16.00 SKS). Periksa kembali ringkasan SKS di atas tabel: jika kurang dari 12 SKS, tambahkan butir penugasan; jika lebih dari 16 SKS, sesuaikan beban atau lampirkan izin disposisi dari Dekan.',
+        tag: 'Batas SKS',
       },
       {
-        q: 'Bagaimana rumus penghitungan Nilai Akhir Kinerja Pegawai?',
-        a: 'Formula pembobotan resmi UBK adalah: Nilai Akhir Kinerja = (Nilai Capaian SKP × 70%) + (Nilai Kuesioner BerAKHLAK × 30%). Kategori Predikat: Nilai 91 - 100 = Sangat Baik, 76 - 90 = Baik, 61 - 75 = Butuh Perbaikan, 51 - 60 = Kurang, dan < 50 = Sangat Kurang.',
-        tag: 'Nilai Akhir',
+        q: 'Bagaimana cara menyetel izin tautan Google Drive agar tidak terkendala saat verifikasi?',
+        a: 'Saat menyalin link berkas dari Google Drive, pastikan pengaturan Akses Umum (General Access) diatur ke "Siapa saja yang memiliki link" (Anyone with the link) dengan hak akses "Pelihat" (Viewer). Jangan menggunakan opsi "Dibatasi" (Restricted) karena penilai tidak akan bisa membuka berkas tanpa izin khusus.',
+        tag: 'Google Drive',
       },
       {
-        q: 'Apakah semua unsur Tridharma wajib diisi setiap semester?',
-        a: 'Unsur Pendidikan & Pengajaran wajib diisi setiap semester minimal 4 SKS (untuk dosen biasa). Unsur Penelitian dan Pengabdian kepada Masyarakat (PKM) wajib dilaksanakan minimal 1 kegiatan dalam kurun waktu satu tahun akademik, sedangkan Penunjang bersifat opsional dengan pengakuan maksimal 3 SKS.',
-        tag: 'Tridharma',
+        q: 'Apa yang harus dilakukan jika pengajuan SKP saya berstatus "Perlu Revisi"?',
+        a: 'Buka menu SKP Saya. Di bagian atas formulir akan tampil kotak berwarna kuning/merah berisi Catatan Verifikator dari Kaprodi atau Dekan. Baca butir mana yang perlu diperbaiki, edit kegiatan atau perbarui tautan bukti fisik, lalu klik tombol "Ajukan Ulang SKP". Berkas akan kembali masuk ke antrean verifikator.',
+        tag: 'Revisi Berkas',
       },
       {
-        q: 'Bagaimana cara mencetak formulir SKP dan transkrip tahunan?',
-        a: 'Masuk ke menu SKP Saya atau Hasil Kinerja Tahunan. Pada sudut kanan atas terdapat tombol "Cetak Formulir Resmi" atau "Cetak Transkrip". Dokumen akan terbuka di jendela pracetak berformat standar kop resmi Universitas Bhakti Kencana lengkap dengan barcode verifikasi keabsahan dokumen.',
-        tag: 'Pencetakan',
+        q: 'Bagaimana cara mengunduh dan mencetak dokumen SKP ber-barcode resmi?',
+        a: 'Setelah status berkas Anda berubah menjadi "Terbit" atau "Disahkan", buka menu SKP Saya atau Hasil Kinerja Tahunan. Klik tombol "Cetak Formulir Resmi" atau "Cetak Transkrip". Di jendela pratinjau, klik tombol biru "Cetak / Simpan PDF" di sudut kanan atas untuk mencetak ke printer atau menyimpannya sebagai file PDF.',
+        tag: 'Cetak Dokumen',
       },
     ],
     kaprodi: [
       {
-        q: 'Apa perbedaan tombol "Setujui" dan "Kembalikan" pada verifikasi SKP dosen?',
-        a: 'Tombol "Setujui" digunakan apabila butir kegiatan Tridharma telah memenuhi ketentuan SPMI (12-16 SKS) dan tautan bukti fisik valid. Status SKP akan beralih ke "Dinilai Kaprodi" untuk diteruskan ke Dekan. Tombol "Kembalikan" digunakan bila ada data yang salah, dokumen tidak terbaca, atau SKS kurang, disertai catatan perbaikan wajib yang akan dibaca oleh dosen bersangkutan.',
-        tag: 'Verifikasi',
+        q: 'Bagaimana alur menyetujui atau mengembalikan pengajuan SKP dosen?',
+        a: 'Masuk ke menu "Monitoring & Verifikasi > Verifikasi SKP Dosen". Klik tombol "Periksa" pada baris dosen terkait. Periksa rincian kegiatan dan pastikan tautan Google Drive terbuka. Jika sudah memenuhi syarat, klik tombol hijau "Setujui SKP". Jika terdapat berkas yang kurang atau tidak sesuai, klik tombol merah "Kembalikan", ketik catatan perbaikan secara spesifik, lalu konfirmasi pengembalian.',
+        tag: 'Verifikasi Berkas',
       },
       {
-        q: 'Bagaimana kriteria pengisian kuesioner perilaku kerja BerAKHLAK?',
-        a: 'Gunakan skala 1 sampai 4: (1) Kurang, (2) Cukup, (3) Baik, (4) Sangat Baik. Nilai harus mencerminkan kinerja keseharian dosen selama satu tahun akademik. Perhatikan bahwa Indikator No. 1 di setiap aspek adalah Critical Point yang menjadi syarat kelulusan nilai Baik.',
-        tag: 'Kuesioner',
+        q: 'Kapan Kaprodi harus mengisi kuesioner perilaku kerja BerAKHLAK dosen?',
+        a: 'Kuesioner BerAKHLAK diisi menjelang akhir tahun akademik setelah seluruh kegiatan semester terlaksana. Masuk ke menu "Evaluasi Kinerja > Penilaian Kuesioner Dosen", pilih nama dosen, dan berikan skor 1 sampai 4 pada 7 pilar. Nilai kuesioner ini akan otomatis menyumbang 30% pada Nilai Akhir Kinerja dosen.',
+        tag: 'Kuesioner BerAKHLAK',
       },
       {
-        q: 'Apakah Kaprodi juga harus mengisi SKP mandiri?',
-        a: 'Ya. Kaprodi memiliki peran ganda: sebagai Pendidik (Tridharma) dan Pejabat Struktural. Kaprodi mengisi SKP melalui menu "Kinerja Saya > Sasaran Kinerja Pegawai" yang memuat unsur pengajaran, riset, serta butir kepemimpinan prodi. SKP Kaprodi akan diverifikasi langsung oleh Dekan Fakultas.',
-        tag: 'Peran Ganda',
+        q: 'Apakah Kaprodi juga wajib menyusun SKP mandiri tugas jabatan?',
+        a: 'Ya. Kaprodi memiliki peran ganda: sebagai pendidik dan pimpinan struktural prodi. Masuk ke menu "Kinerja Saya > Sasaran Kinerja Pegawai" untuk menyusun SKP tugas kepemimpinan dan Tridharma mandiri Anda. SKP Kaprodi akan diverifikasi langsung oleh Dekan Fakultas.',
+        tag: 'SKP Kaprodi',
       },
       {
-        q: 'Bagaimana jika ada dosen homebase yang belum mengajukan SKP hingga batas waktu?',
-        a: 'Kaprodi dapat memantau keterisian melalui Dashboard Kaprodi. Bila ada dosen yang terlambat, Kaprodi dapat memberikan teguran tertulis atau berkoordinasi dengan Direktorat SDM untuk penjadwalan asistensi pengisian.',
-        tag: 'Disiplin Waktu',
+        q: 'Bagaimana jika ada dosen homebase yang belum mengajukan SKP melewati batas waktu?',
+        a: 'Anda dapat memantau nama dosen yang masih berstatus "Draft" atau "Belum Mengajukan" melalui tabel di Dashboard Kaprodi. Anda dapat memberikan pengingat langsung kepada dosen bersangkutan atau berkoordinasi dengan Direktorat SDM jika dosen mengalami kendala penugasan.',
+        tag: 'Monitoring',
       },
     ],
     dekan: [
       {
-        q: 'Apa cakupan wewenang verifikasi SKP tingkat Dekanat?',
-        a: 'Dekan berwenang memvalidasi SKP para Ketua Program Studi di lingkungan fakultas bersangkutan, serta mengawasi rekapitulasi progres seluruh program studi. Dekan memastikan keselarasan sasaran kinerja fakultas dengan Rencana Strategis (Renstra) Universitas Bhakti Kencana.',
-        tag: 'Wewenang Dekan',
+        q: 'Apa yang harus dilakukan Dekan pada menu Verifikasi SKP Ka.Prodi?',
+        a: 'Dekan bertindak sebagai Verifikator Tahap II untuk seluruh Ketua Program Studi di fakultasnya. Masuk ke menu "Monitoring & Verifikasi > Verifikasi SKP Ka.Prodi", periksa butir capaian kepemimpinan prodi serta Tridharma Kaprodi, lalu klik "Setujui" agar pengajuan diteruskan ke Direktorat SDM untuk pengesahan final.',
+        tag: 'Verifikasi Dekanat',
       },
       {
-        q: 'Bagaimana prosedur penanganan kelebihan beban kerja (> 16 SKS)?',
-        a: 'Jika dosen di salah satu program studi memiliki beban lebih dari 16 SKS karena kondisi darurat akademik, Kaprodi mengusulkan surat permohonan ke Dekan. Dekan menerbitkan disposisi persetujuan beban lebih yang diunggah ke sistem agar status pengajuan tidak terblokir saat verifikasi SDM.',
-        tag: 'Disposisi SKS',
+        q: 'Bagaimana prosedur pemberian persetujuan kelebihan beban SKS (> 16 SKS)?',
+        a: 'Jika seorang dosen memiliki beban lebih dari 16 SKS karena kondisi mendesak institusi (misalnya membuka prodi baru atau riset prioritas), Dekanat menerbitkan surat rekomendasi disposisi persetujuan beban lebih. Surat ini dilampirkan agar status pengajuan dosen tidak terhambat sistem saat verifikasi SDM.',
+        tag: 'Disposisi Beban',
       },
       {
-        q: 'Bagaimana Dekan mengevaluasi kuesioner perilaku kerja para Kaprodi?',
-        a: 'Melalui menu "Evaluasi Kinerja Ketua Program Studi", Dekan memberikan skor pada 7 dimensi BerAKHLAK untuk setiap Kaprodi dengan fokus pada akuntabilitas pelaporan prodi, kepemimpinan kurikulum, dan kolaborasi lintas fakultas.',
-        tag: 'Evaluasi Kaprodi',
+        q: 'Bagaimana Dekan memantau progres keterisian SKP seluruh fakultas?',
+        a: 'Melalui Dashboard Dekan, disajikan grafik statistik komparasi keterisian SKP per program studi. Dekan dapat melihat prodi mana yang telah 100% selesai diverifikasi dan prodi mana yang masih memiliki pengajuan tertunda.',
+        tag: 'Dashboard Fakultas',
       },
     ],
     sdm: [
       {
-        q: 'Kapan status SKP dinyatakan "Terbit / Disahkan"?',
-        a: 'Status SKP dinyatakan Terbit setelah melalui 3 tahap: diajukan oleh dosen, disetujui Kaprodi (Dinilai Kaprodi), disetujui Dekan (Dinilai Dekan), dan divalidasi final oleh Direktorat SDM (Disetujui SDM / Terbit). Setelah status Terbit, formulir SKP dan transkrip tahunan dapat dicetak resmi.',
-        tag: 'Status Terbit',
+        q: 'Bagaimana cara mengesahkan SKP dosen sehingga statusnya berubah menjadi "Terbit"?',
+        a: 'Masuk ke menu "Monitoring & Verifikasi > Pusat Validasi & Pengesahan SKP Dosen". Buka pengajuan dosen yang telah berstatus "Dinilai Dekan". Periksa kepatuhan akhir dokumen, lalu klik "Sahkan SKP". Berkas otomatis berstatus "Sah & Terbit", nama pejabat penilai dan Rektor aktif tercantum, serta barcode digital diaktifkan.',
+        tag: 'Pengesahan SKP',
       },
       {
-        q: 'Bagaimana cara menambahkan dosen baru atau memperbarui jabatan fungsional?',
-        a: 'Masuk ke menu "Master & Laporan > Data Kepegawaian Dosen". Klik tombol "Tambah Dosen" atau klik ikon edit pada baris dosen terkait. Isi NIP, NUPTK, nama, program studi, status ikatan kerja, dan jabatan fungsional terbaru (Asisten Ahli, Lektor, Lektor Kepala, Guru Besar).',
+        q: 'Bagaimana cara memperbarui data kepegawaian dosen atau mutasi jabatan struktural?',
+        a: 'Buka menu "Master & Laporan > Data Kepegawaian Dosen". Klik tombol "Tambah Dosen Baru" atau klik ikon edit pada baris dosen yang diinginkan. Anda dapat memperbarui NIP, NUPTK, Jabatan Fungsional, Golongan, serta Jabatan Kampus. Sistem telah dilengkapi proteksi agar jabatan tunggal (seperti Kaprodi atau Dekan) tidak dapat diisi ganda.',
         tag: 'Master Dosen',
       },
       {
-        q: 'Bagaimana mengekspor data untuk kebutuhan akreditasi BAN-PT / LAM-PTKes?',
-        a: 'Masuk ke menu "Master & Laporan > Laporan & Rekapitulasi Institusi". Pilih periode evaluasi, fakultas, atau prodi, lalu klik tombol "Ekspor Excel" atau "Cetak Ringkasan Eksekutif". Data memuat seluruh indikator kuantitatif beban Tridharma dan predikat mutu BerAKHLAK.',
-        tag: 'Ekspor Data',
+        q: 'Bagaimana cara mengekspor rekapitulasi data dosen sesuai filter yang dipilih ke Excel?',
+        a: 'Pada halaman "Data Kepegawaian Dosen", gunakan filter di bagian atas (Fakultas, Prodi, Kampus, Jabatan, Pangkat, atau Status). Setelah data di tabel tersaring sesuai kebutuhan Anda, klik tombol "Ekspor XLSX". Sistem akan mengunduh file spreadsheet resmi yang hanya memuat data hasil saringan tersebut.',
+        tag: 'Ekspor XLSX',
+      },
+      {
+        q: 'Bagaimana cara menyesuaikan nama pejabat Rektor pada cetakan dokumen resmi?',
+        a: 'Data Rektor diambil secara dinamis dari database master kepegawaian (dosen dengan jabatan kampus "Rektor"). Jika terjadi pergantian pimpinan Rektor, cukup perbarui data jabatan kampus pada profil dosen bersangkutan di menu Data Kepegawaian Dosen. Seluruh lembar cetak formulir resmi akan langsung terbarui secara otomatis.',
+        tag: 'Data Rektor Dinamis',
       },
     ],
   }
 
-  // Calculate Checklist progress
-  const currentChecklist = checklistData[selectedRole] || []
-  const totalChecklist = currentChecklist.length
-  const completedChecklist = currentChecklist.filter((it) => checkedItems[it.id]).length
-  const checklistPercentage = totalChecklist > 0 ? Math.round((completedChecklist / totalChecklist) * 100) : 0
+  // Filter items based on global search
+  const filteredWorkflow = useMemo(() => {
+    const list = workflowData[selectedRole] || []
+    if (!searchQuery.trim()) return list
+    const q = searchQuery.toLowerCase()
+    return list.filter(
+      (it) =>
+        it.title.toLowerCase().includes(q) ||
+        it.desc.toLowerCase().includes(q) ||
+        it.menuPath.toLowerCase().includes(q) ||
+        it.tips.toLowerCase().includes(q) ||
+        it.keyPoints.some((kp) => kp.toLowerCase().includes(q))
+    )
+  }, [selectedRole, searchQuery])
 
-  // Filtered FAQ based on search
+  const filteredFeatures = useMemo(() => {
+    const list = featureList[selectedRole] || []
+    if (!searchQuery.trim()) return list
+    const q = searchQuery.toLowerCase()
+    return list.filter(
+      (it) =>
+        it.title.toLowerCase().includes(q) ||
+        it.menuName.toLowerCase().includes(q) ||
+        it.desc.toLowerCase().includes(q)
+    )
+  }, [selectedRole, searchQuery])
+
   const filteredFaq = useMemo(() => {
     const list = faqData[selectedRole] || []
     if (!searchQuery.trim()) return list
     const q = searchQuery.toLowerCase()
     return list.filter(
       (it) => it.q.toLowerCase().includes(q) || it.a.toLowerCase().includes(q) || it.tag.toLowerCase().includes(q)
-    )
-  }, [selectedRole, searchQuery])
-
-  // Filtered Workflow steps based on search
-  const filteredWorkflow = useMemo(() => {
-    const list = workflowData[selectedRole] || []
-    if (!searchQuery.trim()) return list
-    const q = searchQuery.toLowerCase()
-    return list.filter(
-      (it) => it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q) || it.actor.toLowerCase().includes(q)
     )
   }, [selectedRole, searchQuery])
 
@@ -609,7 +718,7 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
                 }}
               >
                 <BookOpen size={12} style={{ color: 'var(--brand-600)' }} />
-                <span>Pedoman Mutu SPMI 2026</span>
+                <span>Buku Panduan Penggunaan Sistem</span>
               </span>
               <span
                 style={{
@@ -625,7 +734,7 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
                 }}
               >
                 <Sparkles size={11} style={{ color: 'var(--brand-600)' }} />
-                <span>PermenPAN-RB No. 6/2022 &bull; PO BKD Ditjen Dikti</span>
+                <span>Portal SDM &amp; SKP Digital UBK</span>
               </span>
             </div>
 
@@ -647,7 +756,7 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
                 color: 'var(--muted)',
                 lineHeight: 1.55,
                 margin: 0,
-                maxWidth: 720,
+                maxWidth: 760,
               }}
             >
               {activeRoleMeta.shortDesc}
@@ -657,15 +766,26 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <button
               onClick={() => {
-                window.open(`/cetak-panduan?role=${selectedRole}`, '_blank')
+                window.open('/cetak-panduan', '_blank')
               }}
-              className="brand-btn brand-btn--outline"
-              style={{ padding: '8px 15px', background: '#ffffff', borderRadius: 'var(--r-md)', fontSize: '13px' }}
-              aria-label="Cetak buku panduan resmi di tab baru"
-              title="Buka dokumen cetak resmi di tab baru"
+              className="brand-btn"
+              style={{
+                padding: '8px 16px',
+                background: '#4b5563',
+                color: '#ffffff',
+                borderRadius: 'var(--r-md)',
+                fontSize: '13px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              aria-label="Cetak panduan penggunaan resmi di tab baru"
+              title="Buka dokumen panduan resmi berformat cetak A4 di tab baru"
             >
               <Printer size={15} />
-              <span>Cetak / PDF</span>
+              <span>Cetak Panduan / PDF</span>
             </button>
           </div>
         </div>
@@ -698,13 +818,10 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
               fontWeight: 500,
               border: '1.5px solid var(--hair-strong)',
               background: 'var(--page-bg)',
-              color: 'var(--ink)',
-              transition: 'all 0.18s var(--ease)',
             }}
-            placeholder="Cari topik panduan, ketentuan beban SKS, alur pengesahan, atau FAQ..."
+            placeholder={`Cari panduan langkah pakai, menu, atau pertanyaan kendala untuk ${activeRoleMeta.title}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Cari panduan"
           />
           {searchQuery && (
             <button
@@ -735,106 +852,7 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
       </div>
 
       {/* =========================================================================
-          2. PERSONA PROFILE CARD (Disesuaikan Penuh Sesuai User yang Login)
-         ========================================================================= */}
-      <div
-        style={{
-          background: 'var(--card)',
-          borderRadius: 'var(--r-xl)',
-          padding: '18px 24px',
-          border: '1px solid var(--hair)',
-          boxShadow: 'var(--shadow-xs)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 'var(--r-full)',
-              overflow: 'hidden',
-              background: '#f1f5f9',
-              border: '2px solid var(--hair)',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <img
-              src={getAvatarSrc(currentUser.avatar)}
-              alt={currentUser.name}
-              onError={(e) => {
-                const target = e.currentTarget
-                if (!target.src.endsWith('/user.png')) {
-                  target.src = '/user.png'
-                }
-              }}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
-                {currentUser.name}
-              </span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 'var(--r-full)',
-                  background: activeRoleMeta.bgColor,
-                  color: activeRoleMeta.color,
-                  border: `1px solid ${activeRoleMeta.borderColor}`,
-                  letterSpacing: '0.02em',
-                }}
-              >
-                {activeRoleMeta.roleBadge}
-              </span>
-            </div>
-
-            <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span>NIP: <strong style={{ color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{currentUser.nip || '-'}</strong></span>
-              {currentUser.nuptk && (
-                <>
-                  <span>&bull;</span>
-                  <span>NUPTK: <strong style={{ color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{currentUser.nuptk}</strong></span>
-                </>
-              )}
-              <span>&bull;</span>
-              <span>Unit: <strong>{activeRoleMeta.scopeDesc}</strong></span>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Badge Unit & Kalender */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 12px',
-            borderRadius: 'var(--r-md)',
-            background: 'var(--panel-hover)',
-            fontSize: '12px',
-            fontWeight: 600,
-            color: 'var(--ink-secondary)',
-          }}
-        >
-          <Clock size={13} style={{ color: 'var(--brand-600)' }} />
-          <span>Periode Semester Genap 2025/2026</span>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          3. CATEGORY SUB-TABS (Navigasi Kategori dengan Indikator Bersih)
+          2. CATEGORY SUB-TABS (Navigasi Kategori dengan Indikator Bersih)
          ========================================================================= */}
       <div
         style={{
@@ -868,7 +886,31 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
           }}
         >
           <Layers size={15} />
-          <span>Alur &amp; Prosedur Kerja</span>
+          <span>Panduan Langkah demi Langkah ({filteredWorkflow.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveCategory('fitur')}
+          className="tab-btn"
+          style={{
+            padding: '9px 15px',
+            borderBottom: activeCategory === 'fitur' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+            color: activeCategory === 'fitur' ? 'var(--brand-600)' : 'var(--muted)',
+            fontWeight: activeCategory === 'fitur' ? 700 : 500,
+            fontSize: '13px',
+            background: 'none',
+            borderTop: 'none',
+            borderLeft: 'none',
+            borderRight: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Compass size={15} />
+          <span>Peta Menu &amp; Fitur Utama ({filteredFeatures.length})</span>
         </button>
 
         <button
@@ -892,55 +934,7 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
           }}
         >
           <Scale size={15} />
-          <span>Standar BKD &amp; Penilaian</span>
-        </button>
-
-        <button
-          onClick={() => setActiveCategory('checklist')}
-          className="tab-btn"
-          style={{
-            padding: '9px 15px',
-            borderBottom: activeCategory === 'checklist' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-            color: activeCategory === 'checklist' ? 'var(--brand-600)' : 'var(--muted)',
-            fontWeight: activeCategory === 'checklist' ? 700 : 500,
-            fontSize: '13px',
-            background: 'none',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <CheckSquare size={15} />
-          <span>Checklist Mandiri ({completedChecklist}/{totalChecklist})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveCategory('regulasi')}
-          className="tab-btn"
-          style={{
-            padding: '9px 15px',
-            borderBottom: activeCategory === 'regulasi' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-            color: activeCategory === 'regulasi' ? 'var(--brand-600)' : 'var(--muted)',
-            fontWeight: activeCategory === 'regulasi' ? 700 : 500,
-            fontSize: '13px',
-            background: 'none',
-            borderTop: 'none',
-            borderLeft: 'none',
-            borderRight: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <FileText size={15} />
-          <span>Dasar Hukum &amp; Regulasi</span>
+          <span>Standar Beban SKS &amp; Predikat</span>
         </button>
 
         <button
@@ -964,661 +958,535 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
           }}
         >
           <HelpCircle size={15} />
-          <span>Tanya Jawab (FAQ)</span>
+          <span>Tanya Jawab &amp; Kendala Sistem ({filteredFaq.length})</span>
         </button>
       </div>
 
       {/* =========================================================================
-          TAB 1: ALUR & PROSEDUR KERJA (STEPPER)
+          4. TAB CONTENT 1: ALUR PENGGUNAAN LANGKAH DEMI LANGKAH
          ========================================================================= */}
       {activeCategory === 'alur' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div
-            style={{
-              padding: '14px 18px',
-              borderRadius: 'var(--r-lg)',
-              background: 'var(--card)',
-              border: '1px solid var(--hair)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 10,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
-                Siklus Alur Kerja Operasional: {activeRoleMeta.title}
-              </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2 }}>
-                Fokus Penugasan: {activeRoleMeta.scopeDesc} &bull; {activeRoleMeta.targetAudience}
-              </div>
-            </div>
+          {filteredWorkflow.length === 0 ? (
             <div
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '4px 10px',
-                borderRadius: 'var(--r-sm)',
-                background: 'var(--panel-hover)',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                color: 'var(--ink)',
+                background: 'var(--card)',
+                borderRadius: 'var(--r-xl)',
+                padding: '48px 24px',
+                textAlign: 'center',
+                border: '1px solid var(--hair)',
               }}
             >
-              <Clock size={13} style={{ color: 'var(--brand-600)' }} />
-              <span>Semester Genap 2025/2026</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {filteredWorkflow.length === 0 ? (
-              <div style={{ padding: '36px', textAlign: 'center', background: 'var(--card)', borderRadius: 'var(--r-lg)', border: '1px solid var(--hair)', color: 'var(--muted)' }}>
-                Tidak ada tahapan alur yang cocok dengan kata kunci "{searchQuery}".
+              <AlertCircle size={36} style={{ color: 'var(--faint)', margin: '0 auto 12px' }} />
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
+                Tidak Ada Langkah yang Sesuai Pencarian
               </div>
-            ) : (
-              filteredWorkflow.map((item) => (
+              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4 }}>
+                Coba sesuaikan kata kunci pencarian Anda di atas atau klik tombol Hapus.
+              </div>
+            </div>
+          ) : (
+            filteredWorkflow.map((item) => {
+              const isDirectActionAvailable = onNavigate && item.actionNav && selectedRole === currentRole
+
+              return (
                 <div
                   key={item.step}
-                  className="guide-card"
+                  className="guide-card guide-interactive-card"
                   style={{
                     background: 'var(--card)',
-                    borderRadius: 'var(--r-lg)',
+                    borderRadius: 'var(--r-xl)',
+                    padding: '20px 24px',
                     border: '1px solid var(--hair)',
-                    padding: '18px 22px',
                     boxShadow: 'var(--shadow-xs)',
-                    display: 'grid',
-                    gridTemplateColumns: '46px 1fr',
-                    gap: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                    transition: 'all 0.18s ease',
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 'var(--r-md)',
-                        background: activeRoleMeta.color,
-                        color: '#ffffff',
-                        display: 'grid',
-                        placeItems: 'center',
-                        fontSize: '15px',
-                        fontWeight: 800,
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {item.step}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+                  {/* Step Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1, minWidth: 260 }}>
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 'var(--r-full)',
+                          background: 'var(--brand-600)',
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '15px',
+                          display: 'grid',
+                          placeItems: 'center',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
+                        }}
+                      >
+                        {item.step}
+                      </div>
                       <div>
-                        <h3 style={{ fontSize: '15.5px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                          {item.title}
-                        </h3>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
                           <span
                             style={{
                               fontSize: '11px',
+                              fontWeight: 700,
+                              color: 'var(--brand-700)',
+                              background: 'var(--brand-100)',
                               padding: '2px 8px',
-                              borderRadius: 'var(--r-sm)',
-                              background: 'var(--panel-hover)',
-                              color: 'var(--ink-secondary)',
-                              fontWeight: 600,
+                              borderRadius: 'var(--r-xs)',
                             }}
                           >
-                            Pelaksana: {item.actor}
+                            Langkah {item.step}
                           </span>
                           <span
                             style={{
                               fontSize: '11px',
-                              padding: '2px 8px',
-                              borderRadius: 'var(--r-sm)',
-                              background: 'var(--brand-100)',
-                              color: 'var(--brand-700)',
                               fontWeight: 600,
+                              color: 'var(--muted)',
+                              background: 'var(--panel-hover)',
+                              padding: '2px 8px',
+                              borderRadius: 'var(--r-xs)',
                             }}
                           >
-                            Tenggat Waktu: {item.deadline}
+                            Menu: {item.menuPath}
                           </span>
                         </div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0, lineHeight: 1.35 }}>
+                          {item.title}
+                        </h3>
                       </div>
-
-                      {item.actionLabel && item.actionNav && onNavigate && (
-                        <button
-                          onClick={() => onNavigate(item.actionNav!)}
-                          className="brand-btn"
-                          style={{
-                            padding: '6px 13px',
-                            fontSize: '12px',
-                            borderRadius: 'var(--r-md)',
-                          }}
-                        >
-                          <span>{item.actionLabel}</span>
-                          <ChevronRight size={13} />
-                        </button>
-                      )}
                     </div>
 
-                    <p style={{ fontSize: '13.5px', color: 'var(--ink-secondary)', lineHeight: 1.6, marginTop: 8, marginBottom: 8 }}>
-                      {item.desc}
-                    </p>
+                    {/* Direct Navigation Button if available for current logged in user */}
+                    {isDirectActionAvailable && (
+                      <button
+                        onClick={() => onNavigate(item.actionNav!)}
+                        className="brand-btn brand-btn--outline"
+                        style={{
+                          padding: '6px 14px',
+                          fontSize: '12px',
+                          borderRadius: 'var(--r-md)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <span>{item.actionLabel || 'Buka Halaman'}</span>
+                        <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </div>
 
-                    <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--r-md)',
-                        background: 'var(--brand-50)',
-                        border: '1px solid var(--brand-100)',
-                        fontSize: '12px',
-                        color: 'var(--brand-700)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}
-                    >
-                      <Sparkles size={13} style={{ flexShrink: 0 }} />
-                      <span><strong>Tips Efisiensi:</strong> {item.tips}</span>
+                  {/* Step Description */}
+                  <div style={{ fontSize: '13.5px', color: 'var(--ink-secondary)', lineHeight: 1.6, paddingLeft: 52 }}>
+                    {item.desc}
+                  </div>
+
+                  {/* Key Operational Points */}
+                  <div
+                    style={{
+                      marginLeft: 52,
+                      background: '#f8fafc',
+                      borderRadius: 'var(--r-lg)',
+                      padding: '12px 16px',
+                      border: '1px solid var(--hair-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--navy-900)', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <CheckCircle size={13} style={{ color: 'var(--brand-600)' }} />
+                      <span>Hal yang Perlu Diperhatikan:</span>
+                    </div>
+                    {item.keyPoints.map((pt, idx) => (
+                      <div key={idx} style={{ fontSize: '12.5px', color: 'var(--ink)', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ color: 'var(--brand-600)', fontWeight: 800 }}>&bull;</span>
+                        <span>{pt}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Tips Note */}
+                  <div
+                    style={{
+                      marginLeft: 52,
+                      background: 'var(--brand-50)',
+                      borderRadius: 'var(--r-md)',
+                      padding: '9px 14px',
+                      borderLeft: '3px solid var(--brand-600)',
+                      fontSize: '12px',
+                      color: 'var(--brand-900)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                    }}
+                  >
+                    <Info size={14} style={{ color: 'var(--brand-600)', flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <strong>Tips Penggunaan:</strong> {item.tips}
                     </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              )
+            })
+          )}
         </div>
       )}
 
       {/* =========================================================================
-          TAB 2: STANDAR BKD & PENILAIAN
+          5. TAB CONTENT 2: PETA MENU & FITUR UTAMA
+         ========================================================================= */}
+      {activeCategory === 'fitur' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
+          {filteredFeatures.map((f) => {
+            const isAccessible = onNavigate && f.navId && selectedRole === currentRole
+
+            return (
+              <div
+                key={f.id}
+                className="guide-card guide-interactive-card"
+                style={{
+                  background: 'var(--card)',
+                  borderRadius: 'var(--r-xl)',
+                  padding: '20px 22px',
+                  border: '1px solid var(--hair)',
+                  boxShadow: 'var(--shadow-xs)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 'var(--r-xs)',
+                        background:
+                          f.badgeType === 'green'
+                            ? 'var(--status-success-bg)'
+                            : f.badgeType === 'orange'
+                            ? 'var(--status-warning-bg)'
+                            : f.badgeType === 'purple'
+                            ? '#faf5ff'
+                            : 'var(--brand-100)',
+                        color:
+                          f.badgeType === 'green'
+                            ? 'var(--status-success-ink)'
+                            : f.badgeType === 'orange'
+                            ? 'var(--status-warning-ink)'
+                            : f.badgeType === 'purple'
+                            ? '#7c3aed'
+                            : 'var(--brand-700)',
+                      }}
+                    >
+                      {f.badgeText}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                      {f.menuName}
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px 0' }}>
+                    {f.title}
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>
+                    {f.desc}
+                  </p>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--hair-subtle)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    Hak Akses: <strong>{activeRoleMeta.title.split('(')[0].trim()}</strong>
+                  </span>
+                  {isAccessible && (
+                    <button
+                      onClick={() => onNavigate(f.navId!)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--brand-600)',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: 0,
+                      }}
+                    >
+                      <span>Buka Menu</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* =========================================================================
+          6. TAB CONTENT 3: STANDAR BEBAN SKS & PREDIKAT KINERJA SPMI
          ========================================================================= */}
       {activeCategory === 'standar' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Card Ketentuan SKS Tridharma */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Beban SKS Rule Card */}
           <div
             className="guide-card"
             style={{
               background: 'var(--card)',
-              borderRadius: 'var(--r-lg)',
-              border: '1px solid var(--hair)',
+              borderRadius: 'var(--r-xl)',
               padding: '22px 26px',
+              border: '1px solid var(--hair)',
               boxShadow: 'var(--shadow-xs)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <Scale size={18} style={{ color: 'var(--brand-600)' }} />
-              <h2 style={{ fontSize: '16.5px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                1. Batas Beban Kerja Dosen (BKD) &amp; Tridharma Perguruan Tinggi
-              </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <Scale size={20} style={{ color: 'var(--brand-600)' }} />
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+                  Ketentuan Beban Kerja Tridharma Dosen (Standar BKD &amp; SPMI UBK)
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                  Mengacu pada Standar SPMI UBK dan Pedoman Operasional Beban Kerja Dosen Ditjen Dikti
+                </div>
+              </div>
             </div>
-            <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
-              Berdasarkan Pedoman Operasional BKD Ditjen Diktiristek dan Standar SPMI UBK No. 03.07.00/PD/SDM-SPMI, seluruh dosen wajib memenuhi ketentuan proporsi beban kerja berikut:
-            </p>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                gap: 12,
-                marginBottom: 14,
-              }}
-            >
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Batas Minimal BKD</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--brand-600)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                  12 SKS
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 14 }}>
+              <div style={{ background: '#f8fafc', padding: '14px 16px', borderRadius: 'var(--r-lg)', border: '1px solid var(--hair-subtle)' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>Beban Minimal Per Semester</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--status-danger-ink)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                  12.00 SKS
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                  Kurang dari 12 SKS dinyatakan Tidak Memenuhi Standar BKD.
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 4 }}>
+                  Kurang dari 12 SKS: Sistem menolak pengesahan SKP.
                 </div>
               </div>
 
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Batas Maksimal BKD</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--navy-900)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                  16 SKS
+              <div style={{ background: 'var(--brand-50)', padding: '14px 16px', borderRadius: 'var(--r-lg)', border: '1px solid var(--brand-100)' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--brand-700)', fontWeight: 600 }}>Rentang Beban Standar Ideal</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--brand-700)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                  12 - 16 SKS
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                  Lebih dari 16 SKS wajib mengantongi disposisi Dekan.
-                </div>
-              </div>
-
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Minimal Pengajaran</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--status-success-ink)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                  4 SKS
-                </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                  Wajib ada mata kuliah yang diampu di prodi homebase.
+                <div style={{ fontSize: '11px', color: 'var(--brand-800)', marginTop: 4 }}>
+                  Kondisi normal yang disahkan langsung oleh verifikator.
                 </div>
               </div>
 
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Riset &amp; PKM</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#0369a1', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                  Min. 1 / Thn
+              <div style={{ background: '#f8fafc', padding: '14px 16px', borderRadius: 'var(--r-lg)', border: '1px solid var(--hair-subtle)' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>Beban Maksimal Tanpa Disposisi</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--navy-900)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                  16.00 SKS
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                  Minimal 1 publikasi artikel dan 1 pengabdian per tahun.
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 4 }}>
+                  Lebih dari 16 SKS: Wajib menyertakan surat disposisi Dekan.
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '14px 16px', borderRadius: 'var(--r-lg)', border: '1px solid var(--hair-subtle)' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600 }}>Minimal Pengajaran Mandiri</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--status-success-ink)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                  4.00 SKS
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: 4 }}>
+                  Wajib pada unsur Pendidikan bagi dosen non-pejabat struktural.
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Card Formula Pembobotan Nilai Akhir */}
+          {/* Formula Penilaian Akhir Card */}
           <div
             className="guide-card"
             style={{
               background: 'var(--card)',
-              borderRadius: 'var(--r-lg)',
-              border: '1px solid var(--hair)',
+              borderRadius: 'var(--r-xl)',
               padding: '22px 26px',
+              border: '1px solid var(--hair)',
               boxShadow: 'var(--shadow-xs)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <Award size={18} style={{ color: 'var(--brand-600)' }} />
-              <h2 style={{ fontSize: '16.5px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                2. Formula Pembobotan Resmi SPMI UBK (SK Rektor No. 03.07.00/PD/SDM)
-              </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <Scale size={20} style={{ color: 'var(--brand-600)' }} />
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+                  Formula Pembobotan Nilai Akhir &amp; Klasifikasi Predikat
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                  Integrasi Capaian Sasaran Kinerja Pegawai (70%) dan Evaluasi Perilaku BerAKHLAK (30%)
+                </div>
+              </div>
             </div>
-            <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, margin: '0 0 14px 0' }}>
-              Nilai Kinerja Pegawai dihitung secara komposit dengan formula penjaminan mutu resmi:
-            </p>
 
             <div
               style={{
+                background: '#f8fafc',
                 padding: '14px 18px',
                 borderRadius: 'var(--r-md)',
-                background: 'var(--navy-900)',
-                color: '#ffffff',
-                fontFamily: 'monospace',
-                fontSize: '14.5px',
+                border: '1px solid var(--hair-strong)',
+                fontSize: '13.5px',
                 fontWeight: 700,
-                textAlign: 'center',
-                letterSpacing: '0.02em',
-                marginBottom: 14,
+                color: 'var(--navy-900)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginBottom: 16,
               }}
             >
-              Nilai Akhir = (Skor SKP Tridharma × 70%) + (Skor Kuesioner BerAKHLAK × 30%)
+              <span>Nilai Akhir Kinerja</span>
+              <span>=</span>
+              <span style={{ color: 'var(--brand-600)' }}>(Capaian SKP &times; 70%)</span>
+              <span>+</span>
+              <span style={{ color: '#7c3aed' }}>(Nilai Kuesioner BerAKHLAK &times; 30%)</span>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="custom-table" style={{ width: '100%', fontSize: '12.5px' }}>
+            {/* Table Predikat */}
+            <div className="table-container" style={{ margin: 0 }}>
+              <table className="custom-table">
                 <thead>
-                  <tr style={{ background: 'var(--panel-hover)' }}>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Rentang Skor</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Predikat Kinerja</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Implikasi &amp; Konsekuensi Institusional</th>
+                  <tr>
+                    <th style={{ width: 140 }}>Rentang Nilai</th>
+                    <th style={{ width: 160 }}>Predikat Mutu</th>
+                    <th>Keterangan Tindak Lanjut Institusi</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--status-success-ink)', fontVariantNumeric: 'tabular-nums' }}>91.00 s.d. 100.00</td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <span className="badge badge--success">Sangat Baik</span>
+                    <td style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>91.00 - 100.00</td>
+                    <td>
+                      <span className="badge-pill badge-pill--blue">Sangat Baik</span>
                     </td>
-                    <td style={{ padding: '8px 12px', color: 'var(--ink-secondary)' }}>
-                      Rekomendasi promosi jabatan fungsional, insentif karya ilmiah unggulan, dan apresiasi dosen berprestasi UBK.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0369a1', fontVariantNumeric: 'tabular-nums' }}>76.00 s.d. 90.99</td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <span className="badge badge--info">Baik</span>
-                    </td>
-                    <td style={{ padding: '8px 12px', color: 'var(--ink-secondary)' }}>
-                      Memenuhi standar baku mutu SPMI. Berhak atas kenaikan gaji berkala dan perpanjangan kontrak/ikatan kerja dosen.
+                    <td style={{ fontSize: '12.5px', color: 'var(--ink-secondary)' }}>
+                      Kinerja melampaui seluruh target. Memenuhi kualifikasi penghargaan keunggulan akademik dan promosi jabatan.
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: '#b45309', fontVariantNumeric: 'tabular-nums' }}>61.00 s.d. 75.99</td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <span className="badge badge--warning">Butuh Perbaikan</span>
+                    <td style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>76.00 - 90.99</td>
+                    <td>
+                      <span className="badge-pill badge-pill--green">Baik</span>
                     </td>
-                    <td style={{ padding: '8px 12px', color: 'var(--ink-secondary)' }}>
-                      Diberikan pembinaan oleh Dekan dan Ka.Prodi. Wajib mengikuti klinik penulisan publikasi LPPM UBK.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--status-danger-ink)', fontVariantNumeric: 'tabular-nums' }}>51.00 s.d. 60.99</td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <span className="badge badge--danger">Kurang</span>
-                    </td>
-                    <td style={{ padding: '8px 12px', color: 'var(--ink-secondary)' }}>
-                      Surat peringatan resmi Direktorat SDM. Penundaan kenaikan pangkat akademik dan evaluasi beban mengajar.
+                    <td style={{ fontSize: '12.5px', color: 'var(--ink-secondary)' }}>
+                      Kinerja memenuhi seluruh standar baku mutu SPMI UBK. Memenuhi syarat kelulusan BKD dan perpanjangan ikatan kerja.
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--status-danger-ink)', fontVariantNumeric: 'tabular-nums' }}>&lt; 51.00</td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <span className="badge badge--danger">Sangat Kurang</span>
+                    <td style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>61.00 - 75.99</td>
+                    <td>
+                      <span className="badge-pill badge-pill--orange">Butuh Perbaikan</span>
                     </td>
-                    <td style={{ padding: '8px 12px', color: 'var(--ink-secondary)' }}>
-                      Peninjauan status ikatan kerja oleh Rektorat dan Yayasan Bhakti Kencana.
+                    <td style={{ fontSize: '12.5px', color: 'var(--ink-secondary)' }}>
+                      Kinerja belum optimal. Memerlukan bimbingan berkala dan evaluasi pendampingan oleh Kaprodi / Dekanat.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>51.00 - 60.99</td>
+                    <td>
+                      <span className="badge-pill badge-pill--red">Kurang</span>
+                    </td>
+                    <td style={{ fontSize: '12.5px', color: 'var(--ink-secondary)' }}>
+                      Tidak memenuhi standar minimum. Diberikan pembinaan dan penyesuaian beban penugasan Tridharma.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>&lt; 50.00</td>
+                    <td>
+                      <span className="badge-pill badge-pill--red" style={{ background: '#fee2e2', color: '#991b1b' }}>Sangat Kurang</span>
+                    </td>
+                    <td style={{ fontSize: '12.5px', color: 'var(--ink-secondary)' }}>
+                      Pelanggaran kinerja berat. Dilakukan evaluasi khusus oleh Yayasan Bhakti Kencana &amp; Direktorat SDM.
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-
-          {/* Card Critical Point BerAKHLAK */}
-          <div
-            className="guide-card"
-            style={{
-              background: 'var(--card)',
-              borderRadius: 'var(--r-lg)',
-              border: '1px solid var(--hair)',
-              padding: '22px 26px',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <AlertTriangle size={18} style={{ color: 'var(--brand-600)' }} />
-              <h2 style={{ fontSize: '16.5px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                3. Ketentuan Poin Kritis (Critical Point) Kuesioner BerAKHLAK
-              </h2>
-            </div>
-            <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, margin: '0 0 10px 0' }}>
-              Pada formulir penilaian kuesioner perilaku, terdapat 7 dimensi (Berorientasi Pelayanan, Akuntabel, Kompeten, Harmonis, Loyal, Adaptif, Kolaboratif). <strong>Indikator No. 1 pada setiap dimensi berstatus Critical Point (Poin Kritis)</strong>:
-            </p>
-            <ul style={{ fontSize: '13px', color: 'var(--ink-secondary)', lineHeight: 1.6, paddingLeft: 20, margin: 0 }}>
-              <li>Dosen wajib memperoleh skor minimal <strong>3 (Baik)</strong> pada seluruh Critical Point untuk memperoleh predikat Baik atau Sangat Baik.</li>
-              <li>Jika salah satu Critical Point bernilai di bawah 3, predikat maksimal otomatis diturunkan menjadi Butuh Perbaikan terlepas dari tingginya skor SKP Tridharma.</li>
-              <li>Penilai (Kaprodi atau Dekan) wajib mencantumkan catatan pembinaan apabila memberikan skor 1 atau 2 pada indikator mana pun.</li>
-            </ul>
-          </div>
         </div>
       )}
 
       {/* =========================================================================
-          TAB 3: CHECKLIST MANDIRI & EVALUASI
-         ========================================================================= */}
-      {activeCategory === 'checklist' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Progress Header */}
-          <div
-            style={{
-              padding: '18px 22px',
-              borderRadius: 'var(--r-lg)',
-              background: 'var(--card)',
-              border: '1px solid var(--hair)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 14,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '15.5px', fontWeight: 700, color: 'var(--ink)' }}>
-                Checklist Mandiri: {activeRoleMeta.title}
-              </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2 }}>
-                Tersimpan otomatis untuk akun <strong>{currentUser.name}</strong> (NIP: {currentUser.nip || '-'}).
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--muted)' }}>Tingkat Keterisian</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: checklistPercentage === 100 ? 'var(--status-success-ink)' : 'var(--brand-600)', fontVariantNumeric: 'tabular-nums' }}>
-                  {checklistPercentage}% ({completedChecklist}/{totalChecklist})
-                </div>
-              </div>
-              <button
-                onClick={handleResetChecklist}
-                className="icon-btn"
-                title="Reset checklist peran ini"
-                style={{ width: 34, height: 34 }}
-                aria-label="Reset checklist"
-              >
-                <RotateCcw size={15} />
-              </button>
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div style={{ width: '100%', height: 7, background: 'var(--panel-hover)', borderRadius: 999, overflow: 'hidden' }}>
-            <div
-              style={{
-                width: `${checklistPercentage}%`,
-                height: '100%',
-                background: checklistPercentage === 100 ? 'var(--status-success-ink)' : 'var(--brand-600)',
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
-
-          {/* Checklist Items */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {currentChecklist.map((item) => {
-              const isChecked = Boolean(checkedItems[item.id])
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => handleToggleChecklist(item.id)}
-                  className="guide-card guide-interactive-card"
-                  style={{
-                    padding: '14px 18px',
-                    borderRadius: 'var(--r-lg)',
-                    background: isChecked ? 'var(--brand-50)' : 'var(--card)',
-                    border: isChecked ? '1px solid var(--brand-100)' : '1px solid var(--hair)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 'var(--r-xs)',
-                      border: isChecked ? 'none' : '2px solid var(--hair-strong)',
-                      background: isChecked ? 'var(--brand-600)' : '#ffffff',
-                      display: 'grid',
-                      placeItems: 'center',
-                      color: '#ffffff',
-                      flexShrink: 0,
-                      marginTop: 2,
-                    }}
-                  >
-                    {isChecked && <Check size={13} />}
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontSize: '14px',
-                          fontWeight: 700,
-                          color: isChecked ? 'var(--brand-700)' : 'var(--ink)',
-                          textDecoration: isChecked ? 'line-through' : 'none',
-                        }}
-                      >
-                        {item.label}
-                      </span>
-                      {item.mandatory && (
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            padding: '1px 6px',
-                            borderRadius: 'var(--r-sm)',
-                            background: 'var(--status-danger-bg)',
-                            color: 'var(--status-danger-ink)',
-                          }}
-                        >
-                          Wajib
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ fontSize: '12.5px', color: 'var(--muted)', margin: '3px 0 0 0', lineHeight: 1.45 }}>
-                      {item.desc}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          TAB 4: DASAR HUKUM & REGULASI
-         ========================================================================= */}
-      {activeCategory === 'regulasi' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div
-            className="guide-card"
-            style={{
-              background: 'var(--card)',
-              borderRadius: 'var(--r-lg)',
-              border: '1px solid var(--hair)',
-              padding: '22px 26px',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <FileText size={18} style={{ color: 'var(--brand-600)' }} />
-              <h2 style={{ fontSize: '16.5px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                Landasan Yuridis &amp; Regulasi Pengelolaan Kinerja Pegawai
-              </h2>
-            </div>
-            <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
-              Seluruh sistem evaluasi kinerja di Portal SDM Universitas Bhakti Kencana diselaraskan dengan peraturan perundang-undangan nasional dan standar penjaminan mutu internal:
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-                  1. Peraturan Menteri PAN-RB Republik Indonesia Nomor 6 Tahun 2022
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--ink-secondary)', marginTop: 3, lineHeight: 1.5 }}>
-                  Tentang Pengelolaan Kinerja Pegawai Aparatur Sipil Negara dan Lembaga Pendidikan Tinggi, yang menetapkan prinsip evaluasi berkala berkelanjutan dan adopsi nilai dasar BerAKHLAK.
-                </div>
-              </div>
-
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-                  2. Pedoman Operasional Beban Kerja Dosen (PO BKD) Ditjen Diktiristek Kemendikbudristek
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--ink-secondary)', marginTop: 3, lineHeight: 1.5 }}>
-                  Mengatur ketentuan pemenuhan Tridharma minimal 12 SKS dan maksimal 16 SKS per semester serta kewajiban pelaksanaan penelitian dan pengabdian kepada masyarakat.
-                </div>
-              </div>
-
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-                  3. Pedoman SPMI UBK No. 03.07.00/PD/SDM-SPMI Tahun 2026
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--ink-secondary)', marginTop: 3, lineHeight: 1.5 }}>
-                  Standar mutu internal Universitas Bhakti Kencana tentang tata kelola evaluasi dosen, bobot 70% SKP dan 30% Perilaku, serta mekanisme persetujuan berjenjang Kaprodi, Dekan, dan SDM.
-                </div>
-              </div>
-
-              <div style={{ padding: '14px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-                  4. Surat Keputusan Rektor UBK tentang Kalender Pengisian SKP &amp; Kuesioner Semester Genap 2025/2026
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--ink-secondary)', marginTop: 3, lineHeight: 1.5 }}>
-                  Menetapkan tenggat waktu resmi pengajuan rencana di pekan ke-4, verifikasi Kaprodi di pekan ke-6, dan finalisasi pengesahan sebelum pelaksanaan yudisium kelulusan.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          TAB 5: TANYA JAWAB (FAQ)
+          7. TAB CONTENT 4: TANYA JAWAB OPERASIONAL & KENDALA SISTEM (FAQ)
          ========================================================================= */}
       {activeCategory === 'faq' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div
-            style={{
-              padding: '14px 18px',
-              borderRadius: 'var(--r-lg)',
-              background: 'var(--card)',
-              border: '1px solid var(--hair)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 10,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
-                Pertanyaan yang Sering Diajukan (FAQ) &bull; {activeRoleMeta.title}
-              </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2 }}>
-                Solusi praktis kendala pengisian, validasi berkas, dan penghitungan nilai.
-              </div>
-            </div>
-            <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-              Menampilkan {filteredFaq.length} pertanyaan
-            </div>
-          </div>
-
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filteredFaq.length === 0 ? (
-            <div style={{ padding: '36px', textAlign: 'center', background: 'var(--card)', borderRadius: 'var(--r-lg)', border: '1px solid var(--hair)', color: 'var(--muted)' }}>
-              Tidak ada pertanyaan yang cocok dengan kata kunci "{searchQuery}".
+            <div
+              style={{
+                background: 'var(--card)',
+                borderRadius: 'var(--r-xl)',
+                padding: '48px 24px',
+                textAlign: 'center',
+                border: '1px solid var(--hair)',
+              }}
+            >
+              <HelpCircle size={36} style={{ color: 'var(--faint)', margin: '0 auto 12px' }} />
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
+                Pertanyaan Tidak Ditemukan
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4 }}>
+                Silakan ganti kata kunci pencarian atau hubungi Direktorat SDM untuk bantuan langsung.
+              </div>
             </div>
           ) : (
-            filteredFaq.map((item, idx) => {
+            filteredFaq.map((faq, idx) => {
               const isExpanded = expandedFaqIndex === idx
+
               return (
                 <div
                   key={idx}
                   className="guide-card"
                   style={{
                     background: 'var(--card)',
-                    borderRadius: 'var(--r-lg)',
+                    borderRadius: 'var(--r-xl)',
                     border: '1px solid var(--hair)',
-                    overflow: 'hidden',
                     boxShadow: 'var(--shadow-xs)',
+                    overflow: 'hidden',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   <button
                     onClick={() => setExpandedFaqIndex(isExpanded ? null : idx)}
                     style={{
                       width: '100%',
-                      padding: '14px 18px',
-                      background: 'none',
-                      border: 'none',
-                      textAlign: 'left',
+                      padding: '16px 20px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: 12,
+                      gap: 14,
+                      background: isExpanded ? 'var(--page-bg)' : 'transparent',
+                      border: 'none',
                       cursor: 'pointer',
+                      textAlign: 'left',
                     }}
-                    aria-expanded={isExpanded}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                       <span
                         style={{
-                          fontSize: '10.5px',
+                          fontSize: '11px',
                           fontWeight: 700,
                           padding: '2px 7px',
-                          borderRadius: 'var(--r-sm)',
-                          background: 'var(--brand-100)',
-                          color: 'var(--brand-700)',
+                          borderRadius: 'var(--r-xs)',
+                          background: 'var(--navy-100)',
+                          color: 'var(--navy-900)',
+                          flexShrink: 0,
                         }}
                       >
-                        {item.tag}
+                        {faq.tag}
                       </span>
                       <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
-                        {item.q}
+                        {faq.q}
                       </span>
                     </div>
                     <ChevronDown
-                      size={16}
+                      size={18}
                       style={{
                         color: 'var(--muted)',
                         transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -1631,16 +1499,15 @@ export const PanduanView: React.FC<PanduanViewProps> = ({
                   {isExpanded && (
                     <div
                       style={{
-                        padding: '0 18px 16px 18px',
-                        fontSize: '13px',
+                        padding: '14px 20px 18px 20px',
+                        borderTop: '1px solid var(--hair-subtle)',
+                        fontSize: '13.5px',
                         color: 'var(--ink-secondary)',
                         lineHeight: 1.6,
-                        borderTop: '1px solid var(--hair)',
-                        background: 'var(--panel-hover)',
-                        paddingTop: 12,
+                        background: '#ffffff',
                       }}
                     >
-                      {item.a}
+                      {faq.a}
                     </div>
                   )}
                 </div>

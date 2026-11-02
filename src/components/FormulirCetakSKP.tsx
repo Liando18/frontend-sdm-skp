@@ -6,6 +6,7 @@ import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 import { exportSKPToExcel } from '../utils/skpExcelExport'
 import { printDocument } from '../utils/printDocument'
 import { api } from '../services/api'
+import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
 
 interface FormulirCetakSKPProps {
   skp: PengajuanSKP
@@ -24,50 +25,34 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
   const viewportRef = useRef<HTMLDivElement>(null)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
 
-  // Data Rektor sebagai Pejabat Penilai formal pada formulir cetak
-  const [rektor, setRektor] = useState<{
-    nama: string
-    nuptk: string
-    pangkat: string
-    jabatan: string
-    unit: string
-    signatureUrl?: string
-  }>({
-    nama: '-',
-    nuptk: '-',
-    pangkat: '-',
-    jabatan: 'Rektor',
-    unit: 'Universitas Bhakti Kencana',
+  // Data Rektor Pejabat Penilai formal (100% dinamis dari database)
+  const [rektor, setRektor] = useState<RektorData>(() => {
+    return (
+      getCachedOfficialRektor() || {
+        nama: '-',
+        nuptk: '-',
+        pangkat: '-',
+        jabatan: 'Rektor',
+        unit: 'Universitas Bhakti Kencana',
+      }
+    )
   })
 
   useEffect(() => {
-    api.dosen
-      .list()
-      .then((dosens) => {
-        if (Array.isArray(dosens)) {
-          const found = dosens.find((d: any) => {
-            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
-            return jab.includes('rektor') && !jab.includes('wakil')
-          })
-          if (found) {
-            setRektor({
-              nama: found.nama || '-',
-              nuptk: found.nuptk || found.nip || '-',
-              pangkat: found.golongan || '-',
-              jabatan: 'Rektor',
-              unit: 'Universitas Bhakti Kencana',
-              signatureUrl: found.signatureUrl,
-            })
-          }
+    fetchOfficialRektor()
+      .then((r) => {
+        if (r?.nama && r.nama !== '-') {
+          setRektor(r)
         }
       })
       .catch(() => {})
   }, [])
 
   const activeDosenSignature =
-    skp.ttdDosenUrl && !skp.ttdDosenUrl.startsWith('data:image/svg')
-      ? skp.ttdDosenUrl
-      : dosenSignatureUrl || skp.ttdDosenUrl
+    dosenSignatureUrl ||
+    skp.ttdDosenUrl ||
+    (skp as any)?.dosen?.signatureUrl ||
+    (skp as any)?.dosen_signature_url
 
   useGSAP(
     () => {
@@ -490,7 +475,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                       justifyContent: 'center',
                     }}
                   >
-                    {rektor.signatureUrl && !rektor.signatureUrl.startsWith('data:image/svg') ? (
+                    {rektor.signatureUrl ? (
                       <img
                         src={resolveStorageUrl(rektor.signatureUrl)}
                         alt="Tanda Tangan Pejabat Penilai"
@@ -732,7 +717,7 @@ export const FormulirCetakSKP: React.FC<FormulirCetakSKPProps> = ({
                       justifyContent: 'center',
                     }}
                   >
-                    {rektor.signatureUrl && !rektor.signatureUrl.startsWith('data:image/svg') ? (
+                    {rektor.signatureUrl ? (
                       <img
                         src={resolveStorageUrl(rektor.signatureUrl)}
                         alt="Tanda Tangan Pejabat Penilai"

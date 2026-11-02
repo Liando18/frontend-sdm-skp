@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Printer, X, FileSpreadsheet, ArrowLeft, CheckCircle2, ExternalLink } from 'lucide-react'
+import { Printer, X, FileSpreadsheet, ArrowLeft, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
 import { PengajuanSKP } from '../types'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 import { exportSKPToExcel } from '../utils/skpExcelExport'
 import { api } from '../services/api'
+import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
 
 export const CetakSKPStandaloneView: React.FC = () => {
   const [skp, setSkp] = useState<PengajuanSKP | null>(null)
@@ -12,95 +13,129 @@ export const CetakSKPStandaloneView: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isExportingExcel, setIsExportingExcel] = useState(false)
 
-  // Data Rektor sebagai Pejabat Penilai formal pada dokumen cetak
-  const [rektor, setRektor] = useState<{
-    nama: string
-    nuptk: string
-    pangkat: string
-    jabatan: string
-    unit: string
-    signatureUrl?: string
-  }>({
-    nama: '-',
-    nuptk: '-',
-    pangkat: '-',
-    jabatan: 'Rektor',
-    unit: 'Universitas Bhakti Kencana',
+  // Data Rektor Pejabat Penilai formal (100% dinamis dari database dosens dengan jabatan Rektor)
+  const [rektor, setRektor] = useState<RektorData | null>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const skpId = urlParams.get('id')
+      const rawCache = skpId
+        ? localStorage.getItem(`ubk_print_skp_${skpId}`) || localStorage.getItem('ubk_print_skp_data')
+        : localStorage.getItem('ubk_print_skp_data')
+
+      if (rawCache) {
+        const parsed = JSON.parse(rawCache)
+        if (parsed?.rektor?.nama && parsed.rektor.nama !== '-') {
+          return parsed.rektor
+        }
+      }
+    } catch {}
+    return getCachedOfficialRektor()
   })
 
   useEffect(() => {
-    // Cari data Rektor dari database dosen jika tersedia
-    api.dosen
-      .list()
-      .then((dosens) => {
-        if (Array.isArray(dosens)) {
-          const found = dosens.find((d: any) => {
-            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
-            return jab.includes('rektor') && !jab.includes('wakil')
-          })
-          if (found) {
-            setRektor({
-              nama: found.nama || '-',
-              nuptk: found.nuptk || found.nip || '-',
-              pangkat: found.golongan || '-',
-              jabatan: 'Rektor',
-              unit: 'Universitas Bhakti Kencana',
-              signatureUrl: found.signatureUrl,
-            })
-          }
-        }
-      })
-      .catch(() => {})
+    let isMounted = true
 
     // 1. Ambil ID dari URL query param ?id=...
     const urlParams = new URLSearchParams(window.location.search)
     const skpId = urlParams.get('id')
 
-    // 2. Coba baca dari localStorage cache dulu agar rendering instan
-    let cachedData: { skp: PengajuanSKP; dosenSignatureUrl?: string } | null = null
+    // 2. Baca cache jika sudah lengkap (data SKP dan Rektor dinamis)
+    let hasSkpCache = false
+    let hasRektorCache = false
     try {
       const rawCache = skpId
         ? localStorage.getItem(`ubk_print_skp_${skpId}`) || localStorage.getItem('ubk_print_skp_data')
         : localStorage.getItem('ubk_print_skp_data')
 
       if (rawCache) {
-        cachedData = JSON.parse(rawCache)
+        const cachedData = JSON.parse(rawCache)
         if (cachedData?.skp) {
           setSkp(cachedData.skp)
+          hasSkpCache = true
           if (cachedData.dosenSignatureUrl) {
             setDosenSignatureUrl(cachedData.dosenSignatureUrl)
           }
-          setIsLoading(false)
+          if (cachedData.rektor?.nama && cachedData.rektor.nama !== '-') {
+            setRektor(cachedData.rektor)
+            hasRektorCache = true
+          }
         }
       }
     } catch (e) {
-      console.warn('Gagal memuat cache SKP:', e)
+      console.warn('Gagal membaca cache pracetak:', e)
     }
 
-    // 3. Jika ada ID dan belum ada data atau ingin memastikan data paling fresh dari backend:
+    // Jika cache data rektor lokal sudah ada dari storage utama
+    if (!hasRektorCache) {
+      const cachedRektor = getCachedOfficialRektor()
+      if (cachedRektor?.nama && cachedRektor.nama !== '-') {
+        setRektor(cachedRektor)
+        hasRektorCache = true
+      }
+    }
+
+    // Jika cache SKP dan Rektor sudah lengkap, hilangkan loader instan untuk UX responsif
+    if (hasSkpCache && hasRektorCache) {
+      setIsLoading(false)
+    }
+
+    // 3. Jalankan sinkronisasi dinamis dari database di backend secara paralel
+    const fetchPromises: Promise<any>[] = [
+      fetchOfficialRektor()
+        .then((dynamicRektor) => {
+          if (!isMounted) return
+          if (dynamicRektor && dynamicRektor.nama && dynamicRektor.nama !== '-') {
+            setRektor(dynamicRektor)
+          }
+        })
+        .catch(() => {}),
+    ]
+
     if (skpId) {
-      api.skp
-        .get(skpId)
-        .then((data: PengajuanSKP) => {
-          if (data) {
-            setSkp(data)
-            if (data.ttdDosenUrl) {
-              setDosenSignatureUrl(data.ttdDosenUrl)
+      fetchPromises.push(
+        api.skp
+          .get(skpId)
+          .then((freshSkp: PengajuanSKP) => {
+            if (!isMounted) return
+            if (freshSkp) {
+              setSkp(freshSkp)
+              const sig = freshSkp.ttdDosenUrl || (freshSkp as any).dosen?.signatureUrl
+              if (sig) {
+                setDosenSignatureUrl(sig)
+              } else if (freshSkp.dosenId) {
+                api.dosen
+                  .get(freshSkp.dosenId)
+                  .then((d) => {
+                    if (isMounted && d?.signatureUrl) {
+                      setDosenSignatureUrl(d.signatureUrl)
+                    }
+                  })
+                  .catch(() => {})
+              }
             }
-          }
-        })
-        .catch((err: unknown) => {
-          console.warn('Gagal memuat SKP dari server:', err)
-          if (!cachedData) {
-            setErrorMessage('Data formulir SKP tidak ditemukan atau gagal dimuat dari server.')
-          }
-        })
-        .finally(() => {
-          setIsLoading(false)
-        })
-    } else if (!cachedData) {
+          })
+          .catch((err) => {
+            console.warn('Gagal memuat SKP dari server (menggunakan cache pracetak jika tersedia):', err)
+            if (!hasSkpCache) {
+              setErrorMessage('Data formulir SKP tidak ditemukan atau gagal dimuat dari server.')
+            }
+          })
+      )
+    } else if (!hasSkpCache) {
       setIsLoading(false)
       setErrorMessage('Parameter ID SKP tidak ditemukan di URL.')
+      return
+    }
+
+    // Tunggu semua data dinamis dari database selesai dimuat sebelum mematikan loading
+    Promise.all(fetchPromises).finally(() => {
+      if (isMounted) {
+        setIsLoading(false)
+      }
+    })
+
+    return () => {
+      isMounted = false
     }
   }, [])
 
@@ -133,10 +168,26 @@ export const CetakSKPStandaloneView: React.FC = () => {
 
   const activeDosenSignature = useMemo(() => {
     if (!skp) return undefined
-    if (skp.ttdDosenUrl && !skp.ttdDosenUrl.startsWith('data:image/svg')) {
-      return skp.ttdDosenUrl
-    }
-    return dosenSignatureUrl || skp.ttdDosenUrl
+    if (skp.ttdDosenUrl) return skp.ttdDosenUrl
+    if ((skp as any)?.dosen?.signatureUrl) return (skp as any).dosen.signatureUrl
+    if ((skp as any)?.dosen_signature_url) return (skp as any).dosen_signature_url
+    if (dosenSignatureUrl) return dosenSignatureUrl
+
+    // Fallback: Jika pengguna yang sedang aktif di sesi adalah dosen yang bersangkutan
+    try {
+      const rawUser = localStorage.getItem('ubk_user_session')
+      if (rawUser) {
+        const u = JSON.parse(rawUser)
+        const isMatchNip = u.nip && skp.dosenNip && u.nip !== '-' && u.nip === skp.dosenNip
+        const isMatchNama = u.name && skp.dosenNama && u.name.trim().toLowerCase() === skp.dosenNama.trim().toLowerCase()
+        const isMatchId = u.id && skp.dosenId && u.id === skp.dosenId
+        if ((isMatchNip || isMatchNama || isMatchId) && u.signatureUrl) {
+          return u.signatureUrl
+        }
+      }
+    } catch {}
+
+    return undefined
   }, [skp, dosenSignatureUrl])
 
   const totalMutu = useMemo(() => {
@@ -344,6 +395,7 @@ export const CetakSKPStandaloneView: React.FC = () => {
           table-layout: fixed;
           font-size: 8pt;
           margin-top: 8px;
+          font-variant-numeric: tabular-nums;
           font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
@@ -434,10 +486,10 @@ export const CetakSKPStandaloneView: React.FC = () => {
               alignItems: 'center',
               gap: 6,
               padding: '8px 14px',
-              background: '#065f46',
+              background: '#16a34a',
               color: '#ffffff',
-              border: '1px solid #047857',
-              borderRadius: 6,
+              border: '1px solid #15803d',
+              borderRadius: 8,
               fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
@@ -455,15 +507,15 @@ export const CetakSKPStandaloneView: React.FC = () => {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 8,
-              padding: '8px 20px',
-              background: '#2563eb',
+              padding: '8px 18px',
+              background: '#4b5563',
               color: '#ffffff',
-              border: 'none',
-              borderRadius: 6,
+              border: '1px solid #374151',
+              borderRadius: 8,
               fontSize: '13px',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
+              boxShadow: '0 2px 8px rgba(75,85,99,0.35)',
             }}
             title="Buka dialog cetak browser (Pilih Save as PDF untuk menyimpan file PDF)"
           >
@@ -480,7 +532,7 @@ export const CetakSKPStandaloneView: React.FC = () => {
         {/* KOP SURAT RESMI UNIVERSITAS BHAKTI KENCANA */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '3px double #000000', paddingBottom: 6, marginBottom: 8 }}>
           <img
-            src="/logo.png"
+            src="/logo.svg"
             alt="Logo UBK"
             style={{ width: 64, height: 64, objectFit: 'contain' }}
             onError={(e) => {
@@ -551,11 +603,11 @@ export const CetakSKPStandaloneView: React.FC = () => {
               II. PEJABAT PENILAI
             </div>
             {[
-              { no: '1', label: 'Nama', val: rektor.nama },
-              { no: '2', label: 'NUPTK', val: rektor.nuptk || '-' },
-              { no: '3', label: 'Pangkat / Gol.Ruang', val: rektor.pangkat },
-              { no: '4', label: 'Jabatan', val: rektor.jabatan },
-              { no: '5', label: 'Unit Kerja', val: rektor.unit },
+              { no: '1', label: 'Nama', val: rektor?.nama || '-' },
+              { no: '2', label: 'NUPTK', val: rektor?.nuptk || '-' },
+              { no: '3', label: 'Pangkat / Gol.Ruang', val: rektor?.pangkat || '-' },
+              { no: '4', label: 'Jabatan', val: rektor?.jabatan || 'Rektor' },
+              { no: '5', label: 'Unit Kerja', val: rektor?.unit || 'Universitas Bhakti Kencana' },
             ].map((row, idx) => (
               <div
                 key={idx}
@@ -737,7 +789,7 @@ export const CetakSKPStandaloneView: React.FC = () => {
 
               {/* Tanda Tangan Dosen */}
               <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {activeDosenSignature && !activeDosenSignature.startsWith('data:image/svg') ? (
+                {activeDosenSignature ? (
                   <img
                     src={resolveStorageUrl(activeDosenSignature)}
                     alt="Tanda Tangan Dosen"
@@ -775,7 +827,7 @@ export const CetakSKPStandaloneView: React.FC = () => {
 
               {/* Tanda Tangan Penilai (Rektor) */}
               <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {rektor.signatureUrl && !rektor.signatureUrl.startsWith('data:image/svg') ? (
+                {rektor?.signatureUrl ? (
                   <img
                     src={resolveStorageUrl(rektor.signatureUrl)}
                     alt="Tanda Tangan Pejabat Penilai"
@@ -802,10 +854,10 @@ export const CetakSKPStandaloneView: React.FC = () => {
               </div>
 
               <div style={{ fontWeight: 800, textDecoration: 'underline', marginTop: 2 }}>
-                {rektor.nama}
+                {rektor?.nama || '-'}
               </div>
               <div style={{ fontSize: '8.5pt', color: '#334155' }}>
-                NUPTK: {rektor.nuptk || '-'}
+                NUPTK: {rektor?.nuptk || '-'}
               </div>
             </div>
           </div>

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Printer, ArrowLeft } from 'lucide-react'
 import { TranskripPrintData } from '../utils/printTranskrip'
 import { api } from '../services/api'
+import { resolveStorageUrl } from '../utils/security'
+import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
 
 const BERAKHLAK_ITEMS = [
   {
@@ -52,77 +54,30 @@ export const CetakTranskripStandaloneView: React.FC = () => {
   const [data, setData] = useState<TranskripPrintData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Data Rektor sebagai Pejabat Penilai formal pada transkrip cetak
-  const [rektor, setRektor] = useState<{
-    nama: string
-    nuptk: string
-    pangkat: string
-    jabatan: string
-    unit: string
-    signatureUrl?: string
-  }>({
-    nama: '-',
-    nuptk: '-',
-    pangkat: '-',
-    jabatan: 'Rektor',
-    unit: 'Universitas Bhakti Kencana',
+  // Data Rektor Pejabat Penilai formal (100% dinamis dari database)
+  const [rektor, setRektor] = useState<RektorData | null>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const nip = urlParams.get('nip')
+      const raw = nip
+        ? localStorage.getItem(`ubk_print_transkrip_${nip}`) || localStorage.getItem('ubk_print_transkrip_data')
+        : localStorage.getItem('ubk_print_transkrip_data')
+      if (raw) {
+        const parsed = JSON.parse(raw) as TranskripPrintData
+        if (parsed?.rektor?.nama && parsed.rektor.nama !== '-') {
+          return parsed.rektor
+        }
+      }
+    } catch {}
+    return getCachedOfficialRektor()
   })
 
   useEffect(() => {
-    api.dosen
-      .list()
-      .then((dosens: any) => {
-        if (Array.isArray(dosens)) {
-          const found = dosens.find((d: any) => {
-            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
-            return jab.includes('rektor') && !jab.includes('wakil')
-          })
-          if (found) {
-            setRektor({
-              nama: found.nama || '-',
-              nuptk: found.nuptk || found.nip || '-',
-              pangkat: found.golongan || '-',
-              jabatan: 'Rektor',
-              unit: 'Universitas Bhakti Kencana',
-              signatureUrl: found.signatureUrl,
-            })
-          }
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    // Pastikan scrolling window/body aktif secara global saat halaman pratinjau cetak terbuka
-    document.documentElement.classList.add('print-mode')
-    document.body.classList.add('print-mode')
-
-    const prevHtmlOverflow = document.documentElement.style.overflow
-    const prevHtmlHeight = document.documentElement.style.height
-    const prevBodyOverflow = document.body.style.overflow
-    const prevBodyHeight = document.body.style.height
-
-    document.documentElement.style.setProperty('overflow', 'auto', 'important')
-    document.documentElement.style.setProperty('overflow-y', 'auto', 'important')
-    document.documentElement.style.setProperty('height', 'auto', 'important')
-    document.body.style.setProperty('overflow', 'auto', 'important')
-    document.body.style.setProperty('overflow-y', 'auto', 'important')
-    document.body.style.setProperty('height', 'auto', 'important')
-
-    return () => {
-      document.documentElement.classList.remove('print-mode')
-      document.body.classList.remove('print-mode')
-      document.documentElement.style.overflow = prevHtmlOverflow
-      document.documentElement.style.height = prevHtmlHeight
-      document.body.style.overflow = prevBodyOverflow
-      document.body.style.height = prevBodyHeight
-    }
-  }, [])
-
-  useEffect(() => {
+    let isMounted = true
     const urlParams = new URLSearchParams(window.location.search)
     const nip = urlParams.get('nip')
 
+    let hasCompleteCache = false
     try {
       const raw = nip
         ? localStorage.getItem(`ubk_print_transkrip_${nip}`) || localStorage.getItem('ubk_print_transkrip_data')
@@ -132,12 +87,36 @@ export const CetakTranskripStandaloneView: React.FC = () => {
         const parsed = JSON.parse(raw) as TranskripPrintData
         if (parsed?.penilaian) {
           setData(parsed)
+          if (parsed.rektor?.nama && parsed.rektor.nama !== '-') {
+            setRektor(parsed.rektor)
+            hasCompleteCache = true
+          }
         }
       }
     } catch (e) {
       console.warn('Gagal memuat cache transkrip:', e)
-    } finally {
+    }
+
+    if (hasCompleteCache) {
       setIsLoading(false)
+    }
+
+    fetchOfficialRektor()
+      .then((dynamicRektor) => {
+        if (!isMounted) return
+        if (dynamicRektor && dynamicRektor.nama && dynamicRektor.nama !== '-') {
+          setRektor(dynamicRektor)
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
     }
   }, [])
 
@@ -406,15 +385,15 @@ export const CetakTranskripStandaloneView: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
-            padding: '8px 20px',
-            background: '#2563eb',
+            padding: '8px 18px',
+            background: '#4b5563',
             color: '#ffffff',
-            border: 'none',
-            borderRadius: 6,
+            border: '1px solid #374151',
+            borderRadius: 8,
             fontSize: '13px',
             fontWeight: 700,
             cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
+            boxShadow: '0 2px 8px rgba(75,85,99,0.35)',
           }}
         >
           <Printer size={16} />
@@ -427,7 +406,7 @@ export const CetakTranskripStandaloneView: React.FC = () => {
         {/* Kop Surat Resmi */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, borderBottom: '3px double #000000', paddingBottom: 6, marginBottom: 8 }}>
           <img
-            src="/logo.png"
+            src="/logo.svg"
             alt="Logo UBK"
             style={{ width: 64, height: 64, objectFit: 'contain' }}
             onError={(e) => {
@@ -480,11 +459,11 @@ export const CetakTranskripStandaloneView: React.FC = () => {
               II. PEJABAT PENILAI
             </div>
             <div style={{ padding: '4px 6px', display: 'grid', gridTemplateColumns: '20px 105px 8px 1fr', gap: '2px 0' }}>
-              <span>1.</span><span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{rektor.nama}</strong>
-              <span>2.</span><span style={{ fontWeight: 600 }}>NUPTK</span><span>:</span><span>{rektor.nuptk || '-'}</span>
-              <span>3.</span><span style={{ fontWeight: 600 }}>Pangkat/Gol.</span><span>:</span><span>{rektor.pangkat}</span>
-              <span>4.</span><span style={{ fontWeight: 600 }}>Jabatan</span><span>:</span><span>{rektor.jabatan}</span>
-              <span>5.</span><span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{rektor.unit}</span>
+              <span>1.</span><span style={{ fontWeight: 600 }}>Nama</span><span>:</span><strong style={{ textTransform: 'uppercase' }}>{rektor?.nama || '-'}</strong>
+              <span>2.</span><span style={{ fontWeight: 600 }}>NUPTK</span><span>:</span><span>{rektor?.nuptk || '-'}</span>
+              <span>3.</span><span style={{ fontWeight: 600 }}>Pangkat/Gol.</span><span>:</span><span>{rektor?.pangkat || '-'}</span>
+              <span>4.</span><span style={{ fontWeight: 600 }}>Jabatan</span><span>:</span><span>{rektor?.jabatan || 'Rektor'}</span>
+              <span>5.</span><span style={{ fontWeight: 600 }}>Unit Kerja</span><span>:</span><span>{rektor?.unit || 'Universitas Bhakti Kencana'}</span>
             </div>
           </div>
         </div>
@@ -574,7 +553,18 @@ export const CetakTranskripStandaloneView: React.FC = () => {
         <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, fontSize: '8.5pt', marginTop: 10 }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '8pt', visibility: 'hidden' }}>Bandung, -</div>
-            <div style={{ fontWeight: 700, marginBottom: 40 }}>Pegawai Yang Dinilai,</div>
+            <div style={{ fontWeight: 700 }}>Pegawai Yang Dinilai,</div>
+            <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {data.dosenSignatureUrl ? (
+                <img
+                  src={resolveStorageUrl(data.dosenSignatureUrl)}
+                  alt="Tanda Tangan Dosen"
+                  style={{ maxHeight: 44, maxWidth: 150, objectFit: 'contain' }}
+                />
+              ) : (
+                <div style={{ height: 38 }} />
+              )}
+            </div>
             <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosenNama}</div>
             <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {dosenNuptk || '-'}</div>
           </div>
@@ -583,9 +573,20 @@ export const CetakTranskripStandaloneView: React.FC = () => {
             <div style={{ fontSize: '8pt', color: '#334155' }}>
               Bandung, {penilaian.tanggal || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </div>
-            <div style={{ fontWeight: 700, marginBottom: 40 }}>Pejabat Penilai,</div>
-            <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{rektor.nama}</div>
-            <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {rektor.nuptk || '-'}</div>
+            <div style={{ fontWeight: 700 }}>Pejabat Penilai,</div>
+            <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {rektor?.signatureUrl ? (
+                <img
+                  src={resolveStorageUrl(rektor.signatureUrl)}
+                  alt="Tanda Tangan Pejabat Penilai"
+                  style={{ maxHeight: 44, maxWidth: 150, objectFit: 'contain' }}
+                />
+              ) : (
+                <div style={{ height: 38 }} />
+              )}
+            </div>
+            <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{rektor?.nama || '-'}</div>
+            <div style={{ fontSize: '8pt', color: '#475569' }}>NUPTK: {rektor?.nuptk || '-'}</div>
           </div>
         </div>
 

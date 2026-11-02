@@ -25,9 +25,14 @@ export function sanitizeUrl(url?: string | null): string {
     return trimmed
   }
 
-  // Auto-prepend https:// if domain-like string (e.g., "drive.google.com/...")
-  if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(trimmed)) {
-    return `https://${trimmed}`
+  // Auto-prepend https:// if domain-like string (e.g., "drive.google.com/...") safely without ReDoS
+  try {
+    const parsed = new URL(trimmed.startsWith('//') ? `https:${trimmed}` : `https://${trimmed}`)
+    if (parsed.hostname.includes('.') && !parsed.hostname.startsWith('.') && !parsed.hostname.endsWith('.')) {
+      return `https://${trimmed.replace(/^\/\//, '')}`
+    }
+  } catch {
+    // Fall through
   }
 
   // Internal relative paths
@@ -54,6 +59,18 @@ export function generateEntityId(prefix: string): string {
 export function resolveStorageUrl(url?: string | null): string {
   if (!url) return ''
   const trimmed = url.trim()
+
+  if (trimmed.startsWith('data:image/svg+xml') && (trimmed.includes('<svg') || trimmed.includes('<path'))) {
+    // Pastikan SVG data URI terenkode secara aman agar dirender sempurna oleh seluruh browser (Chrome, Safari, Firefox)
+    const cleanSvg = trimmed.replace(/^data:image\/svg\+xml;?(utf8)?,?/i, '')
+    try {
+      const decoded = decodeURIComponent(cleanSvg)
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(decoded)}`
+    } catch {
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanSvg)}`
+    }
+  }
+
   if (
     trimmed.startsWith('data:') ||
     trimmed.startsWith('http://') ||
@@ -69,13 +86,13 @@ export function resolveStorageUrl(url?: string | null): string {
 }
 
 /**
- * Resolves avatar image source URL with clean fallback to /user.png.
- * If user has not uploaded a photo yet (or avatar is null/empty/initials), cleanly displays /user.png.
+ * Resolves avatar image source URL with clean fallback to /user.svg.
+ * If user has not uploaded a photo yet (or avatar is null/empty/initials), cleanly displays /user.svg.
  */
 export function getAvatarSrc(avatar?: string | null): string {
-  if (!avatar || typeof avatar !== 'string') return '/user.png'
+  if (!avatar || typeof avatar !== 'string') return '/user.svg'
   const trimmed = avatar.trim()
-  if (!trimmed) return '/user.png'
+  if (!trimmed) return '/user.svg'
 
   // If it's a data URL, blob, absolute URL, or local storage/image path
   if (
@@ -85,16 +102,21 @@ export function getAvatarSrc(avatar?: string | null): string {
     trimmed.startsWith('https://') ||
     trimmed.startsWith('/storage/') ||
     trimmed.startsWith('storage/') ||
-    trimmed.startsWith('/user.png') ||
-    trimmed === 'user.png' ||
+    trimmed.startsWith('/user.') ||
+    trimmed.startsWith('user.') ||
     /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(trimmed)
   ) {
-    if (trimmed.startsWith('/user.png') || trimmed === 'user.png') {
-      return '/user.png'
+    if (
+      trimmed.startsWith('/user.svg') ||
+      trimmed === 'user.svg' ||
+      trimmed.startsWith('/user.png') ||
+      trimmed === 'user.png'
+    ) {
+      return '/user.svg'
     }
     return resolveStorageUrl(trimmed)
   }
 
-  // Otherwise, treat initials or missing photo as default /user.png
-  return '/user.png'
+  // Otherwise, treat initials or missing photo as default /user.svg
+  return '/user.svg'
 }

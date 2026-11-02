@@ -194,6 +194,16 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       user?.rank?.toLowerCase().includes('ketua program studi')
     )
 
+  // Helper: compute proper SKS load (only summing items with satuan === 'SKS', with fallback)
+  const computeSksTotal = (itemList: SKPItem[], field: 'rencanaAwal' | 'realisasi', fallbackVal: number = 14) => {
+    const sksItems = itemList.filter((it) => (it.satuan || '').toUpperCase() === 'SKS')
+    if (sksItems.length > 0) {
+      const sum = sksItems.reduce((acc, curr) => acc + Number(curr[field] || 0), 0)
+      return sum > 0 ? sum : fallbackVal
+    }
+    return fallbackVal
+  }
+
   const targetDosenId =
     user?.id || mySKP?.dosenId || ''
   const targetDosenNama =
@@ -523,16 +533,33 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       const updated = prevItems.map((it) => {
         if (it.id !== itemId) return it
 
-        const itemUpdated = { ...it, [field]: value }
+        let ra = field === 'rencanaAwal' ? Math.max(0, Number(value) || 0) : Number(it.rencanaAwal) || 0
+        let pt = field === 'perubahanTengah' ? Math.max(0, Number(value) || 0) : Number(it.perubahanTengah) || 0
+        let rel = field === 'realisasi' ? Math.max(0, Number(value) || 0) : Number(it.realisasi) || 0
+
+        // Aturan Validasi Kinerja:
+        // Realisasi tidak boleh lebih dari RENCANA AWAL jika PERUBAHAN TENGAH 0.
+        // Jika PERUBAHAN TENGAH > 0, realisasi tidak boleh lebih dari PERUBAHAN TENGAH.
+        const maxLimit = pt > 0 ? pt : ra
+        if (maxLimit > 0 && rel > maxLimit) {
+          rel = maxLimit
+          if (field === 'realisasi') {
+            const basis = pt > 0 ? 'Perubahan Tengah' : 'Rencana Awal'
+            onShowToast?.(`Realisasi tidak boleh melebihi ${basis} (maksimal: ${maxLimit}). Nilai disesuaikan ke batas maksimal.`)
+          }
+        }
+
+        const itemUpdated = {
+          ...it,
+          [field]: field === 'realisasi' ? rel : value,
+          realisasi: rel,
+        }
 
         if (
           field === 'rencanaAwal' ||
           field === 'perubahanTengah' ||
           field === 'realisasi'
         ) {
-          const ra = field === 'rencanaAwal' ? Number(value) : it.rencanaAwal
-          const pt = field === 'perubahanTengah' ? Number(value) : it.perubahanTengah
-          const rel = field === 'realisasi' ? Number(value) : it.realisasi
           itemUpdated.kualitasMutu = calculateMutu(ra, pt, rel)
           itemUpdated.nilaiCapaian = itemUpdated.kualitasMutu
         }
@@ -543,14 +570,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       setIsSaving(true)
       saveTimeoutRef.current = setTimeout(() => {
-        const newTotalRencana = updated.reduce(
-          (acc, curr) => acc + Number(curr.rencanaAwal || 0),
-          0
-        )
-        const newTotalRealisasi = updated.reduce(
-          (acc, curr) => acc + Number(curr.realisasi || 0),
-          0
-        )
+        const newTotalRencana = computeSksTotal(updated, 'rencanaAwal', activeSKP.totalSksRencana || 14)
+        const newTotalRealisasi = computeSksTotal(updated, 'realisasi', activeSKP.totalSksRealisasi || 14)
         const itemsWithTarget = updated.filter(
           (it) => Number(it.perubahanTengah || it.rencanaAwal) > 0
         )
@@ -636,8 +657,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
   const handleManualSave = () => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    const newTotalRencana = items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
-    const newTotalRealisasi = items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+    const newTotalRencana = computeSksTotal(items, 'rencanaAwal', activeSKP.totalSksRencana || 14)
+    const newTotalRealisasi = computeSksTotal(items, 'realisasi', activeSKP.totalSksRealisasi || 14)
     const itemsWithTarget = items.filter((it) => Number(it.perubahanTengah || it.rencanaAwal) > 0)
     const newMutu =
       itemsWithTarget.length > 0
@@ -669,7 +690,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   const handleAutoFillDummySKP = () => {
     const updated = items.map((it) => {
       let target = 1
-      if (it.kategori === 'Pendidikan') target = 12
+      if (it.kategori === 'Pendidikan') target = (it.satuan || '').toUpperCase() === 'SKS' ? 12 : 2
       else if (it.kategori === 'Penelitian') target = 1
       else if (it.kategori === 'Pengabdian') target = 1
       else target = 2
@@ -685,8 +706,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       }
     })
     setItems(updated)
-    const newTotalRencana = updated.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
-    const newTotalRealisasi = updated.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+    const newTotalRencana = computeSksTotal(updated, 'rencanaAwal', 14)
+    const newTotalRealisasi = computeSksTotal(updated, 'realisasi', 14)
     const updatedSKP: PengajuanSKP = {
       ...activeSKP,
       semester: selectedSemester,
@@ -702,8 +723,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   }
 
   // Summary Metrics Calculation
-  const totalRencana = items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
-  const totalRealisasi = items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+  const totalRencana = computeSksTotal(items, 'rencanaAwal', activeSKP.totalSksRencana || 14)
+  const totalRealisasi = computeSksTotal(items, 'realisasi', activeSKP.totalSksRealisasi || 14)
 
   const itemsWithTarget = items.filter(
     (it) => Number(it.perubahanTengah || it.rencanaAwal) > 0
@@ -803,8 +824,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                   alt={targetDosenNama}
                   onError={(e) => {
                     const target = e.currentTarget
-                    if (!target.src.endsWith('/user.png')) {
-                      target.src = '/user.png'
+                    if (!target.src.endsWith('/user.svg')) {
+                      target.src = '/user.svg'
                     }
                   }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -1391,7 +1412,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                               fontWeight: 600,
                             }}
                           >
-                            🏛️ Tugas: {target}
+                            Tugas: {target}
                           </span>
                         )
                       })()}
@@ -1412,6 +1433,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                       className="table-inline-input"
                       value={it.rencanaAwal === 0 ? '' : it.rencanaAwal}
                       onFocus={(e) => e.target.select()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => handleInlineChange(it.id, 'rencanaAwal', e.target.value)}
                     />
                   </td>
@@ -1427,23 +1449,40 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
                       className="table-inline-input"
                       value={it.perubahanTengah === 0 ? '' : it.perubahanTengah}
                       onFocus={(e) => e.target.select()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => handleInlineChange(it.id, 'perubahanTengah', e.target.value)}
                     />
                   </td>
 
-                  {/* Inline Input 3: Realisasi Akhir */}
+                  {/* Inline Input 3: Realisasi Akhir (Dibatasi Rencana Awal jika Perubahan Tengah 0, atau Perubahan Tengah jika > 0) */}
                   <td style={{ textAlign: 'center' }}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="any"
-                      placeholder="0"
-                      disabled={isApproved}
-                      className="table-inline-input table-inline-input--highlight"
-                      value={it.realisasi === 0 ? '' : it.realisasi}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => handleInlineChange(it.id, 'realisasi', e.target.value)}
-                    />
+                    {(() => {
+                      const pt = Number(it.perubahanTengah) || 0
+                      const ra = Number(it.rencanaAwal) || 0
+                      const maxLimit = pt > 0 ? pt : ra
+                      return (
+                        <input
+                          type="number"
+                          min={0}
+                          max={maxLimit > 0 ? maxLimit : undefined}
+                          step="any"
+                          placeholder="0"
+                          disabled={isApproved}
+                          className="table-inline-input table-inline-input--highlight"
+                          value={it.realisasi === 0 ? '' : it.realisasi}
+                          onFocus={(e) => e.target.select()}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          onChange={(e) => handleInlineChange(it.id, 'realisasi', e.target.value)}
+                          title={
+                            pt > 0
+                              ? `Maksimal realisasi: ${pt} (Sesuai Perubahan Tengah)`
+                              : ra > 0
+                              ? `Maksimal realisasi: ${ra} (Sesuai Rencana Awal)`
+                              : 'Masukkan realisasi tugas'
+                          }
+                        />
+                      )
+                    })()}
                   </td>
 
                   {/* Terhitung Otomatis: Kual / Mutu (%) */}
@@ -1650,8 +1689,8 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
           confirmText={activeSKP.status === 'Diajukan' ? 'Ya, Perbarui Pengajuan' : 'Ya, Ajukan SKP'}
           cancelText="Batal"
           onConfirm={() => {
-            const newTotalRencana = items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
-            const newTotalRealisasi = items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+            const newTotalRencana = computeSksTotal(items, 'rencanaAwal', activeSKP.totalSksRencana || 14)
+            const newTotalRealisasi = computeSksTotal(items, 'realisasi', activeSKP.totalSksRealisasi || 14)
             const itemsWithTarget = items.filter((it) => Number(it.perubahanTengah || it.rencanaAwal) > 0)
             const newMutu =
               itemsWithTarget.length > 0

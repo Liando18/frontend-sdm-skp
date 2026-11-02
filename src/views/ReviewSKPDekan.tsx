@@ -268,8 +268,13 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
 
   // Detailed Review Mode
   if (viewMode === 'review' && currentReviewSKP) {
-    const totalRencana = currentReviewSKP.items.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
-    const totalRealisasi = currentReviewSKP.items.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+    const sksItems = currentReviewSKP.items.filter((it) => (it.satuan || '').toUpperCase() === 'SKS')
+    const totalRencana = sksItems.length > 0
+      ? sksItems.reduce((acc, curr) => acc + Number(curr.rencanaAwal || 0), 0)
+      : (currentReviewSKP.totalSksRencana || 14)
+    const totalRealisasi = sksItems.length > 0
+      ? sksItems.reduce((acc, curr) => acc + Number(curr.realisasi || 0), 0)
+      : (currentReviewSKP.totalSksRealisasi || 14)
 
     return (
       <div className="page-container" ref={containerRef}>
@@ -770,7 +775,7 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                     {skp.semester} {skp.tahunAkademik}
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                    {skp.totalSksRealisasi ?? (skp.items && skp.items.length > 0 ? skp.items.reduce((a, b) => a + (b.realisasi || 0), 0) : 0)} SKS
+                    {skp.totalSksRealisasi || skp.totalSksRencana || 14} SKS
                   </td>
                   <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--brand-700)' }}>
                     {skp.nilaiKinerjaSKP ?? skp.persentaseCapaian ?? 0}%

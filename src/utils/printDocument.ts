@@ -1,3 +1,12 @@
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 /**
  * Formal A4 Document Print Helper
  * Menggunakan mekanisme Isolated Iframe printing profesional agar:
@@ -34,7 +43,7 @@ export function printDocument(container: HTMLElement, documentTitle: string) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${documentTitle}</title>
+  <title>${escapeHtml(documentTitle)}</title>
   <style>
     @page {
       size: A4 portrait;

@@ -4,6 +4,8 @@ import { PenilaianKuesioner } from '../types'
 import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { printDocument } from '../utils/printDocument'
 import { api } from '../services/api'
+import { resolveStorageUrl } from '../utils/security'
+import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
 
 interface CetakTranskripKuesionerProps {
   penilaian: PenilaianKuesioner | any
@@ -16,6 +18,8 @@ interface CetakTranskripKuesionerProps {
   tahunAkademik: string
   isOpen: boolean
   onClose: () => void
+  dosenSignatureUrl?: string
+  rektor?: RektorData
 }
 
 const BERAKHLAK_ITEMS = [
@@ -74,45 +78,31 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
   tahunAkademik,
   isOpen,
   onClose,
+  dosenSignatureUrl,
+  rektor: initialRektorProp,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
-  // Data Rektor sebagai Pejabat Penilai formal pada formulir cetak
-  const [rektor, setRektor] = useState<{
-    nama: string
-    nuptk: string
-    pangkat: string
-    jabatan: string
-    unit: string
-    signatureUrl?: string
-  }>({
-    nama: '-',
-    nuptk: '-',
-    pangkat: '-',
-    jabatan: 'Rektor',
-    unit: 'Universitas Bhakti Kencana',
+  // Data Rektor Pejabat Penilai formal (100% dinamis dari database)
+  const [rektor, setRektor] = useState<RektorData>(() => {
+    return (
+      initialRektorProp ||
+      getCachedOfficialRektor() || {
+        nama: '-',
+        nuptk: '-',
+        pangkat: '-',
+        jabatan: 'Rektor',
+        unit: 'Universitas Bhakti Kencana',
+      }
+    )
   })
 
   useEffect(() => {
-    api.dosen
-      .list()
-      .then((dosens: any) => {
-        if (Array.isArray(dosens)) {
-          const found = dosens.find((d: any) => {
-            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
-            return jab.includes('rektor') && !jab.includes('wakil')
-          })
-          if (found) {
-            setRektor({
-              nama: found.nama || '-',
-              nuptk: found.nuptk || found.nip || '-',
-              pangkat: found.golongan || '-',
-              jabatan: 'Rektor',
-              unit: 'Universitas Bhakti Kencana',
-              signatureUrl: found.signatureUrl,
-            })
-          }
+    fetchOfficialRektor()
+      .then((r) => {
+        if (r?.nama && r.nama !== '-') {
+          setRektor(r)
         }
       })
       .catch(() => {})
@@ -376,14 +366,36 @@ export const CetakTranskripKuesioner: React.FC<CetakTranskripKuesionerProps> = (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, padding: '0 10px' }}>
               <div style={{ textAlign: 'center', width: 220 }}>
                 <div style={{ fontSize: '11px', visibility: 'hidden' }}>Bandung, -</div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, marginBottom: 40 }}>Pegawai Yang Dinilai,</div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700 }}>Pegawai Yang Dinilai,</div>
+                <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {dosenSignatureUrl ? (
+                    <img
+                      src={resolveStorageUrl(dosenSignatureUrl)}
+                      alt="Tanda Tangan Dosen"
+                      style={{ maxHeight: 46, maxWidth: 160, objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <div style={{ height: 40 }} />
+                  )}
+                </div>
                 <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{dosenNama}</div>
                 <div style={{ fontSize: '11px', color: '#475569' }}>NUPTK: {dosenNuptk || '-'}</div>
               </div>
 
               <div style={{ textAlign: 'center', width: 220 }}>
                 <div style={{ fontSize: '11px', color: '#334155' }}>Bandung, {penilaian.tanggal || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                <div style={{ fontSize: '11.5px', fontWeight: 700, marginBottom: 40 }}>Pejabat Penilai,</div>
+                <div style={{ fontSize: '11.5px', fontWeight: 700 }}>Pejabat Penilai,</div>
+                <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {rektor.signatureUrl ? (
+                    <img
+                      src={resolveStorageUrl(rektor.signatureUrl)}
+                      alt="Tanda Tangan Pejabat Penilai"
+                      style={{ maxHeight: 46, maxWidth: 160, objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <div style={{ height: 40 }} />
+                  )}
+                </div>
                 <div style={{ fontWeight: 800, textDecoration: 'underline' }}>{rektor.nama}</div>
                 <div style={{ fontSize: '11px', color: '#475569' }}>NUPTK: {rektor.nuptk || '-'}</div>
               </div>

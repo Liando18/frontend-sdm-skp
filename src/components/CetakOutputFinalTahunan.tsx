@@ -5,6 +5,7 @@ import { useGSAP, gsap, GSAP_EASE } from '../utils/animations'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
 import { printDocument } from '../utils/printDocument'
 import { api } from '../services/api'
+import { getCachedOfficialRektor, fetchOfficialRektor, RektorData } from '../utils/rektorData'
 
 export interface OutputFinalData {
   dosen: Dosen
@@ -23,6 +24,7 @@ export interface OutputFinalData {
   bobotKuis40?: number
   nilaiAkhirTahunan: number
   predikat: string
+  rektor?: RektorData
 }
 
 export interface CetakOutputFinalTahunanProps {
@@ -357,41 +359,25 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
   const modalRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
-  // Data Rektor sebagai Pejabat Penilai formal pada semua formulir cetak resmi
-  const [rektor, setRektor] = useState<{
-    nama: string
-    nuptk: string
-    pangkat: string
-    jabatan: string
-    unit: string
-    signatureUrl?: string
-  }>({
-    nama: '-',
-    nuptk: '-',
-    pangkat: '-',
-    jabatan: 'Rektor',
-    unit: 'Universitas Bhakti Kencana',
+  // Data Rektor Pejabat Penilai formal (100% dinamis dari database)
+  const [rektor, setRektor] = useState<RektorData>(() => {
+    return (
+      data?.rektor ||
+      getCachedOfficialRektor() || {
+        nama: '-',
+        nuptk: '-',
+        pangkat: '-',
+        jabatan: 'Rektor',
+        unit: 'Universitas Bhakti Kencana',
+      }
+    )
   })
 
   useEffect(() => {
-    api.dosen
-      .list()
-      .then((dosens: any) => {
-        if (Array.isArray(dosens)) {
-          const found = dosens.find((d: any) => {
-            const jab = (d.jabatanStruktural || d.jabatan_struktural || '').toLowerCase()
-            return jab.includes('rektor') && !jab.includes('wakil')
-          })
-          if (found) {
-            setRektor({
-              nama: found.nama || '-',
-              nuptk: found.nuptk || found.nip || '-',
-              pangkat: found.golongan || '-',
-              jabatan: 'Rektor',
-              unit: 'Universitas Bhakti Kencana',
-              signatureUrl: found.signatureUrl,
-            })
-          }
+    fetchOfficialRektor()
+      .then((r) => {
+        if (r?.nama && r.nama !== '-') {
+          setRektor(r)
         }
       })
       .catch(() => {})
@@ -607,12 +593,12 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
   const getEkspektasiText = (customText: string, score?: number) => {
     if (score === undefined || score === null) return customText
     if (score >= 3.8) {
-      return `Di Atas Ekspektasi — ${customText}`
+      return `Di Atas Ekspektasi: ${customText}`
     }
     if (score >= 3.0) {
-      return `Sesuai Ekspektasi — ${customText}`
+      return `Sesuai Ekspektasi: ${customText}`
     }
-    return `Perlu Peningkatan — Diharapkan lebih meningkatkan kedisiplinan dan kontribusi aktif.`
+    return `Perlu Peningkatan: Diharapkan lebih meningkatkan kedisiplinan dan kontribusi aktif.`
   }
 
   const handlePrint = () => {
@@ -1621,15 +1607,15 @@ export const CetakOutputFinalTahunan: React.FC<CetakOutputFinalTahunanProps> = (
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 20px',
-                background: '#2563eb',
+                padding: '8px 18px',
+                background: '#4b5563',
                 color: '#ffffff',
-                border: 'none',
-                borderRadius: 6,
+                border: '1px solid #374151',
+                borderRadius: 8,
                 fontSize: '13px',
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(37,99,235,0.4)',
+                boxShadow: '0 2px 8px rgba(75,85,99,0.35)',
               }}
             >
               <Printer size={16} />

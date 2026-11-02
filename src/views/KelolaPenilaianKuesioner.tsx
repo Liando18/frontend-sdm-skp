@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react'
-import { Search, Eye, X } from 'lucide-react'
+import { Search, Eye, X, RotateCcw, AlertCircle, Building2 } from 'lucide-react'
 import { PenilaianKuesioner, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
@@ -23,32 +23,99 @@ const BERAKHLAK_KEYS = [
 
 export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> = ({
   penilaianList,
+  dosenList,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
+  // Extract Dynamic Filter Lists
+  const availableYears = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...penilaianList.map((p) => p.tahun).filter(Boolean),
+        '2026/2027',
+        '2025/2026',
+        '2024/2025',
+      ])
+    ).sort().reverse()
+  }, [penilaianList])
+
+  const availableProdis = useMemo(() => {
+    const list = new Set<string>()
+    penilaianList.forEach((p) => {
+      if (p.dosenProdi) list.add(p.dosenProdi)
+    })
+    if (dosenList) {
+      dosenList.forEach((d) => {
+        if (d.prodi) list.add(d.prodi)
+      })
+    }
+    return Array.from(list).sort()
+  }, [penilaianList, dosenList])
+
+  // Filter States
+  const [selectedTahun, setSelectedTahun] = useState<string>('Semua')
   const [selectedRole, setSelectedRole] = useState<string>('Semua')
+  const [selectedProdi, setSelectedProdi] = useState<string>('Semua')
+  const [selectedPredikat, setSelectedPredikat] = useState<string>('Semua')
+  const [selectedCriticalPoint, setSelectedCriticalPoint] = useState<string>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDetail, setSelectedDetail] = useState<PenilaianKuesioner | null>(null)
 
-  const tahunList = ['Semua Tahun', '2026/2027', '2025/2026', '2024/2025']
-  const roleList = ['Semua', 'Ka Prodi (Menilai)', 'Dekan (Menilai)']
+  const isFiltered =
+    selectedTahun !== 'Semua' ||
+    selectedRole !== 'Semua' ||
+    selectedProdi !== 'Semua' ||
+    selectedPredikat !== 'Semua' ||
+    selectedCriticalPoint !== 'Semua' ||
+    searchQuery.trim() !== ''
 
-  const filteredList = penilaianList.filter((item) => {
-    const matchTahun = selectedTahun === 'Semua Tahun' || item.tahun === selectedTahun
-    const matchRole =
-      selectedRole === 'Semua' ||
-      (selectedRole === 'Ka Prodi (Menilai)' && item.penilaiRole === 'Kaprodi') ||
-      (selectedRole === 'Dekan (Menilai)' && item.penilaiRole === 'Dekan')
-    const q = (searchQuery || '').trim().toLowerCase()
-    const matchSearch =
-      q === '' ||
-      (item.dosenNama || '').toLowerCase().includes(q) ||
-      (item.penilaiNama || '').toLowerCase().includes(q) ||
-      (item.dosenProdi || '').toLowerCase().includes(q)
-    return matchTahun && matchRole && matchSearch
-  })
+  const handleResetFilters = () => {
+    setSelectedTahun('Semua')
+    setSelectedRole('Semua')
+    setSelectedProdi('Semua')
+    setSelectedPredikat('Semua')
+    setSelectedCriticalPoint('Semua')
+    setSearchQuery('')
+    setPage(1)
+  }
+
+  const filteredList = useMemo(() => {
+    return penilaianList.filter((item) => {
+      if (selectedTahun !== 'Semua' && item.tahun !== selectedTahun) return false
+
+      if (selectedRole !== 'Semua') {
+        if (selectedRole === 'Kaprodi' && item.penilaiRole !== 'Kaprodi') return false
+        if (selectedRole === 'Dekan' && item.penilaiRole !== 'Dekan') return false
+      }
+
+      if (selectedProdi !== 'Semua' && item.dosenProdi !== selectedProdi) return false
+
+      if (selectedPredikat !== 'Semua' && item.predikat !== selectedPredikat) return false
+
+      if (selectedCriticalPoint !== 'Semua') {
+        // Critical point indikator: rata-rata minimal 3.00
+        const isMet = (item.nilaiPelayanan || 0) >= 3 && (item.nilaiAkuntabel || 0) >= 3
+        if (selectedCriticalPoint === 'memenuhi' && !isMet) return false
+        if (selectedCriticalPoint === 'kurang' && isMet) return false
+      }
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase()
+        const matchNama = (item.dosenNama || '').toLowerCase().includes(q)
+        const matchPenilai = (item.penilaiNama || '').toLowerCase().includes(q)
+        const matchProdi = (item.dosenProdi || '').toLowerCase().includes(q)
+        if (!matchNama && !matchPenilai && !matchProdi) return false
+      }
+
+      return true
+    })
+  }, [penilaianList, selectedTahun, selectedRole, selectedProdi, selectedPredikat, selectedCriticalPoint, searchQuery])
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+
+  // Reset page to 1 when filters change
+  React.useEffect(() => {
+    setPage(1)
+  }, [selectedTahun, selectedRole, selectedProdi, selectedPredikat, selectedCriticalPoint, searchQuery])
 
   const paginatedList = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -56,11 +123,11 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
   }, [filteredList, page, pageSize])
 
   const containerRef = useRef<HTMLDivElement>(null)
-  useStaggerEntrance(containerRef, '.custom-table tbody tr', [], { y: 8, stagger: 0.035 })
+  useStaggerEntrance(containerRef, '.custom-table tbody tr', [page, filteredList.length], { y: 8, stagger: 0.035 })
 
   return (
     <div className="page-container" ref={containerRef}>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
           <h1 className="page-title">Monitoring Kinerja Tahunan Pegawai</h1>
           <p className="page-desc">
@@ -69,83 +136,253 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
         </div>
       </div>
 
-      {/* Filter Toolbar */}
+      {/* Filter Card: Diperkaya, Seragam & Search Bar Lebar Penuh di Bawah */}
       <div
         style={{
           background: 'var(--card)',
           borderRadius: 'var(--r-xl)',
           padding: '16px 20px',
           border: '1px solid var(--hair)',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: 'var(--shadow-xs)',
           display: 'flex',
-          gap: 16,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: 'column',
+          gap: 12,
+          marginBottom: 16,
         }}
       >
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Filter Tahun Akademik */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-            <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-              Tahun Ajaran
+        {/* Baris 1: Header Filter & Tombol Reset */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>
+              Filter Evaluasi BerAKHLAK
             </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: 'var(--brand-700)',
+                background: 'var(--brand-100)',
+                padding: '2px 8px',
+                borderRadius: 'var(--r-full)',
+              }}
+            >
+              Menampilkan {filteredList.length} dari {penilaianList.length} Evaluasi
+            </span>
+          </div>
+
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              style={{
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                borderRadius: 'var(--r-sm)',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--status-danger-ink)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="Reset seluruh filter ke kondisi awal"
+            >
+              <RotateCcw size={12} />
+              <span>Reset Filter</span>
+            </button>
+          )}
+        </div>
+
+        {/* Baris 2: Kumpulan Dropdown Filter Seragam */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 10,
+            alignItems: 'center',
+          }}
+        >
+          {/* 1. Tahun Akademik */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Tahun Akademik</label>
             <select
               className="custom-select"
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}
               style={{
-                width: 'auto',
-                minWidth: 155,
                 height: 38,
-                fontSize: '13px',
+                fontSize: '12px',
                 fontWeight: 600,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
                 border: '1px solid var(--hair-strong)',
                 background: '#ffffff',
-                boxShadow: 'var(--shadow-xs)',
               }}
             >
-              {tahunList.map((thn, idx) => (
-                <option key={idx} value={thn}>
-                  {thn}
+              <option value="Semua">Semua Tahun</option>
+              {availableYears.map((thn) => (
+                <option key={thn} value={thn}>
+                  TA {thn}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Filter Role Penilai */}
-          <div style={{ display: 'flex', gap: 4, background: 'var(--panel-hover)', padding: 3, borderRadius: 'var(--r-md)' }}>
-            {roleList.map((tab, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedRole(tab)}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 'var(--r-sm)',
-                  border: 'none',
-                  background: selectedRole === tab ? 'var(--navy-900)' : 'transparent',
-                  color: selectedRole === tab ? '#ffffff' : 'var(--muted)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {tab}
-              </button>
-            ))}
+          {/* 2. Kategori Penilai */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Pejabat Penilai</label>
+            <select
+              className="custom-select"
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Penilai</option>
+              <option value="Kaprodi">Kaprodi (Menilai Dosen)</option>
+              <option value="Dekan">Dekan (Menilai Kaprodi)</option>
+            </select>
+          </div>
+
+          {/* 3. Program Studi */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Program Studi</label>
+            <select
+              className="custom-select"
+              value={selectedProdi}
+              onChange={(e) => setSelectedProdi(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Program Studi</option>
+              {availableProdis.map((p) => (
+                <option key={p} value={p} title={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Predikat Mutu Perilaku */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Predikat Mutu</label>
+            <select
+              className="custom-select"
+              value={selectedPredikat}
+              onChange={(e) => setSelectedPredikat(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 600,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Predikat</option>
+              <option value="Sangat Baik">Sangat Baik (3.51 - 4.00)</option>
+              <option value="Baik">Baik (2.76 - 3.50)</option>
+              <option value="Cukup">Cukup (2.01 - 2.75)</option>
+              <option value="Kurang">Kurang (&le; 2.00)</option>
+            </select>
+          </div>
+
+          {/* 5. Pemenuhan Poin Kritis */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>Poin Kritis (Critical)</label>
+            <select
+              className="custom-select"
+              value={selectedCriticalPoint}
+              onChange={(e) => setSelectedCriticalPoint(e.target.value)}
+              style={{
+                height: 38,
+                fontSize: '12px',
+                fontWeight: 500,
+                width: '100%',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--hair-strong)',
+                background: '#ffffff',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              <option value="Semua">Semua Indikator</option>
+              <option value="memenuhi">Memenuhi Poin Kritis (&ge; 3.0)</option>
+              <option value="kurang">Di Bawah Standar Poin Kritis</option>
+            </select>
           </div>
         </div>
 
-        <div className="search" style={{ minWidth: 260 }}>
-          <Search size={15} color="var(--muted)" />
+        {/* Baris 3: Search Bar di Bawah Filter dengan Lebar Penuh & Responsif */}
+        <div style={{ position: 'relative', width: '100%', marginTop: 2 }}>
+          <Search
+            size={16}
+            style={{
+              position: 'absolute',
+              left: 14,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: searchQuery ? 'var(--brand-600)' : 'var(--faint)',
+              pointerEvents: 'none',
+              transition: 'color 0.15s ease',
+            }}
+          />
           <input
             type="text"
-            placeholder="Cari pegawai, penilai, prodi..."
+            className="input-field"
+            placeholder="Cari nama pegawai, penilai, atau program studi..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '100%' }}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              paddingLeft: 42,
+              paddingRight: searchQuery ? 68 : 14,
+              height: 40,
+              fontSize: '13px',
+              borderRadius: 'var(--r-md)',
+              border: '1px solid var(--hair-strong)',
+              background: 'var(--page-bg)',
+            }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'var(--panel-hover)',
+                border: '1px solid var(--hair)',
+                borderRadius: 'var(--r-xs)',
+                padding: '2px 8px',
+                fontSize: '11px',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+              }}
+            >
+              Hapus
+            </button>
+          )}
         </div>
       </div>
 
@@ -168,75 +405,96 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
             {paginatedList.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
-                  Tidak ada data penilaian yang sesuai kriteria pencarian.
+                  <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <AlertCircle size={28} style={{ color: 'var(--faint)' }} />
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>
+                      Tidak Ada Data Penilaian yang Sesuai
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                      Silakan sesuaikan kata kunci pencarian atau ubah kriteria filter di atas.
+                    </span>
+                  </div>
                 </td>
               </tr>
             ) : (
               paginatedList.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '14px' }}>{item.dosenNama}</div>
-                  {item.targetRole === 'Kaprodi' && (
-                    <span className="badge-pill badge-pill--blue" style={{ fontSize: '10.5px', marginTop: 2 }}>
-                      Ketua Program Studi
+                <tr key={item.id}>
+                  <td>
+                    <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '14px' }}>{item.dosenNama}</div>
+                    {item.targetRole === 'Kaprodi' && (
+                      <span className="badge-pill badge-pill--blue" style={{ fontSize: '10.5px', marginTop: 3 }}>
+                        Ketua Program Studi
+                      </span>
+                    )}
+                    {item.targetRole === 'Dekan' && (
+                      <span className="badge-pill badge-pill--green" style={{ fontSize: '10.5px', marginTop: 3 }}>
+                        Dekan Fakultas
+                      </span>
+                    )}
+                    {item.targetRole === 'SDM' && (
+                      <span className="badge-pill badge-pill--orange" style={{ fontSize: '10.5px', marginTop: 3 }}>
+                        Direktorat SDM
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: '12.5px',
+                        color: 'var(--ink)',
+                      }}
+                    >
+                      <Building2 size={12} style={{ color: 'var(--muted)' }} />
+                      <span>{item.dosenProdi}</span>
                     </span>
-                  )}
-                  {item.targetRole === 'Dekan' && (
-                    <span className="badge-pill badge-pill--green" style={{ fontSize: '10.5px', marginTop: 2 }}>
-                      Dekan Fakultas
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{item.penilaiNama}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                      Kapasitas: <strong>{item.penilaiRole}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="badge-pill badge-pill--gray" style={{ fontSize: '11px' }}>
+                      Tahunan {item.tahun}
                     </span>
-                  )}
-                  {item.targetRole === 'SDM' && (
-                    <span className="badge-pill badge-pill--orange" style={{ fontSize: '10.5px', marginTop: 2 }}>
-                      Direktorat SDM
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--brand-700)', fontVariantNumeric: 'tabular-nums' }}>
+                      {item.rataRata.toFixed(2)}
                     </span>
-                  )}
-                </td>
-                <td>{item.dosenProdi}</td>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{item.penilaiNama}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                    Kapasitas: <strong>{item.penilaiRole}</strong>
-                  </div>
-                </td>
-                <td>
-                  <span className="badge-pill badge-pill--gray" style={{ fontSize: '11px' }}>
-                    Tahunan {item.tahun}
-                  </span>
-                </td>
-                <td>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--brand-700)' }}>
-                    {item.rataRata.toFixed(2)}
-                  </span>
-                  <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}> / 4.00</span>
-                </td>
-                <td>
-                  <span
-                    className={`badge-pill ${
-                      item.predikat === 'Sangat Baik'
-                        ? 'badge-pill--green'
-                        : item.predikat === 'Baik'
-                        ? 'badge-pill--blue'
-                        : 'badge-pill--orange'
-                    }`}
-                  >
-                    {item.predikat}
-                  </span>
-                </td>
-                <td style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.tanggal}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    className="btn-action-view"
-                    style={{ padding: '6px 14px', fontSize: '12px' }}
-                    onClick={() => setSelectedDetail(item)}
-                  >
-                    <Eye size={13} />
-                    <span>Lihat Detail</span>
-                  </button>
-                </td>
-              </tr>
-            )))
-          }
+                    <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}> / 4.00</span>
+                  </td>
+                  <td>
+                    <span
+                      className={`badge-pill ${
+                        item.predikat === 'Sangat Baik'
+                          ? 'badge-pill--green'
+                          : item.predikat === 'Baik'
+                          ? 'badge-pill--blue'
+                          : 'badge-pill--orange'
+                      }`}
+                    >
+                      {item.predikat}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.tanggal}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="btn-action-view"
+                      style={{ padding: '6px 14px', fontSize: '12px' }}
+                      onClick={() => setSelectedDetail(item)}
+                    >
+                      <Eye size={13} />
+                      <span>Lihat Detail</span>
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -320,7 +578,7 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
                       <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>{dim.sub}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--brand-700)' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--brand-700)', fontVariantNumeric: 'tabular-nums' }}>
                         {score}
                       </span>
                       <span style={{ fontSize: '11px', color: 'var(--muted)' }}> / 4</span>

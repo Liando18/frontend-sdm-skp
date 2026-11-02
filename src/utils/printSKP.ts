@@ -1,15 +1,23 @@
 import { PengajuanSKP } from '../types'
+import { getCachedOfficialRektor, RektorData } from './rektorData'
 
 /**
  * Membuka Formulir Cetak SKP Formal di tab browser baru (_blank).
- * Menyimpan data SKP di localStorage agar langsung termuat instan di tab baru
- * tanpa delay jaringan, serta menyertakan query parameter ?id= untuk deep-linking.
+ * Menyimpan data SKP dan data Rektor Pejabat Penilai di localStorage agar langsung
+ * termuat instan di tab baru tanpa delay jaringan atau race condition, serta
+ * menyertakan query parameter ?id= untuk deep-linking.
  */
-export function openPrintSKP(skp: PengajuanSKP, dosenSignatureUrl?: string) {
+export function openPrintSKP(
+  skp: PengajuanSKP,
+  dosenSignatureUrl?: string,
+  customRektor?: RektorData
+) {
   try {
+    const rektor = customRektor || getCachedOfficialRektor() || undefined
     const payload = {
       skp,
       dosenSignatureUrl: dosenSignatureUrl || skp.ttdDosenUrl,
+      rektor,
       timestamp: Date.now(),
     }
     localStorage.setItem('ubk_print_skp_data', JSON.stringify(payload))

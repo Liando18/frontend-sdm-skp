@@ -20,12 +20,14 @@ import {
   School,
   Layers,
   Lock,
+  RotateCcw,
 } from 'lucide-react'
 import { Dosen, JabatanKampus, Role, ProgramStudi, Fakultas, Psdku } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useStaggerEntrance } from '../utils/animations'
 import { generateEntityId } from '../utils/security'
 import { TablePagination } from '../components/TablePagination'
+import { exportDosenToExcel } from '../utils/dosenExcelExport'
 
 const JABATAN_KATEGORI_OPTIONS = [
   'Pimpinan Universitas',
@@ -410,10 +412,48 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
   }
 
+  // State Kumpulan Filter Lengkap
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedFakultas, setSelectedFakultas] = useState('Semua Fakultas')
   const [selectedProdi, setSelectedProdi] = useState('Semua Program Studi')
-  const [selectedStatus, setSelectedStatus] = useState('Semua Status')
+  const [selectedLokasi, setSelectedLokasi] = useState('Semua Kampus')
   const [selectedJabatanFilter, setSelectedJabatanFilter] = useState('Semua Jabatan')
+  const [selectedJafung, setSelectedJafung] = useState('Semua Jafung')
+  const [selectedGolongan, setSelectedGolongan] = useState('Semua Golongan')
+  const [selectedStatus, setSelectedStatus] = useState('Semua Status')
+
+  // Opsi filter dinamis dari database & data dosen
+  const fakultasFilterOptions = useMemo(() => {
+    const fromProps = fakultasListProp.map((f) => f.nama).filter(Boolean)
+    const fromDosens = dosenList.map((d) => d.fakultas).filter(Boolean) as string[]
+    return Array.from(new Set([...fromProps, ...fromDosens])).sort((a, b) => a.localeCompare(b))
+  }, [fakultasListProp, dosenList])
+
+  const psdkuFilterOptions = useMemo(() => {
+    const fromProps = psdkuListProp.map((p) => p.nama).filter(Boolean)
+    const fromDosens = dosenList
+      .map((d) => d.kampus)
+      .filter((k) => k && k !== 'Pusat' && k !== 'Kampus Pusat') as string[]
+    return Array.from(new Set([...fromProps, ...fromDosens])).sort((a, b) => a.localeCompare(b))
+  }, [psdkuListProp, dosenList])
+
+  const jafungFilterOptions = useMemo(() => {
+    const standard = ['Tenaga Pengajar', 'Asisten Ahli', 'Lektor', 'Lektor Kepala', 'Guru Besar']
+    const fromDosens = dosenList.map((d) => d.jafung).filter(Boolean) as string[]
+    return Array.from(new Set([...standard, ...fromDosens]))
+  }, [dosenList])
+
+  const golonganFilterOptions = useMemo(() => {
+    const standard = ['III/a', 'III/b', 'III/c', 'III/d', 'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e']
+    const fromDosens = dosenList.map((d) => d.golongan).filter(Boolean) as string[]
+    return Array.from(new Set([...standard, ...fromDosens])).sort((a, b) => a.localeCompare(b))
+  }, [dosenList])
+
+  const statusFilterOptions = useMemo(() => {
+    const standard = ['Tetap Yayasan', 'PNS DPK', 'Dosen Kontrak', 'Dosen Luar Biasa', 'Dosen Khusus']
+    const fromDosens = dosenList.map((d) => d.status).filter(Boolean) as string[]
+    return Array.from(new Set([...standard, ...fromDosens]))
+  }, [dosenList])
 
   const defaultProdi = prodiList[0] || 'S1 Keperawatan'
 
@@ -461,23 +501,103 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     return []
   }, [prodiObjects, formData.tipeLokasi, formData.fakultasId, formData.psdkuId])
 
-  const filteredDosen = dosenList.filter((d) => {
-    const q = (searchQuery || '').trim().toLowerCase()
-    const matchSearch =
-      !q ||
-      (d.nama || '').toLowerCase().includes(q) ||
-      (d.nip || '').toLowerCase().includes(q) ||
-      (d.nuptk || '').toLowerCase().includes(q) ||
-      (d.email || '').toLowerCase().includes(q) ||
-      (d.prodi || '').toLowerCase().includes(q)
-    const matchProdi = selectedProdi === 'Semua Program Studi' || d.prodi === selectedProdi
-    const matchStatus = selectedStatus === 'Semua Status' || d.status === selectedStatus
-    const matchJabatan =
-      selectedJabatanFilter === 'Semua Jabatan' ||
-      d.jabatanKampusId === selectedJabatanFilter ||
-      d.jabatanStruktural === selectedJabatanFilter
-    return matchSearch && matchProdi && matchStatus && matchJabatan
-  })
+  // Penyaringan data dosen multi-kriteria sesuai permintaan
+  const filteredDosen = useMemo(() => {
+    return dosenList.filter((d) => {
+      // 1. Text Search (Nama, NIP, NUPTK, Email, Prodi)
+      const q = (searchQuery || '').trim().toLowerCase()
+      const matchSearch =
+        !q ||
+        (d.nama || '').toLowerCase().includes(q) ||
+        (d.nip || '').toLowerCase().includes(q) ||
+        (d.nuptk || '').toLowerCase().includes(q) ||
+        (d.email || '').toLowerCase().includes(q) ||
+        (d.prodi || '').toLowerCase().includes(q)
+
+      // 2. Fakultas
+      const matchFakultas =
+        selectedFakultas === 'Semua Fakultas' ||
+        d.fakultas === selectedFakultas ||
+        d.fakultasId === selectedFakultas ||
+        prodiObjects.find((p) => p.nama_lengkap === d.prodi || `${p.jenjang} ${p.nama}` === d.prodi)?.fakultas_id ===
+          fakultasListProp.find((f) => f.nama === selectedFakultas)?.id
+
+      // 3. Program Studi
+      const matchProdi = selectedProdi === 'Semua Program Studi' || d.prodi === selectedProdi
+
+      // 4. Kampus / Wilayah
+      const isPusat = d.kampus === 'Pusat' || d.kampus === 'Kampus Pusat' || d.tipeLokasi === 'Pusat' || !d.kampus
+      const matchLokasi =
+        selectedLokasi === 'Semua Kampus' ||
+        (selectedLokasi === 'Kampus Pusat' && isPusat) ||
+        d.kampus === selectedLokasi ||
+        (selectedLokasi === 'PSDKU' && d.tipeLokasi === 'PSDKU')
+
+      // 5. Jabatan Kampus
+      const matchJabatan =
+        selectedJabatanFilter === 'Semua Jabatan' ||
+        d.jabatanKampusId === selectedJabatanFilter ||
+        d.jabatanStruktural === selectedJabatanFilter
+
+      // 6. Jabatan Fungsional (Jafung)
+      const matchJafung = selectedJafung === 'Semua Jafung' || d.jafung === selectedJafung
+
+      // 7. Pangkat / Golongan Ruang
+      const matchGolongan =
+        selectedGolongan === 'Semua Golongan' ||
+        d.golongan === selectedGolongan ||
+        (d.golongan || '').includes(selectedGolongan)
+
+      // 8. Status Kepegawaian
+      const matchStatus = selectedStatus === 'Semua Status' || d.status === selectedStatus
+
+      return (
+        matchSearch &&
+        matchFakultas &&
+        matchProdi &&
+        matchLokasi &&
+        matchJabatan &&
+        matchJafung &&
+        matchGolongan &&
+        matchStatus
+      )
+    })
+  }, [
+    dosenList,
+    searchQuery,
+    selectedFakultas,
+    selectedProdi,
+    selectedLokasi,
+    selectedJabatanFilter,
+    selectedJafung,
+    selectedGolongan,
+    selectedStatus,
+    prodiObjects,
+    fakultasListProp,
+  ])
+
+  const isFiltered = Boolean(
+    searchQuery.trim() ||
+      selectedFakultas !== 'Semua Fakultas' ||
+      selectedProdi !== 'Semua Program Studi' ||
+      selectedLokasi !== 'Semua Kampus' ||
+      selectedJabatanFilter !== 'Semua Jabatan' ||
+      selectedJafung !== 'Semua Jafung' ||
+      selectedGolongan !== 'Semua Golongan' ||
+      selectedStatus !== 'Semua Status'
+  )
+
+  const handleResetFilters = () => {
+    setSearchQuery('')
+    setSelectedFakultas('Semua Fakultas')
+    setSelectedProdi('Semua Program Studi')
+    setSelectedLokasi('Semua Kampus')
+    setSelectedJabatanFilter('Semua Jabatan')
+    setSelectedJafung('Semua Jafung')
+    setSelectedGolongan('Semua Golongan')
+    setSelectedStatus('Semua Status')
+    setPage(1)
+  }
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -908,46 +1028,37 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
     }
   }
 
-  const handleExportExcel = () => {
-    const headers = [
-      'NIP',
-      'Nama Dosen',
-      'NUPTK',
-      'Prodi',
-      'Jabatan Fungsional',
-      'Jabatan Kampus',
-      'Golongan',
-      'Pendidikan',
-      'Status Kepegawaian',
-      'Status SKP',
-      'Nilai Akhir',
-      'Email',
-    ]
-    const rows = filteredDosen.map((d) => [
-      `"${d.nip || ''}"`,
-      `"${d.nama || ''}"`,
-      `"${d.nuptk || ''}"`,
-      `"${d.prodi || ''}"`,
-      `"${d.jafung || ''}"`,
-      `"${d.jabatanStruktural || 'Dosen'}"`,
-      `"${d.golongan || ''}"`,
-      `"${d.pendidikan || ''}"`,
-      `"${d.status || ''}"`,
-      `"${d.skpStatus || ''}"`,
-      d.nilaiAkhir || 0,
-      `"${d.email || ''}"`,
-    ])
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `Master_Data_Dosen_UBK_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    onShowToast('File Excel/CSV data dosen berhasil diunduh ke komputer Anda!')
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExportingExcel(true)
+      await exportDosenToExcel(
+        filteredDosen,
+        {
+          searchQuery,
+          fakultas: selectedFakultas,
+          prodi: selectedProdi,
+          lokasi: selectedLokasi,
+          jabatan: jabatanList.find((j) => j.id === selectedJabatanFilter)?.nama || selectedJabatanFilter,
+          jafung: selectedJafung,
+          golongan: selectedGolongan,
+          status: selectedStatus,
+          totalOriginal: dosenList.length,
+          totalFiltered: filteredDosen.length,
+        },
+        jabatanList
+      )
+      const countMsg = isFiltered
+        ? `${filteredDosen.length} data dosen (hasil filter)`
+        : `${filteredDosen.length} seluruh data dosen`
+      onShowToast(`File Excel (.xlsx) berhasil diunduh (${countMsg})!`)
+    } catch (err: unknown) {
+      console.error('Gagal mengekspor data dosen ke XLSX:', err)
+      onShowToast('Terjadi kesalahan saat memproses file Excel XLSX.')
+    } finally {
+      setIsExportingExcel(false)
+    }
   }
 
   const renderManageProdiModal = () => {
@@ -3236,14 +3347,17 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           </button>
           <button
             onClick={handleExportExcel}
+            disabled={isExportingExcel}
             className="brand-btn btn-action-print"
+            title="Ekspor master data dosen ke format Microsoft Excel (.xlsx) sesuai hasil filter"
           >
-            <Download size={16} />
-            <span>Ekspor XLSX</span>
+            {isExportingExcel ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            <span>{isExportingExcel ? 'Mengekspor XLSX...' : 'Ekspor XLSX'}</span>
           </button>
         </div>
       </div>
 
+      {/* Panel Filter & Pencarian Dosen UBK */}
       <div
         style={{
           background: 'var(--card)',
@@ -3252,88 +3366,338 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
           border: '1px solid var(--hair)',
           boxShadow: 'var(--shadow-xs)',
           display: 'flex',
-          flexWrap: 'wrap',
+          flexDirection: 'column',
           gap: 12,
-          alignItems: 'center',
         }}
       >
-        <div style={{ flex: '1 1 260px', position: 'relative' }}>
-          <Search
-            size={16}
-            color="var(--muted)"
-            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
-          />
-          <input
-            type="text"
-            className="custom-input"
-            style={{ paddingLeft: '38px', height: 38 }}
-            placeholder="Cari nama dosen, NIP, atau NUPTK..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setPage(1)
-            }}
-          />
+        {/* BARIS 1: Kumpulan Dropdown Filter Berukuran Seragam dengan Truncation Ellipsis */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 10,
+            width: '100%',
+          }}
+        >
+          {/* 1. Filter Fakultas */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Fakultas: ${selectedFakultas}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedFakultas}
+              onChange={(e) => {
+                setSelectedFakultas(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Fakultas">Semua Fakultas</option>
+              {fakultasFilterOptions.map((f, idx) => (
+                <option key={idx} value={f} title={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Filter Program Studi */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Program Studi: ${selectedProdi}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedProdi}
+              onChange={(e) => {
+                setSelectedProdi(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Program Studi">Semua Program Studi</option>
+              {prodiList.map((prodi, idx) => (
+                <option key={idx} value={prodi} title={prodi}>
+                  {prodi}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Filter Wilayah / Kampus Penempatan */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Kampus: ${selectedLokasi}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedLokasi}
+              onChange={(e) => {
+                setSelectedLokasi(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Kampus">Semua Kampus</option>
+              <option value="Kampus Pusat" title="Kampus Pusat">Kampus Pusat</option>
+              {psdkuFilterOptions.map((p, idx) => (
+                <option key={idx} value={p} title={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Filter Jabatan Kampus / Struktural */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Jabatan Kampus: ${selectedJabatanFilter}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedJabatanFilter}
+              onChange={(e) => {
+                setSelectedJabatanFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Jabatan">Semua Jabatan Kampus</option>
+              {jabatanList.map((j) => (
+                <option key={j.id} value={j.id} title={j.nama}>
+                  {j.nama}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5. Filter Jabatan Fungsional (Jafung) */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Jabatan Fungsional: ${selectedJafung}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedJafung}
+              onChange={(e) => {
+                setSelectedJafung(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Jafung">Semua Jafung</option>
+              {jafungFilterOptions.map((jf, idx) => (
+                <option key={idx} value={jf} title={jf}>
+                  {jf}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 6. Filter Pangkat / Golongan Ruang */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Pangkat / Golongan: ${selectedGolongan}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedGolongan}
+              onChange={(e) => {
+                setSelectedGolongan(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Golongan">Semua Pangkat/Gol.</option>
+              {golonganFilterOptions.map((gol, idx) => (
+                <option key={idx} value={gol} title={`Golongan ${gol}`}>
+                  Gol. {gol}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 7. Filter Status Kepegawaian */}
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <select
+              className="custom-select"
+              title={`Status Kepegawaian: ${selectedStatus}`}
+              style={{
+                height: 38,
+                width: '100%',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                textOverflow: 'ellipsis',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+              }}
+              value={selectedStatus}
+              onChange={(e) => {
+                setSelectedStatus(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="Semua Status">Semua Status Pegawai</option>
+              {statusFilterOptions.map((st, idx) => (
+                <option key={idx} value={st} title={st}>
+                  {st}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div style={{ flex: '0 1 auto', minWidth: 210 }}>
-          <select
-            className="custom-select"
-            style={{ height: 38, width: '100%', fontSize: '13px', fontWeight: 600 }}
-            value={selectedProdi}
-            onChange={(e) => {
-              setSelectedProdi(e.target.value)
-              setPage(1)
+        {/* BARIS 2: Search Input 1 Baris Penuh di Bawah Kumpulan Filter */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            width: '100%',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: '1 1 320px', position: 'relative' }}>
+            <Search
+              size={16}
+              color="var(--muted)"
+              style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }}
+            />
+            <input
+              type="text"
+              className="custom-input"
+              style={{
+                paddingLeft: '40px',
+                paddingRight: searchQuery ? '36px' : '14px',
+                height: 40,
+                width: '100%',
+                fontSize: '13px',
+              }}
+              placeholder="Cari nama dosen, NIP, NUPTK, email, atau program studi..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setPage(1)
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('')
+                  setPage(1)
+                }}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  padding: 2,
+                }}
+                title="Hapus kata kunci pencarian"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {/* Tombol Reset Filter jika ada filter / kata kunci aktif */}
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                height: 40,
+                background: '#fee2e2',
+                color: '#991b1b',
+                border: '1px solid #fecaca',
+                borderRadius: 'var(--r-md)',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+              }}
+              title="Reset seluruh filter dan kata kunci pencarian"
+            >
+              <RotateCcw size={14} />
+              <span>Reset Filter</span>
+            </button>
+          )}
+
+          {/* Indikator Jumlah Dosen */}
+          <div
+            style={{
+              marginLeft: isFiltered ? '0' : 'auto',
+              fontSize: '12.5px',
+              color: 'var(--muted)',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
             }}
           >
-            <option value="Semua Program Studi">Semua Program Studi</option>
-            {prodiList.map((prodi, idx) => (
-              <option key={idx} value={prodi}>
-                {prodi}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ flex: '0 1 auto', minWidth: 160 }}>
-          <select
-            className="custom-select"
-            style={{ height: 38, width: '100%', fontSize: '13px', fontWeight: 600 }}
-            value={selectedStatus}
-            onChange={(e) => {
-              setSelectedStatus(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="Semua Status">Semua Status</option>
-            <option value="Tetap Yayasan">Tetap Yayasan</option>
-            <option value="PNS DPK">PNS DPK</option>
-            <option value="Dosen Kontrak">Dosen Kontrak</option>
-            <option value="Dosen Luar Biasa">Dosen Luar Biasa</option>
-          </select>
-        </div>
-
-        <div style={{ flex: '0 1 auto', minWidth: 190 }}>
-          <select
-            className="custom-select"
-            style={{ height: 38, width: '100%', fontSize: '13px', fontWeight: 600 }}
-            value={selectedJabatanFilter}
-            onChange={(e) => {
-              setSelectedJabatanFilter(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="Semua Jabatan">Semua Jabatan Kampus</option>
-            {jabatanList.map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.nama}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ marginLeft: 'auto', fontSize: '12.5px', color: 'var(--muted)', fontWeight: 500 }}>
-          Menampilkan <strong style={{ color: 'var(--ink)' }}>{filteredDosen.length}</strong> dari {dosenList.length} Dosen
+            Menampilkan <strong style={{ color: 'var(--ink)' }}>{filteredDosen.length}</strong> dari {dosenList.length} Dosen
+            {isFiltered && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#c2410c',
+                  background: '#ffedd5',
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  border: '1px solid #fed7aa',
+                }}
+              >
+                Terfilter
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -3346,14 +3710,13 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
               <th>Jabatan Fungsional &amp; Struktural</th>
               <th>Pangkat / Golongan</th>
               <th>Status</th>
-              <th>Status SKP</th>
               <th style={{ textAlign: 'right' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {paginatedDosen.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
                   Tidak ada dosen yang cocok dengan kriteria pencarian.
                 </td>
               </tr>
@@ -3388,7 +3751,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                           width: 'fit-content',
                         }}
                       >
-                        🏛️ {dosen.fakultas || 'Fakultas'}
+                        <Building2 size={12} />
+                        <span>{dosen.fakultas || 'Fakultas'}</span>
                       </span>
                       <span
                         style={{
@@ -3404,7 +3768,8 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                           width: 'fit-content',
                         }}
                       >
-                        📍 {dosen.kampus === 'Pusat' ? 'Kampus Pusat' : (dosen.kampus || 'Kampus Pusat')}
+                        <MapPin size={12} />
+                        <span>{dosen.kampus === 'Pusat' ? 'Kampus Pusat' : (dosen.kampus || 'Kampus Pusat')}</span>
                       </span>
                     </div>
                   </td>
@@ -3449,9 +3814,13 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                               fontWeight: 600,
                               fontSize: '11px',
                               width: 'fit-content',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
                             }}
                           >
-                            {isStruktural ? '🎖️ ' : '🏛️ '}{formattedJab}
+                            <Building2 size={11} />
+                            <span>{formattedJab}</span>
                           </span>
                         </div>
                       )
@@ -3460,26 +3829,6 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                   <td>{dosen.golongan}</td>
                   <td>
                     <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{dosen.status}</span>
-                  </td>
-                  <td>
-                    {(() => {
-                      const isSah = ['Disahkan', 'Terbit', 'Disetujui SDM', 'Dinilai Kaprodi', 'Dinilai Dekan'].includes(dosen.skpStatus)
-                      return (
-                        <span
-                          className={`badge-pill ${
-                            isSah
-                              ? 'badge-pill--green'
-                              : dosen.skpStatus === 'Perlu Revisi'
-                              ? 'badge-pill--red'
-                              : dosen.skpStatus === 'Diajukan'
-                              ? 'badge-pill--orange'
-                              : 'badge-pill--gray'
-                          }`}
-                        >
-                          {isSah ? 'Sah & Terbit' : dosen.skpStatus}
-                        </span>
-                      )
-                    })()}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>

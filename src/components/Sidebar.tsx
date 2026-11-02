@@ -269,7 +269,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="sidebar__top">
             <div className="brand" style={{ gap: 10 }}>
               <img
-                src="/logo.png"
+                src="/logo.svg"
                 alt="Logo Universitas Bhakti Kencana"
                 style={{
                   width: 36,
