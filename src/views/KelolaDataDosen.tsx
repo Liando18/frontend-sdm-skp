@@ -494,13 +494,13 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
   // Penyaringan data dosen multi-kriteria sesuai permintaan
   const filteredDosen = useMemo(() => {
     return dosenList.filter((d) => {
-      // 1. Text Search (Nama, NIP, NUPTK, Email, Prodi)
+      // 1. Text Search (Nama, NUPTK, NIP, Email, Prodi)
       const q = (searchQuery || '').trim().toLowerCase()
       const matchSearch =
         !q ||
         (d.nama || '').toLowerCase().includes(q) ||
-        (d.nip || '').toLowerCase().includes(q) ||
         (d.nuptk || '').toLowerCase().includes(q) ||
+        (d.nip && d.nip !== '-' && d.nip.toLowerCase().includes(q)) ||
         (d.email || '').toLowerCase().includes(q) ||
         (d.prodi || '').toLowerCase().includes(q)
 
@@ -2972,16 +2972,15 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                   alignItems: 'flex-start',
                 }}
               >
-                <div style={{ flexShrink: 0, marginTop: 2, fontSize: '16px' }}>⚠️</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '13px', color: '#78350f', marginBottom: 2 }}>
                     Perhatian: Jabatan Tunggal Sudah Terisi
                   </div>
                   <div>
-                    Jabatan <strong>{currentPositionConflict.jabatanTitle}</strong> untuk <strong>{currentPositionConflict.scopeName}</strong> saat ini masih diemban oleh <strong>{currentPositionConflict.holder.nama}</strong> (NIP: {currentPositionConflict.holder.nip}).
+                    Jabatan <strong>{currentPositionConflict.jabatanTitle}</strong> untuk <strong>{currentPositionConflict.scopeName}</strong> saat ini masih diemban oleh <strong>{currentPositionConflict.holder.nama}</strong> ({currentPositionConflict.holder.nuptk && currentPositionConflict.holder.nuptk !== '-' ? `NUPTK: ${currentPositionConflict.holder.nuptk}` : `NIP: ${currentPositionConflict.holder.nip || '-'}`}).
                   </div>
                   <div style={{ marginTop: 4, color: '#b45309', fontSize: '11.5px' }}>
-                    ℹ️ Sesuai ketentuan institusi, jabatan ini hanya boleh dipegang oleh <strong>1 orang</strong>. Jika Anda menyimpan data ini, sistem akan <strong>melakukan pergantian/serah terima jabatan otomatis</strong>: dosen ini menjadi {currentPositionConflict.jabatanTitle}, dan <strong>{currentPositionConflict.holder.nama}</strong> otomatis dikembalikan status jabatannya menjadi Dosen biasa.
+                    Sesuai ketentuan institusi, jabatan ini hanya boleh dipegang oleh <strong>1 orang</strong>. Jika Anda menyimpan data ini, sistem akan <strong>melakukan pergantian/serah terima jabatan otomatis</strong>: dosen ini menjadi {currentPositionConflict.jabatanTitle}, dan <strong>{currentPositionConflict.holder.nama}</strong> otomatis dikembalikan status jabatannya menjadi Dosen biasa.
                   </div>
                 </div>
               </div>
@@ -3558,12 +3557,18 @@ export const KelolaDataDosen: React.FC<KelolaDataDosenProps> = ({
                   <td>
                     <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '13px' }}>{dosen.nama}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'monospace' }}>
-                        NIP: {dosen.nip ? dosen.nip : '-'}
+                      <span className="tabular-nums font-mono font-medium" style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                        {dosen.nuptk && dosen.nuptk.trim() !== '-'
+                          ? `NUPTK: ${dosen.nuptk}`
+                          : dosen.nip && dosen.nip.trim() !== '-'
+                          ? `NIP: ${dosen.nip}`
+                          : 'NUPTK: -'}
                       </span>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'monospace' }}>
-                        NUPTK: {dosen.nuptk ? dosen.nuptk : '-'}
-                      </span>
+                      {dosen.nuptk && dosen.nuptk.trim() !== '-' && dosen.nip && dosen.nip.trim() !== '-' && (
+                        <span className="tabular-nums font-mono text-[10.5px] text-slate-400">
+                          NIP: {dosen.nip}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td>

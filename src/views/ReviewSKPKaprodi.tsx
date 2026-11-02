@@ -165,9 +165,22 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
       return true
     }
   })
-  const prodiDosenIds = new Set(prodiDosen.map((d) => d.id))
-  const prodiDosenNips = new Set(prodiDosen.map((d) => d.nip).filter(Boolean))
-  const prodiDosenNames = new Set(prodiDosen.map((d) => (d.nama || '').trim().toLowerCase()))
+  const prodiDosenIds = new Set(prodiDosen.map((d) => d.id).filter(Boolean))
+  const prodiDosenNuptks = new Set(
+    prodiDosen
+      .map((d) => d.nuptk)
+      .filter((n): n is string => typeof n === 'string' && n.trim() !== '-' && n.trim().length >= 10)
+  )
+  const prodiDosenNips = new Set(
+    prodiDosen
+      .map((d) => (d.nip || '').trim())
+      .filter((nip): nip is string => Boolean(nip) && nip !== '-' && nip.length > 3)
+  )
+  const prodiDosenNames = new Set(
+    prodiDosen
+      .map((d) => (d.nama || '').trim().toLowerCase())
+      .filter((nama): nama is string => Boolean(nama) && nama.length > 3)
+  )
 
   const filteredRows = skpList.filter((skp) => {
     // Sembunyikan SKP yang masih Draft dari verifikasi
@@ -176,17 +189,19 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
     // 1. DILARANG MENILAI DIRI SENDIRI: Eksklusifkan SKP milik Ka.Prodi itu sendiri (SKP Ka.Prodi dinilai oleh Dekan)
     const isSelf =
       (user.id && skp.dosenId === user.id) ||
-      (user.nip && skp.dosenNip === user.nip) ||
+      (user.nuptk && user.nuptk !== '-' && skp.dosenNuptk && skp.dosenNuptk !== '-' && skp.dosenNuptk === user.nuptk) ||
+      (user.nip && user.nip !== '-' && skp.dosenNip && skp.dosenNip !== '-' && skp.dosenNip === user.nip) ||
       (user.name && (skp.dosenNama || '').trim().toLowerCase() === user.name.trim().toLowerCase())
 
     if (isSelf) return false
 
     // 2. Pastikan SKP adalah milik dosen homebase di bawah bimbingan Ka.Prodi
-    const isProdiDosen =
-      (skp.dosenId && prodiDosenIds.has(skp.dosenId)) ||
-      (skp.dosenNip && prodiDosenNips.has(skp.dosenNip)) ||
-      (skp.dosenNama && prodiDosenNames.has(skp.dosenNama.trim().toLowerCase()))
+    const matchId = Boolean(skp.dosenId && prodiDosenIds.has(skp.dosenId))
+    const matchNuptk = Boolean(skp.dosenNuptk && skp.dosenNuptk.trim() !== '-' && prodiDosenNuptks.has(skp.dosenNuptk.trim()))
+    const matchNip = Boolean(skp.dosenNip && skp.dosenNip !== '-' && prodiDosenNips.has(skp.dosenNip.trim()))
+    const matchName = Boolean(skp.dosenNama && prodiDosenNames.has(skp.dosenNama.trim().toLowerCase()))
 
+    const isProdiDosen = matchId || matchNuptk || matchNip || matchName
     if (!isProdiDosen) return false
 
     if (selectedTahun && skp.tahunAkademik && skp.tahunAkademik !== selectedTahun) {
@@ -201,7 +216,8 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
       const q = searchQuery.trim().toLowerCase()
       return (
         (skp.dosenNama || '').toLowerCase().includes(q) ||
-        (skp.dosenNip || '').toLowerCase().includes(q) ||
+        (skp.dosenNuptk && skp.dosenNuptk.toLowerCase().includes(q)) ||
+        (skp.dosenNip && skp.dosenNip !== '-' && skp.dosenNip.toLowerCase().includes(q)) ||
         (skp.dosenProdi || '').toLowerCase().includes(q)
       )
     }
@@ -333,7 +349,14 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                 {currentReviewSKP.dosenNama}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-                NIP: {currentReviewSKP.dosenNip} &bull; {currentReviewSKP.dosenPangkat}
+                <span className="tabular-nums font-mono font-medium">
+                  {currentReviewSKP.dosenNuptk && currentReviewSKP.dosenNuptk.trim() !== '-'
+                    ? `NUPTK: ${currentReviewSKP.dosenNuptk}`
+                    : currentReviewSKP.dosenNip && currentReviewSKP.dosenNip.trim() !== '-'
+                    ? `NIP: ${currentReviewSKP.dosenNip}`
+                    : 'NUPTK: -'}
+                </span>{' '}
+                &bull; {currentReviewSKP.dosenPangkat}
               </div>
             </div>
 
@@ -757,7 +780,14 @@ export const ReviewSKPKaprodi: React.FC<ReviewSKPKaprodiProps> = ({
                     <td>
                       <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '14px' }}>{skp.dosenNama}</div>
                       <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>
-                        NIP {skp.dosenNip} &bull; {skp.dosenProdi}
+                        <span className="tabular-nums font-mono font-medium">
+                          {skp.dosenNuptk && skp.dosenNuptk.trim() !== '-'
+                            ? `NUPTK: ${skp.dosenNuptk}`
+                            : skp.dosenNip && skp.dosenNip.trim() !== '-'
+                            ? `NIP: ${skp.dosenNip}`
+                            : 'NUPTK: -'}
+                        </span>{' '}
+                        &bull; {skp.dosenProdi}
                       </div>
                     </td>
                     <td>

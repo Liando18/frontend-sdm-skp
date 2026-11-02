@@ -94,7 +94,8 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
       // 2. Dilarang menilai diri sendiri
       const isSelf =
         d.id === user.id ||
-        (user.nip && d.nip === user.nip) ||
+        (user.nuptk && user.nuptk !== '-' && d.nuptk && d.nuptk !== '-' && d.nuptk === user.nuptk) ||
+        (user.nip && user.nip !== '-' && d.nip && d.nip !== '-' && d.nip === user.nip) ||
         (user.name && d.nama.trim().toLowerCase() === user.name.trim().toLowerCase())
       if (isSelf) return false
 
@@ -147,9 +148,26 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
 
   const totalProdiDosen = prodiDosen.length
   const prodiDosenIds = useMemo(() => new Set(prodiDosen.map((d) => d.id)), [prodiDosen])
-  const prodiDosenNips = useMemo(() => new Set(prodiDosen.map((d) => d.nip).filter(Boolean)), [prodiDosen])
+  const prodiDosenNuptks = useMemo(
+    () =>
+      new Set(
+        prodiDosen
+          .map((d) => d.nuptk)
+          .filter((n): n is string => typeof n === 'string' && n.trim() !== '-' && n.trim().length >= 10)
+      ),
+    [prodiDosen]
+  )
+  const prodiDosenNips = useMemo(
+    () =>
+      new Set(
+        prodiDosen
+          .map((d) => (d.nip || '').trim())
+          .filter((nip): nip is string => Boolean(nip) && nip !== '-' && nip.length > 3)
+      ),
+    [prodiDosen]
+  )
   const prodiDosenNames = useMemo(
-    () => new Set(prodiDosen.map((d) => (d.nama || '').trim().toLowerCase())),
+    () => new Set(prodiDosen.map((d) => (d.nama || '').trim().toLowerCase()).filter((nama): nama is string => Boolean(nama) && nama.length > 3)),
     [prodiDosen]
   )
 
@@ -157,14 +175,17 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
     return skpList.filter((s) => {
       const isSelf =
         (user.id && s.dosenId === user.id) ||
-        (user.nip && s.dosenNip === user.nip) ||
+        (user.nuptk && user.nuptk !== '-' && s.dosenNuptk && s.dosenNuptk !== '-' && s.dosenNuptk === user.nuptk) ||
+        (user.nip && user.nip !== '-' && s.dosenNip && s.dosenNip !== '-' && s.dosenNip === user.nip) ||
         (user.name && (s.dosenNama || '').trim().toLowerCase() === user.name.trim().toLowerCase())
       if (isSelf) return false
 
-      const isProdiDosen =
-        (s.dosenId && prodiDosenIds.has(s.dosenId)) ||
-        (s.dosenNip && prodiDosenNips.has(s.dosenNip)) ||
-        (s.dosenNama && prodiDosenNames.has((s.dosenNama || '').trim().toLowerCase()))
+      const matchId = Boolean(s.dosenId && prodiDosenIds.has(s.dosenId))
+      const matchNuptk = Boolean(s.dosenNuptk && s.dosenNuptk.trim() !== '-' && prodiDosenNuptks.has(s.dosenNuptk.trim()))
+      const matchNip = Boolean(s.dosenNip && s.dosenNip !== '-' && prodiDosenNips.has(s.dosenNip.trim()))
+      const matchName = Boolean(s.dosenNama && prodiDosenNames.has((s.dosenNama || '').trim().toLowerCase()))
+
+      const isProdiDosen = matchId || matchNuptk || matchNip || matchName
 
       if (!isProdiDosen) return false
 
@@ -173,7 +194,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
 
       return matchSemester && matchTahun
     })
-  }, [skpList, user, prodiDosenIds, prodiDosenNips, prodiDosenNames, selectedSemester, selectedTahun])
+  }, [skpList, user.id, user.nuptk, user.nip, user.name, prodiDosenIds, prodiDosenNuptks, prodiDosenNips, prodiDosenNames, selectedSemester, selectedTahun])
 
   const pendingReview = prodiSKP.filter((s) => s.status === 'Diajukan').length
   const approvedReview = prodiSKP.filter((s) =>
@@ -367,7 +388,13 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
             <div style={{ fontSize: '12.5px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', lineHeight: 1.4 }}>
               <span>{user.name}</span>
               <span style={{ color: 'var(--hair-strong)' }}>&bull;</span>
-              <span>NIP: <strong style={{ color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{user.nip || '-'}</strong></span>
+              <span className="tabular-nums font-mono font-medium">
+                {user.nuptk && user.nuptk.trim() !== '-'
+                  ? `NUPTK: ${user.nuptk}`
+                  : user.nip && user.nip.trim() !== '-'
+                  ? `NIP: ${user.nip}`
+                  : 'NUPTK: -'}
+              </span>
               <span style={{ color: 'var(--hair-strong)' }}>&bull;</span>
               <span>Total Bimbingan: <strong style={{ color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{totalProdiDosen} Dosen</strong></span>
             </div>
@@ -1089,10 +1116,14 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
                                 fontSize: '11.5px',
                                 color: 'var(--muted)',
                                 marginTop: 1,
-                                fontVariantNumeric: 'tabular-nums',
                               }}
+                              className="tabular-nums font-mono font-medium"
                             >
-                              NIP: {dosen.nip || '-'} &bull; NUPTK: {dosen.nuptk || '-'}
+                              {dosen.nuptk && dosen.nuptk.trim() !== '-'
+                                ? `NUPTK: ${dosen.nuptk}`
+                                : dosen.nip && dosen.nip.trim() !== '-'
+                                ? `NIP: ${dosen.nip}`
+                                : 'NUPTK: -'}
                             </div>
                           </div>
                         </div>

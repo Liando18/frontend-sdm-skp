@@ -127,10 +127,18 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   // 3. Filter daftar Ka.Prodi eksklusif sesuai ranah/wilayah
   const kaprodiList = useMemo(() => {
     return dosenList.filter((d) => {
+      // Dekan/KaCap tidak mengevaluasi dirinya sendiri
+      if (d.id === user.id) return false
+      if (user.nuptk && user.nuptk !== '-' && d.nuptk && d.nuptk !== '-' && d.nuptk === user.nuptk) return false
+      if (user.nip && user.nip !== '-' && d.nip && d.nip !== '-' && d.nip === user.nip) return false
+
       const isActualKaprodi = Boolean(
         d.isKaprodi ||
+        d.jabatanKampusId === 'jab-kaprodi' ||
         d.jabatanStruktural === 'Ketua Program Studi' ||
-        d.jabatan_struktural === 'Ketua Program Studi'
+        d.jabatan_struktural === 'Ketua Program Studi' ||
+        d.jabatanStruktural?.toLowerCase().includes('kaprodi') ||
+        d.jabatan_struktural?.toLowerCase().includes('kaprodi')
       )
       if (!isActualKaprodi) return false
 
@@ -203,8 +211,8 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
     const q = searchQuery.trim().toLowerCase()
     return (
       (k.nama || '').toLowerCase().includes(q) ||
-      (k.nip || '').toLowerCase().includes(q) ||
-      (k.nuptk || '').toLowerCase().includes(q) ||
+      (k.nuptk && k.nuptk.toLowerCase().includes(q)) ||
+      (k.nip && k.nip !== '-' && k.nip.toLowerCase().includes(q)) ||
       (k.prodi || '').toLowerCase().includes(q)
     )
   })
@@ -657,8 +665,12 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                   <tr key={dosen.id}>
                     <td>
                       <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{dosen.nama}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                        NIP: {dosen.nip} &bull; NUPTK: {dosen.nuptk || '-'}
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }} className="tabular-nums font-mono font-medium">
+                        {dosen.nuptk && dosen.nuptk.trim() !== '-'
+                          ? `NUPTK: ${dosen.nuptk}`
+                          : dosen.nip && dosen.nip.trim() !== '-'
+                          ? `NIP: ${dosen.nip}`
+                          : 'NUPTK: -'}
                       </div>
                     </td>
                     <td>
@@ -876,9 +888,13 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
               }}
             >
               <div>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>NIP / NUPTK</span>
-                <div style={{ fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700, marginTop: 2 }}>
-                  {evaluatingTarget.dosen.nip}
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Identitas Pegawai</span>
+                <div style={{ fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700, marginTop: 2 }} className="tabular-nums font-mono font-medium">
+                  {evaluatingTarget.dosen.nuptk && evaluatingTarget.dosen.nuptk.trim() !== '-'
+                    ? `NUPTK: ${evaluatingTarget.dosen.nuptk}`
+                    : evaluatingTarget.dosen.nip && evaluatingTarget.dosen.nip.trim() !== '-'
+                    ? `NIP: ${evaluatingTarget.dosen.nip}`
+                    : 'NUPTK: -'}
                 </div>
               </div>
               <div>
@@ -1113,7 +1129,14 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
                   {activeDetailItem.dosen.nama}
                 </h2>
                 <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-                  NIP: {activeDetailItem.dosen.nip} &bull; Homebase {activeDetailItem.dosen.prodi}
+                  <span className="tabular-nums font-mono font-medium">
+                    {activeDetailItem.dosen.nuptk && activeDetailItem.dosen.nuptk.trim() !== '-'
+                      ? `NUPTK: ${activeDetailItem.dosen.nuptk}`
+                      : activeDetailItem.dosen.nip && activeDetailItem.dosen.nip.trim() !== '-'
+                      ? `NIP: ${activeDetailItem.dosen.nip}`
+                      : 'NUPTK: -'}
+                  </span>{' '}
+                  &bull; Homebase {activeDetailItem.dosen.prodi}
                 </div>
               </div>
               <button

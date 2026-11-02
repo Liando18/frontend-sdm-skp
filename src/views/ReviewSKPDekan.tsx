@@ -135,11 +135,18 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   // 3. Filter daftar Ka.Prodi eksklusif sesuai ranah/wilayah
   const kaprodiList = useMemo(() => {
     return dosenList.filter((d) => {
+      // Dekan/KaCap tidak boleh memverifikasi dirinya sendiri di meja verifikasi
+      if (d.id === user.id) return false
+      if (user.nip && user.nip !== '-' && d.nip === user.nip) return false
+
       // Hanya dosen yang memegang jabatan aktif Ketua Program Studi
       const isActualKaprodi = Boolean(
         d.isKaprodi ||
+        d.jabatanKampusId === 'jab-kaprodi' ||
         d.jabatanStruktural === 'Ketua Program Studi' ||
-        d.jabatan_struktural === 'Ketua Program Studi'
+        d.jabatan_struktural === 'Ketua Program Studi' ||
+        d.jabatanStruktural?.toLowerCase().includes('kaprodi') ||
+        d.jabatan_struktural?.toLowerCase().includes('kaprodi')
       )
       if (!isActualKaprodi) return false
 
@@ -181,22 +188,48 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
         return Boolean(matchFakId || matchFakName || matchProdiId)
       }
     })
-  }, [dosenList, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
+  }, [dosenList, user.id, user.nip, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
 
-  const kaprodiIds = useMemo(() => new Set(kaprodiList.map((d) => d.id)), [kaprodiList])
-  const kaprodiNips = useMemo(() => new Set(kaprodiList.map((d) => d.nip).filter(Boolean)), [kaprodiList])
-  const kaprodiNames = useMemo(() => new Set(kaprodiList.map((d) => (d.nama || '').trim().toLowerCase())), [kaprodiList])
+  const kaprodiIds = useMemo(() => new Set(kaprodiList.map((d) => d.id).filter(Boolean)), [kaprodiList])
+  const kaprodiNuptks = useMemo(() => {
+    return new Set(
+      kaprodiList
+        .map((d) => d.nuptk)
+        .filter((n): n is string => typeof n === 'string' && n.trim() !== '-' && n.trim().length >= 10)
+    )
+  }, [kaprodiList])
+  const kaprodiNips = useMemo(() => {
+    return new Set(
+      kaprodiList
+        .map((d) => (d.nip || '').trim())
+        .filter((nip): nip is string => Boolean(nip) && nip !== '-' && nip.length > 3)
+    )
+  }, [kaprodiList])
+  const kaprodiNames = useMemo(() => {
+    return new Set(
+      kaprodiList
+        .map((d) => (d.nama || '').trim().toLowerCase())
+        .filter((nama): nama is string => Boolean(nama) && nama.length > 3)
+    )
+  }, [kaprodiList])
 
   const filteredRows = skpList.filter((skp) => {
     // Sembunyikan SKP yang masih Draft dari verifikasi
     if (!skp.status || skp.status === 'Draft') return false
 
-    // KHUSUS SKP DARI KETUA PROGRAM STUDI AKTIF DI WILAYAH/PSDKU/FAKULTAS INI
-    const isKap =
-      (skp.dosenId && kaprodiIds.has(skp.dosenId)) ||
-      (skp.dosenNip && kaprodiNips.has(skp.dosenNip)) ||
-      (skp.dosenNama && kaprodiNames.has(skp.dosenNama.trim().toLowerCase()))
+    // Dilarang menilai SKP milik sendiri di meja verifikasi Dekan/KaCap
+    if (skp.dosenId === user.id) return false
+    if (user.nuptk && user.nuptk !== '-' && skp.dosenNuptk === user.nuptk) return false
+    if (user.nip && user.nip !== '-' && skp.dosenNip === user.nip) return false
+    if (user.name && (skp.dosenNama || '').trim().toLowerCase() === user.name.trim().toLowerCase()) return false
 
+    // KHUSUS SKP DARI KETUA PROGRAM STUDI AKTIF DI WILAYAH/PSDKU/FAKULTAS INI
+    const matchId = Boolean(skp.dosenId && kaprodiIds.has(skp.dosenId))
+    const matchNuptk = Boolean(skp.dosenNuptk && skp.dosenNuptk.trim() !== '-' && kaprodiNuptks.has(skp.dosenNuptk.trim()))
+    const matchNip = Boolean(skp.dosenNip && skp.dosenNip !== '-' && kaprodiNips.has(skp.dosenNip.trim()))
+    const matchName = Boolean(skp.dosenNama && kaprodiNames.has(skp.dosenNama.trim().toLowerCase()))
+
+    const isKap = matchId || matchNuptk || matchNip || matchName
     if (!isKap) return false
 
     if (selectedTahun && skp.tahunAkademik && skp.tahunAkademik !== selectedTahun) {
@@ -211,7 +244,8 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
       const q = searchQuery.trim().toLowerCase()
       return (
         (skp.dosenNama || '').toLowerCase().includes(q) ||
-        (skp.dosenNip || '').toLowerCase().includes(q) ||
+        (skp.dosenNuptk && skp.dosenNuptk.toLowerCase().includes(q)) ||
+        (skp.dosenNip && skp.dosenNip !== '-' && skp.dosenNip.toLowerCase().includes(q)) ||
         (skp.dosenProdi || '').toLowerCase().includes(q)
       )
     }
@@ -363,7 +397,14 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               {currentReviewSKP.dosenNama}
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-              NIP {currentReviewSKP.dosenNip} &bull; Semester {currentReviewSKP.semester} {currentReviewSKP.tahunAkademik}
+              <span className="tabular-nums font-mono font-medium">
+                {currentReviewSKP.dosenNuptk && currentReviewSKP.dosenNuptk.trim() !== '-'
+                  ? `NUPTK: ${currentReviewSKP.dosenNuptk}`
+                  : currentReviewSKP.dosenNip && currentReviewSKP.dosenNip.trim() !== '-'
+                  ? `NIP: ${currentReviewSKP.dosenNip}`
+                  : 'NUPTK: -'}
+              </span>{' '}
+              &bull; Semester {currentReviewSKP.semester} {currentReviewSKP.tahunAkademik}
             </div>
           </div>
 
@@ -790,7 +831,13 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
                 <tr key={skp.id}>
                   <td>
                     <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{skp.dosenNama}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>NIP: {skp.dosenNip}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)' }} className="tabular-nums font-mono font-medium">
+                      {skp.dosenNuptk && skp.dosenNuptk.trim() !== '-'
+                        ? `NUPTK: ${skp.dosenNuptk}`
+                        : skp.dosenNip && skp.dosenNip.trim() !== '-'
+                        ? `NIP: ${skp.dosenNip}`
+                        : 'NUPTK: -'}
+                    </div>
                   </td>
                   <td>
                     <span className="badge-pill badge-pill--blue">{skp.dosenProdi}</span>

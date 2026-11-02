@@ -60,7 +60,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     const cleanPass = passVal.trim();
 
     if (!cleanId) {
-      setErrorMessage("Silakan masukkan Email Institusi atau NIP Anda.");
+      setErrorMessage("Silakan masukkan Email Institusi atau NUPTK Anda.");
       return;
     }
     if (!cleanPass) {
@@ -74,7 +74,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       if (result && !result.success) {
         setErrorMessage(
           result.message ||
-            "Data yang Anda masukkan tidak dikenali. Silakan periksa kembali Email/NIP dan kata sandi Anda.",
+            "Data yang Anda masukkan tidak dikenali. Silakan periksa kembali Email/NUPTK dan kata sandi Anda.",
         );
       }
     } catch (err: any) {
@@ -194,7 +194,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
           {/* Form Login */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-            {/* Input NIP atau Email Akun */}
+            {/* Input NUPTK atau Email Akun */}
             <div className="form-field">
               <label className="form-label" htmlFor="input-identifier">
                 Email Institusi / NUPTK
@@ -219,7 +219,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     fontSize: "13.5px",
                     background: isLoading ? "var(--panel-bg)" : "#ffffff",
                   }}
-                  placeholder="Masukkan Email Institusi atau NUPTK"
+                  placeholder="Masukan Email Institusi atau NUPTK"
                   autoComplete="username"
                 />
                 <Mail

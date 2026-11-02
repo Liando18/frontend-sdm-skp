@@ -37,6 +37,7 @@ interface MonitoringSKPItem {
   id: string
   dosenId: string
   dosenNama: string
+  dosenNuptk?: string
   dosenNip: string
   dosenJabatan: string
   dosenProdi: string
@@ -156,7 +157,12 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
       dosenList.forEach((dosen) => {
         // Cari pengajuan SKP non-Draft milik dosen ini
         const userSkps = skpList.filter(
-          (s) => (s.dosenId === dosen.id || s.dosenNip === dosen.nip) && s.status && s.status !== 'Draft'
+          (s) =>
+            (s.dosenId === dosen.id ||
+              (dosen.nuptk && dosen.nuptk !== '-' && s.dosenNuptk && s.dosenNuptk === dosen.nuptk) ||
+              (dosen.nip && dosen.nip !== '-' && s.dosenNip && s.dosenNip === dosen.nip)) &&
+            s.status &&
+            s.status !== 'Draft'
         )
 
         if (userSkps.length > 0) {
@@ -165,6 +171,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
               id: skp.id,
               dosenId: dosen.id,
               dosenNama: skp.dosenNama || dosen.nama,
+              dosenNuptk: skp.dosenNuptk || dosen.nuptk || '',
               dosenNip: skp.dosenNip || dosen.nip,
               dosenJabatan: skp.dosenJabatan || dosen.jafung,
               dosenProdi: skp.dosenProdi || dosen.prodi,
@@ -185,6 +192,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             id: `belum-${dosen.id}`,
             dosenId: dosen.id,
             dosenNama: dosen.nama,
+            dosenNuptk: dosen.nuptk || '',
             dosenNip: dosen.nip,
             dosenJabatan: dosen.jafung,
             dosenProdi: dosen.prodi,
@@ -211,6 +219,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
         id: skp.id,
         dosenId: skp.dosenId,
         dosenNama: skp.dosenNama,
+        dosenNuptk: skp.dosenNuptk || '',
         dosenNip: skp.dosenNip,
         dosenJabatan: skp.dosenJabatan,
         dosenProdi: skp.dosenProdi,
@@ -282,11 +291,12 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase()
         const matchNama = (item.dosenNama || '').toLowerCase().includes(q)
-        const matchNip = (item.dosenNip || '').toLowerCase().includes(q)
+        const matchNuptk = Boolean(item.dosenNuptk && item.dosenNuptk.toLowerCase().includes(q))
+        const matchNip = Boolean(item.dosenNip && item.dosenNip !== '-' && item.dosenNip.toLowerCase().includes(q))
         const matchProdi = (item.dosenProdi || '').toLowerCase().includes(q)
         const matchJabatan = (item.dosenJabatan || '').toLowerCase().includes(q)
         const matchFakultas = (item.dosenFakultas || '').toLowerCase().includes(q)
-        if (!matchNama && !matchNip && !matchProdi && !matchJabatan && !matchFakultas) return false
+        if (!matchNama && !matchNuptk && !matchNip && !matchProdi && !matchJabatan && !matchFakultas) return false
       }
 
       return true
@@ -409,7 +419,13 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
               <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
                 {currentSelectedSKP.dosenNama}
               </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }}>NIP {currentSelectedSKP.dosenNip}</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--faint)' }} className="tabular-nums font-mono font-medium">
+                {currentSelectedSKP.dosenNuptk && currentSelectedSKP.dosenNuptk.trim() !== '-'
+                  ? `NUPTK: ${currentSelectedSKP.dosenNuptk}`
+                  : currentSelectedSKP.dosenNip && currentSelectedSKP.dosenNip.trim() !== '-'
+                  ? `NIP: ${currentSelectedSKP.dosenNip}`
+                  : 'NUPTK: -'}
+              </div>
             </div>
 
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-md)', background: 'var(--panel-hover)', border: '1px solid var(--hair)' }}>
@@ -952,8 +968,13 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
                   <tr key={item.id}>
                     <td>
                       <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{item.dosenNama}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                        NIP: {item.dosenNip || '-'} &bull; {item.dosenJabatan || 'Dosen'}
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }} className="tabular-nums font-mono font-medium">
+                        {item.dosenNuptk && item.dosenNuptk.trim() !== '-'
+                          ? `NUPTK: ${item.dosenNuptk}`
+                          : item.dosenNip && item.dosenNip.trim() !== '-'
+                          ? `NIP: ${item.dosenNip}`
+                          : 'NUPTK: -'}{' '}
+                        &bull; <span className="font-sans">{item.dosenJabatan || 'Dosen'}</span>
                       </div>
                     </td>
                     <td>

@@ -127,10 +127,17 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
   // 3. Filter daftar Ka.Prodi eksklusif sesuai ranah/wilayah
   const kaprodiList = useMemo(() => {
     return dosenList.filter((d) => {
+      // Dekan/KaCap tidak boleh memverifikasi dirinya sendiri di meja verifikasi
+      if (d.id === user.id) return false
+      if (user.nip && user.nip !== '-' && d.nip === user.nip) return false
+
       const isActualKaprodi = Boolean(
         d.isKaprodi ||
+        d.jabatanKampusId === 'jab-kaprodi' ||
         d.jabatanStruktural === 'Ketua Program Studi' ||
-        d.jabatan_struktural === 'Ketua Program Studi'
+        d.jabatan_struktural === 'Ketua Program Studi' ||
+        d.jabatanStruktural?.toLowerCase().includes('kaprodi') ||
+        d.jabatan_struktural?.toLowerCase().includes('kaprodi')
       )
       if (!isActualKaprodi) return false
 
@@ -172,22 +179,42 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
         return Boolean(matchFakId || matchFakName || matchProdiId)
       }
     })
-  }, [dosenList, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
+  }, [dosenList, user.id, user.nip, isKacap, userPsdkuId, userKampusName, psdkuProdiIds, dekanFakultasId, dekanFakultasName, fakultasProdiIds])
 
   // Kaprodi SKP list
   const kaprodiSKPs = useMemo(() => {
-    const kIds = new Set(kaprodiList.map((k) => k.id))
-    const kNips = new Set(kaprodiList.map((k) => k.nip).filter(Boolean))
-    const kNames = new Set(kaprodiList.map((k) => (k.nama || '').trim().toLowerCase()))
+    const kIds = new Set(kaprodiList.map((k) => k.id).filter(Boolean))
+    const kNuptks = new Set(
+      kaprodiList
+        .map((k) => k.nuptk)
+        .filter((n): n is string => typeof n === 'string' && n.trim() !== '-' && n.trim().length >= 10)
+    )
+    const kNips = new Set(
+      kaprodiList
+        .map((k) => (k.nip || '').trim())
+        .filter((nip): nip is string => Boolean(nip) && nip !== '-' && nip.length > 3)
+    )
+    const kNames = new Set(
+      kaprodiList
+        .map((k) => (k.nama || '').trim().toLowerCase())
+        .filter((nama): nama is string => Boolean(nama) && nama.length > 3)
+    )
 
     return skpList.filter((s) => {
-      return (
-        (s.dosenId && kIds.has(s.dosenId)) ||
-        (s.dosenNip && kNips.has(s.dosenNip)) ||
-        (s.dosenNama && kNames.has(s.dosenNama.trim().toLowerCase()))
-      )
+      // Dekan/KaCap tidak boleh menilai dirinya sendiri di meja review
+      if (s.dosenId === user.id) return false
+      if (user.nuptk && user.nuptk !== '-' && s.dosenNuptk === user.nuptk) return false
+      if (user.nip && user.nip !== '-' && s.dosenNip === user.nip) return false
+      if (user.name && (s.dosenNama || '').trim().toLowerCase() === user.name.trim().toLowerCase()) return false
+
+      const matchId = Boolean(s.dosenId && kIds.has(s.dosenId))
+      const matchNuptk = Boolean(s.dosenNuptk && s.dosenNuptk.trim() !== '-' && kNuptks.has(s.dosenNuptk.trim()))
+      const matchNip = Boolean(s.dosenNip && s.dosenNip !== '-' && kNips.has(s.dosenNip.trim()))
+      const matchName = Boolean(s.dosenNama && kNames.has(s.dosenNama.trim().toLowerCase()))
+
+      return matchId || matchNuptk || matchNip || matchName
     })
-  }, [skpList, kaprodiList])
+  }, [skpList, kaprodiList, user.id, user.nuptk, user.nip, user.name])
 
   const filteredKaprodiSKPs = useMemo(() => {
     return kaprodiSKPs.filter((s) => {
@@ -195,7 +222,8 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
       if (!q) return true
       return (
         (s.dosenNama || '').toLowerCase().includes(q) ||
-        (s.dosenNip || '').toLowerCase().includes(q) ||
+        (s.dosenNuptk && s.dosenNuptk.toLowerCase().includes(q)) ||
+        (s.dosenNip && s.dosenNip !== '-' && s.dosenNip.toLowerCase().includes(q)) ||
         (s.dosenProdi || '').toLowerCase().includes(q)
       )
     })
@@ -613,7 +641,13 @@ export const DashboardDekan: React.FC<DashboardDekanProps> = ({
                   <tr key={skp.id}>
                     <td>
                       <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: '13px' }}>{skp.dosenNama}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>NIP: {skp.dosenNip || '-'}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }} className="tabular-nums font-mono font-medium">
+                        {skp.dosenNuptk && skp.dosenNuptk.trim() !== '-'
+                          ? `NUPTK: ${skp.dosenNuptk}`
+                          : skp.dosenNip && skp.dosenNip.trim() !== '-'
+                          ? `NIP: ${skp.dosenNip}`
+                          : 'NUPTK: -'}
+                      </div>
                     </td>
                     <td>
                       <span className="badge-pill badge-pill--blue">{skp.dosenProdi || '-'}</span>
