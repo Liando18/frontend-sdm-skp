@@ -764,19 +764,9 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
           </div>
 
           {/* Period Filter for Kaprodi */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#f8fafc',
-              border: '1px solid var(--hair-strong)',
-              borderRadius: 'var(--r-md)',
-              padding: '3px 10px',
-            }}
-          >
-            <Filter size={12} style={{ color: 'var(--muted)' }} />
-            <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Periode:</span>
+          <div className="filter-pill-container">
+            <Filter size={13} style={{ color: 'var(--brand-600)' }} />
+            <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 700 }}>Periode:</span>
 
             <select
               value={selectedSemester}
@@ -785,11 +775,12 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
                 border: 'none',
                 background: 'transparent',
                 outline: 'none',
-                fontSize: '12px',
+                fontSize: '12.5px',
                 fontWeight: 700,
                 color: 'var(--navy-900)',
                 cursor: 'pointer',
-                padding: '2px',
+                padding: '2px 6px',
+                borderRadius: '9999px',
               }}
               aria-label="Pilih Semester"
             >
@@ -798,7 +789,7 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
               <option value="Ganjil">Semester Ganjil</option>
             </select>
 
-            <span style={{ color: 'var(--hair-strong)' }}>|</span>
+            <span style={{ color: '#cbd5e1', fontWeight: 300 }}>|</span>
 
             <select
               value={selectedTahun}
@@ -807,11 +798,12 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
                 border: 'none',
                 background: 'transparent',
                 outline: 'none',
-                fontSize: '12px',
+                fontSize: '12.5px',
                 fontWeight: 700,
                 color: 'var(--navy-900)',
                 cursor: 'pointer',
-                padding: '2px',
+                padding: '2px 6px',
+                borderRadius: '9999px',
               }}
               aria-label="Pilih Tahun Akademik"
             >

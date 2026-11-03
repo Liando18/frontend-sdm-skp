@@ -111,7 +111,7 @@ export const SelectDropdown = React.forwardRef<HTMLSelectElement, SelectDropdown
               color: disabled ? '#94a3b8' : !value && placeholder ? '#94a3b8' : '#0f172a',
               background: disabled ? '#f8fafc' : '#ffffff',
               border: `1px solid ${error ? '#ef4444' : '#cbd5e1'}`,
-              borderRadius: 8,
+              borderRadius: 12,
               outline: 'none',
               appearance: 'none',
               boxSizing: 'border-box',

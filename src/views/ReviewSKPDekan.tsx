@@ -726,18 +726,14 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
               Tahun Ajaran
             </span>
             <select
-              className="custom-select"
+              className="custom-select custom-select--pill"
               style={{
                 height: 38,
                 width: 'auto',
                 minWidth: 150,
                 fontSize: '13px',
                 fontWeight: 600,
-                padding: '6px 32px 6px 12px',
-                borderRadius: 'var(--r-md)',
                 background: '#ffffff',
-                border: '1px solid var(--hair-strong)',
-                boxShadow: 'var(--shadow-xs)',
               }}
               value={selectedTahun}
               onChange={(e) => setSelectedTahun(e.target.value)}

@@ -403,8 +403,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 600,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
               }}
             >
@@ -428,8 +428,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 500,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}
@@ -455,8 +455,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 500,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}
@@ -482,8 +482,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 500,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}
@@ -509,8 +509,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 500,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}
@@ -536,8 +536,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 500,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}
@@ -563,8 +563,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 500,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}
@@ -590,8 +590,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 fontSize: '12px',
                 fontWeight: 600,
                 width: '100%',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--hair-strong)',
+                borderRadius: '12px',
+                border: '1px solid #cbd5e1',
                 background: '#ffffff',
                 textOverflow: 'ellipsis',
               }}

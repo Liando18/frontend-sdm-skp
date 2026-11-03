@@ -291,18 +291,7 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
 
           {/* Filter Semester & Tahun Ajaran */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                background: '#ffffff',
-                border: '1.5px solid #cbd5e1',
-                boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)',
-                borderRadius: '10px',
-                padding: '4px 12px',
-              }}
-            >
+            <div className="filter-pill-container">
               <Filter size={13} style={{ color: 'var(--brand-600)' }} />
               <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 700 }}>Periode:</span>
 
@@ -317,7 +306,8 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
                   fontWeight: 700,
                   color: 'var(--navy-900)',
                   cursor: 'pointer',
-                  padding: '2px 4px',
+                  padding: '2px 6px',
+                  borderRadius: '9999px',
                 }}
                 aria-label="Pilih Semester"
               >
@@ -338,7 +328,8 @@ export const DashboardDosen: React.FC<DashboardDosenProps> = ({
                   fontWeight: 700,
                   color: 'var(--navy-900)',
                   cursor: 'pointer',
-                  padding: '2px 4px',
+                  padding: '2px 6px',
+                  borderRadius: '9999px',
                 }}
                 aria-label="Pilih Tahun Akademik"
               >
