@@ -404,14 +404,17 @@ export async function exportSKPToExcel(skp: PengajuanSKP) {
   sheet.getCell(`B${currentRow}`).value = skp.dosenNama
   sheet.getCell(`B${currentRow}`).font = { name: 'Arial', size: 9.5, bold: true, underline: true }
 
-  sheet.getCell(`G${currentRow}`).value = '-'
+  const penilaiNama = skp.penilaiNama || (skp as any).penilai_nama || '-'
+  const penilaiNip = skp.penilaiNip || (skp as any).penilai_nip || (skp as any).penilai_nuptk || '-'
+
+  sheet.getCell(`G${currentRow}`).value = penilaiNama
   sheet.getCell(`G${currentRow}`).font = { name: 'Arial', size: 9.5, bold: true, underline: true }
 
   currentRow++
   sheet.getCell(`B${currentRow}`).value = `NUPTK: ${skp.dosenNuptk || (skp as any).dosen_nuptk || '-'}`
   sheet.getCell(`B${currentRow}`).font = { name: 'Arial', size: 8.5 }
 
-  sheet.getCell(`G${currentRow}`).value = `NUPTK: -`
+  sheet.getCell(`G${currentRow}`).value = `NIP/NUPTK: ${penilaiNip}`
   sheet.getCell(`G${currentRow}`).font = { name: 'Arial', size: 8.5 }
 
   // 7. CATATAN PENGISIAN RESMI

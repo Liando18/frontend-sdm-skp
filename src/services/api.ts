@@ -69,11 +69,35 @@ export const api = {
       }
     },
     getDemoUsers: () => request<Record<string, UserSession>>('/auth/demo-users'),
-    changePassword: (payload: { current_password: string; password: string; password_confirmation: string }) =>
-      request<{ success: boolean; message: string; user?: Partial<UserSession> }>('/auth/change-password', {
+    changePassword: async (payload: { current_password: string; password: string; password_confirmation: string }) => {
+      const res = await request<{ success: boolean; message: string; user?: Partial<UserSession>; token?: string }>('/auth/change-password', {
         method: 'POST',
         body: JSON.stringify(payload),
-      }),
+      })
+      if (res && res.token) {
+        saveAuthToken(res.token)
+      }
+      return res
+    },
+    updateProfile: async (payload: {
+      name: string
+      nip: string
+      nuptk?: string
+      email: string
+      phone?: string
+      password?: string
+      password_confirmation?: string
+      current_password?: string
+    }) => {
+      const res = await request<{ success: boolean; message: string; user: UserSession; token?: string }>('/profile/update', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      if (res && res.token) {
+        saveAuthToken(res.token)
+      }
+      return res
+    },
     uploadSignature: async (file: File, meta?: { userId?: string; nip?: string; email?: string }) => {
       const formData = new FormData()
       formData.append('signature', file)

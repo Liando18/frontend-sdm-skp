@@ -3,7 +3,7 @@ import { Search, Eye, X, RotateCcw, AlertCircle, Building2 } from 'lucide-react'
 import { PenilaianKuesioner, Dosen } from '../types'
 import { useStaggerEntrance } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
-import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS, getDynamicAcademicYearList } from '../utils/academicYear'
 
 interface KelolaPenilaianKuesionerProps {
   penilaianList: PenilaianKuesioner[]
@@ -28,12 +28,7 @@ export const KelolaPenilaianKuesioner: React.FC<KelolaPenilaianKuesionerProps> =
 }) => {
   // Extract Dynamic Filter Lists
   const availableYears = useMemo(() => {
-    return Array.from(
-      new Set([
-        ...penilaianList.map((p) => p.tahun).filter(Boolean),
-        ...DEFAULT_TAHUN_AJARAN_OPTIONS,
-      ])
-    ).sort().reverse()
+    return getDynamicAcademicYearList(penilaianList.map((p) => p.tahun))
   }, [penilaianList])
 
   const availableProdis = useMemo(() => {

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { Printer, ArrowLeft, ShieldCheck, GraduationCap, Users, Building2 } from 'lucide-react'
 import { Role, UserSession } from '../types'
 import { getStoredUserSession } from '../utils/authStorage'
+import { getDeviceLatestAcademicYear } from '../constants/academic'
 
 interface StepDetail {
   no: number
@@ -545,7 +546,7 @@ export const CetakPanduanStandaloneView: React.FC = () => {
           <div style={{ marginTop: 4 }}>
             <span className="badge-dokumen">STATUS: PANDUAN OPERASIONAL RESMI</span>
             <span style={{ margin: '0 6px', color: '#94a3b8' }}>&bull;</span>
-            <span className="badge-dokumen">EDISI: SEMESTER GENAP TA 2025/2026</span>
+            <span className="badge-dokumen">EDISI: TA {getDeviceLatestAcademicYear()}</span>
           </div>
         </div>
 

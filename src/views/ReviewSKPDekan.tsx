@@ -20,6 +20,7 @@ import { FormulirCetakSKP } from '../components/FormulirCetakSKP'
 import { openPrintSKP } from '../utils/printSKP'
 import { useStaggerEntrance } from '../utils/animations'
 import { sanitizeUrl, resolveStorageUrl } from '../utils/security'
+import { getDynamicAcademicYearList, getDefaultAcademicYear } from '../constants/academic'
 
 interface ReviewSKPDekanProps {
   user: UserSession
@@ -60,12 +61,11 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
   const [printSKPTarget, setPrintSKPTarget] = useState<PengajuanSKP | null>(null)
 
   const availableYears = useMemo(() => {
-    const years = Array.from(new Set([...skpList.map((s) => s.tahunAkademik).filter(Boolean), '2026/2027', '2025/2026', '2024/2025']))
-    return years.sort().reverse()
+    return getDynamicAcademicYearList(skpList.map((s) => s.tahunAkademik))
   }, [skpList])
 
-  // Filters: Tahun Ajaran, Semester, Search
-  const [selectedTahun, setSelectedTahun] = useState<string>(availableYears[0] || '2026/2027')
+  // Filters: Tahun Ajaran (default dinamis berdasarkan perangkat), Semester, Search
+  const [selectedTahun, setSelectedTahun] = useState<string>(() => getDefaultAcademicYear())
   const [selectedSemester, setSelectedSemester] = useState<'Semua' | 'Genap' | 'Ganjil'>('Semua')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -292,7 +292,8 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
       await onApproveByDekan(currentReviewSKP.id, dekanNotes, ttdPreview)
       setConfirmApprove(false)
       setViewMode('list')
-      onShowToast(`SKP Ka Prodi ${currentReviewSKP.dosenNama} telah disetujui & disahkan ${roleLabel} dengan TTD digital!`)
+    } catch {
+      // Error is caught and notified via showToast in App.tsx; keep modal open for retry
     } finally {
       setIsSubmitting(false)
     }
@@ -305,7 +306,8 @@ export const ReviewSKPDekan: React.FC<ReviewSKPDekanProps> = ({
       await onRejectByDekan(currentReviewSKP.id, dekanNotes)
       setConfirmReject(false)
       setViewMode('list')
-      onShowToast(`SKP Ka Prodi ${currentReviewSKP.dosenNama} dikembalikan untuk revisi.`)
+    } catch {
+      // Error is caught and notified via showToast in App.tsx; keep modal open for retry
     } finally {
       setIsSubmitting(false)
     }

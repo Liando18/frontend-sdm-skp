@@ -12,6 +12,7 @@ import { useStaggerEntrance } from '../utils/animations'
 import { CetakTranskripKuesioner } from '../components/CetakTranskripKuesioner'
 import { openPrintTranskrip } from '../utils/printTranskrip'
 import { getBerakhlakDimensions } from '../utils/berakhlak'
+import { getDynamicAcademicYearList, getDefaultAcademicYear } from '../constants/academic'
 
 interface HasilKinerjaTahunanSelfProps {
   user: UserSession
@@ -32,11 +33,10 @@ export const HasilKinerjaTahunanSelf: React.FC<HasilKinerjaTahunanSelfProps> = (
   )
 
   const availableYears = useMemo(() => {
-    const years = Array.from(new Set([...penilaianList.map((p) => p.tahun).filter(Boolean), '2026/2027', '2025/2026', '2024/2025']))
-    return years.sort().reverse()
+    return getDynamicAcademicYearList(penilaianList.map((p) => p.tahun))
   }, [penilaianList])
 
-  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
+  const [selectedTahun, setSelectedTahun] = useState<string>(() => getDefaultAcademicYear())
   const [showCetakTranskrip, setShowCetakTranskrip] = useState(false)
 
   // Find user's annual evaluation for selected academic year

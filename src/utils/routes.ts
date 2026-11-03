@@ -164,3 +164,119 @@ export function getPathFromNavId(navId: string, role?: Role): string {
   if (match) return match.path
   return `/${navId.replace(/_/g, '-')}`
 }
+
+/**
+ * Resolves legacy or aliased nav IDs into canonical active nav IDs for the given role.
+ */
+export function resolveCanonicalNavId(navId: string, role: Role): string {
+  // Legacy & Alias Resolution
+  if (navId === 'kelola-skp-dosen' || navId === 'skp-self' || navId === 'skp-saya') {
+    if (role === 'dosen') return 'skp-dosen-self'
+    if (role === 'kaprodi') return 'skp-kaprodi-self'
+    if (role === 'dekan') return 'skp-dekan-self'
+    return 'skp-sdm-self'
+  }
+
+  if (navId === 'review-skp' || navId === 'review-skp-kaprodi') {
+    if (role === 'dekan') return 'review-skp-dekan'
+    if (role === 'kaprodi') return 'review-skp-kaprodi'
+    if (role === 'sdm') return 'skp-dosen'
+    return 'skp-dosen-self'
+  }
+
+  if (navId === 'review-skp-dekan') {
+    if (role === 'dekan') return 'review-skp-dekan'
+    if (role === 'kaprodi') return 'review-skp-kaprodi'
+    if (role === 'sdm') return 'skp-dosen'
+    return 'dashboard'
+  }
+
+  if (navId === 'hasil-kinerja-tahunan' || navId === 'hasil-kinerja' || navId === 'kinerja-tahunan') {
+    if (role === 'dosen') return 'hasil-kinerja-dosen'
+    if (role === 'kaprodi') return 'hasil-kinerja-kaprodi'
+    if (role === 'dekan') return 'hasil-kinerja-dekan'
+    return 'hasil-kinerja-sdm'
+  }
+
+  if (
+    navId === 'kelola-kuesioner-kaprodi' ||
+    navId === 'kuesioner-review' ||
+    navId === 'evaluasi-kinerja' ||
+    navId === 'evaluasi-kaprodi'
+  ) {
+    if (role === 'kaprodi') return 'kuesioner-kaprodi'
+    if (role === 'dekan') return 'kuesioner-dekan'
+    if (role === 'sdm') return 'penilaian-kuesioner'
+    return 'hasil-kinerja-dosen'
+  }
+
+  if (navId === 'cek-hasil-kuesioner-dekan') {
+    if (role === 'dekan') return 'kuesioner-dekan'
+    if (role === 'kaprodi') return 'kuesioner-kaprodi'
+    if (role === 'sdm') return 'penilaian-kuesioner'
+    return 'hasil-kinerja-dosen'
+  }
+
+  if (navId === 'kelola-penilaian-kuesioner' || navId === 'monitoring-kinerja') {
+    if (role === 'sdm') return 'penilaian-kuesioner'
+    if (role === 'kaprodi') return 'kuesioner-kaprodi'
+    if (role === 'dekan') return 'kuesioner-dekan'
+    return 'dashboard'
+  }
+
+  if (navId === 'kelola-dosen') {
+    return role === 'sdm' ? 'data-dosen' : 'dashboard'
+  }
+
+  if (navId === 'monitoring-skp') {
+    if (role === 'sdm') return 'skp-dosen'
+    if (role === 'kaprodi') return 'review-skp-kaprodi'
+    if (role === 'dekan') return 'review-skp-dekan'
+    return 'skp-dosen-self'
+  }
+
+  if (navId === 'indikator-kinerja') {
+    return role === 'sdm' ? 'indikator-kuesioner' : 'dashboard'
+  }
+
+  return navId
+}
+
+/**
+ * Validates if a canonical navId is permitted for the given role.
+ */
+export function isNavIdAllowedForRole(navId: string, role: Role): boolean {
+  const common = [
+    'dashboard',
+    'profil',
+    'keamanan',
+    'panduan',
+    'cetak-skp',
+    'cetak-output-final',
+    'cetak-transkrip',
+    'cetak-panduan',
+  ]
+  if (common.includes(navId)) return true
+
+  switch (role) {
+    case 'dosen':
+      return ['skp-dosen-self', 'hasil-kinerja-dosen'].includes(navId)
+    case 'kaprodi':
+      return ['skp-kaprodi-self', 'review-skp-kaprodi', 'kuesioner-kaprodi', 'hasil-kinerja-kaprodi'].includes(navId)
+    case 'dekan':
+      return ['skp-dekan-self', 'review-skp-dekan', 'kuesioner-dekan', 'hasil-kinerja-dekan'].includes(navId)
+    case 'sdm':
+      return [
+        'skp-sdm-self',
+        'hasil-kinerja-sdm',
+        'data-dosen',
+        'skp-dosen',
+        'penilaian-kuesioner',
+        'komponen-skp',
+        'indikator-kuesioner',
+        'laporan',
+      ].includes(navId)
+    default:
+      return false
+  }
+}

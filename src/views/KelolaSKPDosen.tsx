@@ -20,7 +20,7 @@ import { openPrintSKP } from '../utils/printSKP'
 import { useStaggerEntrance } from '../utils/animations'
 import { sanitizeUrl } from '../utils/security'
 import { TablePagination } from '../components/TablePagination'
-import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS, getDefaultAcademicYear } from '../utils/academicYear'
 
 interface KelolaSKPDosenProps {
   skpList: PengajuanSKP[]
@@ -199,7 +199,7 @@ export const KelolaSKPDosen: React.FC<KelolaSKPDosenProps> = ({
             dosenFakultas: dosen.fakultas || '',
             dosenKampus: dosen.kampus || '',
             semester: selectedSemester !== 'Semua' ? selectedSemester : 'Ganjil',
-            tahunAkademik: selectedTahun !== 'Semua' ? selectedTahun : (availableYears[0] || '2026/2027'),
+            tahunAkademik: selectedTahun !== 'Semua' ? selectedTahun : (availableYears[0] || getDefaultAcademicYear()),
             totalSksRealisasi: 0,
             nilaiKinerjaSKP: 0,
             status: 'Belum Mengajukan',

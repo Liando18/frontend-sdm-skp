@@ -5,7 +5,7 @@ import { CetakOutputFinalTahunan, OutputFinalData } from '../components/CetakOut
 import { openPrintOutputFinal } from '../utils/printOutputFinal'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
-import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS, getDefaultAcademicYear, getDynamicAcademicYearList } from '../utils/academicYear'
 
 interface LaporanViewProps {
   dosenList: Dosen[]
@@ -22,14 +22,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   prodiList: prodiListProp,
   onShowToast,
 }) => {
-  // Opsi Filter Dinamis dari Data Kepegawaian Dosen
-  const availableYears = Array.from(
-    new Set([
-      ...skpList.map((s) => s.tahunAkademik).filter(Boolean),
-      ...penilaianList.map((p) => p.tahun).filter(Boolean),
-      ...DEFAULT_TAHUN_AJARAN_OPTIONS,
+  // Opsi Filter Dinamis dari Data Kepegawaian Dosen (Dinamis dari perangkat)
+  const availableYears = useMemo(() => {
+    return getDynamicAcademicYearList([
+      ...skpList.map((s) => s.tahunAkademik),
+      ...penilaianList.map((p) => p.tahun),
     ])
-  ).sort().reverse()
+  }, [skpList, penilaianList])
 
   const availableFakultas = Array.from(new Set(dosenList.map((d) => d.fakultas).filter(Boolean))) as string[]
 
@@ -42,8 +41,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const availableGolongans = Array.from(new Set(dosenList.map((d) => d.golongan).filter(Boolean))) as string[]
   const availableStatusPegawai = Array.from(new Set(dosenList.map((d) => d.status).filter(Boolean))) as string[]
 
-  // State Filter
-  const [selectedTahun, setSelectedTahun] = useState('2026/2027')
+  // State Filter (default: tahun terbaru dinamis dari perangkat)
+  const [selectedTahun, setSelectedTahun] = useState(() => getDefaultAcademicYear())
   const [selectedFakultas, setSelectedFakultas] = useState('Semua')
   const [selectedProdi, setSelectedProdi] = useState('Semua')
   const [selectedKampus, setSelectedKampus] = useState('Semua')

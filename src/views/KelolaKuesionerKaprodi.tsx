@@ -22,7 +22,7 @@ interface KelolaKuesionerKaprodiProps {
   onShowToast: (msg: string) => void
 }
 
-import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS, getDefaultAcademicYear } from '../utils/academicYear'
 
 const TAHUN_AJARAN_OPTIONS = DEFAULT_TAHUN_AJARAN_OPTIONS
 
@@ -35,7 +35,7 @@ export const KelolaKuesionerKaprodi: React.FC<KelolaKuesionerKaprodiProps> = ({
   onSaveKuesioner,
   onShowToast,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
+  const [selectedTahun, setSelectedTahun] = useState<string>(() => getDefaultAcademicYear())
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'evaluate'>('list')
   const [activeDosen, setActiveDosen] = useState<Dosen | null>(null)

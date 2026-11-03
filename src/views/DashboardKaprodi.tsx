@@ -23,6 +23,7 @@ import {
   Filter,
 } from 'lucide-react'
 import { UserSession, PengajuanSKP, Dosen, PenilaianKuesioner } from '../types'
+import { getDynamicAcademicYearList, getDefaultAcademicYear } from '../constants/academic'
 import { getAvatarSrc } from '../utils/security'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 import { TablePagination } from '../components/TablePagination'
@@ -57,16 +58,13 @@ export const DashboardKaprodi: React.FC<DashboardKaprodiProps> = ({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
-  // Period Filter: Semester & Tahun Akademik
+  // Period Filter: Semester & Tahun Akademik (Dinamis dari kalender perangkat)
   const availableTahunList = useMemo(() => {
-    const fromDb = Array.from(new Set(skpList.map((s) => s.tahunAkademik).filter(Boolean)))
-    const standard = ['2026/2027', '2025/2026', '2024/2025']
-    const merged = Array.from(new Set([...fromDb, ...standard]))
-    return merged.sort().reverse()
+    return getDynamicAcademicYearList(skpList.map((s) => s.tahunAkademik))
   }, [skpList])
 
   const [selectedSemester, setSelectedSemester] = useState<'Semua' | 'Genap' | 'Ganjil'>('Semua')
-  const [selectedTahun, setSelectedTahun] = useState<string>(availableTahunList[0] || '2025/2026')
+  const [selectedTahun, setSelectedTahun] = useState<string>(() => getDefaultAcademicYear())
   const [showQuickMenu, setShowQuickMenu] = useState(false)
 
   // Identifikasi ranah wilayah Ka.Prodi (PSDKU vs Pusat)

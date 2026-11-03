@@ -23,6 +23,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { Dosen, PengajuanSKP } from '../types'
+import { getDeviceCurrentSemester, getDeviceLatestAcademicYear } from '../constants/academic'
 import { useStaggerEntrance, useCountUp, useInteractiveCards } from '../utils/animations'
 
 interface DashboardSDMProps {
@@ -77,7 +78,7 @@ export const DashboardSDM: React.FC<DashboardSDMProps> = ({
   }, [dosenList])
 
   const latestSkp = skpList[0]
-  const activePeriode = latestSkp ? `${latestSkp.semester} ${latestSkp.tahunAkademik}` : 'Semester Genap 2025/2026'
+  const activePeriode = latestSkp ? `${latestSkp.semester} ${latestSkp.tahunAkademik}` : `Semester ${getDeviceCurrentSemester()} ${getDeviceLatestAcademicYear()}`
 
   const formatProdiName = (p: string) => {
     return p

@@ -35,7 +35,7 @@ interface CekHasilKuesionerDekanProps {
   onShowToast: (msg: string) => void
 }
 
-import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS, getDefaultAcademicYear } from '../utils/academicYear'
 
 const TAHUN_AJARAN_OPTIONS = DEFAULT_TAHUN_AJARAN_OPTIONS
 
@@ -51,7 +51,7 @@ export const CekHasilKuesionerDekan: React.FC<CekHasilKuesionerDekanProps> = ({
   onSavePenilaian,
   onShowToast,
 }) => {
-  const [selectedTahun, setSelectedTahun] = useState<string>('2026/2027')
+  const [selectedTahun, setSelectedTahun] = useState<string>(() => getDefaultAcademicYear())
   const [searchQuery, setSearchQuery] = useState('')
   const [activeDetailItem, setActiveDetailItem] = useState<{
     dosen: Dosen

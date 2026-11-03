@@ -1,9 +1,5 @@
 import React, { useState } from 'react'
 import {
-  Lock,
-  Eye,
-  EyeOff,
-  CheckCircle2,
   Building,
   Mail,
   GraduationCap,
@@ -12,15 +8,9 @@ import {
   ShieldCheck,
   Check,
   Copy,
-  AlertTriangle,
   Sparkles,
-  Globe,
-  Clock,
   FileBadge,
   User,
-  Shield,
-  Activity,
-  FileCheck,
   PenTool,
   UploadCloud,
   Camera,
@@ -28,48 +18,61 @@ import {
   X,
   Lightbulb,
   Info,
-  Image as ImageIcon,
+  Phone,
 } from 'lucide-react'
 import { UserSession } from '../types'
 import { api } from '../services/api'
 import { resolveStorageUrl, getAvatarSrc } from '../utils/security'
-import { getStoredUserSession, saveUserSession } from '../utils/authStorage'
+import { saveUserSession } from '../utils/authStorage'
 
 interface ProfilViewProps {
   user: UserSession
-  mode?: 'profil' | 'keamanan'
-  initialTab?: 'keamanan' | 'ttd' | 'profil' | 'mitigasi'
+  initialTab?: 'profil' | 'ttd'
   onShowToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void
   onUpdateUser?: (updated: UserSession) => void
 }
 
 export const ProfilView: React.FC<ProfilViewProps> = ({
   user,
-  mode = 'profil',
-  initialTab,
+  initialTab = 'profil',
   onShowToast,
   onUpdateUser,
 }) => {
-  const defaultInitial = initialTab || (user.mustChangePassword ? 'keamanan' : (mode === 'keamanan' ? 'keamanan' : 'profil'))
-  const [activeTab, setActiveTab] = useState<'keamanan' | 'ttd' | 'profil' | 'mitigasi'>(defaultInitial)
+  const [activeTab, setActiveTab] = useState<'profil' | 'ttd'>(initialTab)
 
   React.useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab)
-    } else if (user.mustChangePassword || mode === 'keamanan') {
-      setActiveTab((prev) => (prev === 'keamanan' || prev === 'mitigasi' ? prev : 'keamanan'))
-    } else {
-      setActiveTab((prev) => (prev === 'profil' || prev === 'ttd' ? prev : 'profil'))
     }
-  }, [mode, initialTab, user.mustChangePassword])
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showCurrent, setShowCurrent] = useState(false)
-  const [showNew, setShowNew] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  }, [initialTab])
+
+  // Form State untuk Edit Identitas Pegawai (Bisa Diedit Seluruh Role)
+  const [formName, setFormName] = useState(user.name || '')
+  const [formNip, setFormNip] = useState(user.nip || '')
+  const [formNuptk, setFormNuptk] = useState(user.nuptk || '')
+  const [formEmail, setFormEmail] = useState(user.email || '')
+  const [formPhone, setFormPhone] = useState(user.phone || '')
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [hasProfileChanges, setHasProfileChanges] = useState(false)
   const [isCopiedNip, setIsCopiedNip] = useState(false)
+
+  React.useEffect(() => {
+    setFormName(user.name || '')
+    setFormNip(user.nip || '')
+    setFormNuptk(user.nuptk || '')
+    setFormEmail(user.email || '')
+    setFormPhone(user.phone || '')
+  }, [user])
+
+  React.useEffect(() => {
+    const isChanged =
+      formName !== (user.name || '') ||
+      formNip !== (user.nip || '') ||
+      formNuptk !== (user.nuptk || '') ||
+      formEmail !== (user.email || '') ||
+      formPhone !== (user.phone || '')
+    setHasProfileChanges(isChanged)
+  }, [formName, formNip, formNuptk, formEmail, formPhone, user])
 
   // Foto Profil State
   const avatarInputRef = React.useRef<HTMLInputElement>(null)
@@ -231,19 +234,20 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
     }
   }
 
-  const handleUsePresetSignature = () => {
-    const safeName = encodeURIComponent(user.name.split(',')[0] || user.name)
-    const presetSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="70"><path d="M12 45 Q 50 12 90 42 T 160 20" fill="none" stroke="%230f223d" stroke-width="2.6"/><text x="14" y="62" font-family="sans-serif" font-weight="bold" font-size="10.5" fill="%23c2410c">TTD Resmi: ${safeName}</text></svg>`
-    
-    setSignatureUrl(presetSvg)
-    onUpdateUser?.({
-      ...user,
-      signatureUrl: presetSvg,
-    })
-    onShowToast('Preset tanda tangan institusi berhasil diterapkan di profil Anda!', 'success')
+  const handleUsePresetSignature = async () => {
+    try {
+      const svgPreset = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="220" height="80"><path d="M15 50 Q 40 10 80 45 T 150 25 T 205 40" fill="none" stroke="%230f223d" stroke-width="3"/><path d="M70 42 Q 85 65 110 50" fill="none" stroke="%230f223d" stroke-width="2.5"/><text x="20" y="72" font-family="sans-serif" font-weight="bold" font-size="11" fill="%23c2410c">TTD RESMI INSTITUSI UBK</text></svg>`
+      setSignatureUrl(svgPreset)
+      onUpdateUser?.({
+        ...user,
+        signatureUrl: svgPreset,
+      })
+      onShowToast('Preset tanda tangan resmi institusi berhasil diaktifkan.', 'success')
+    } catch {
+      onShowToast('Gagal memuat preset tanda tangan', 'error')
+    }
   }
 
-  // Copy NIP to clipboard
   const handleCopyNip = () => {
     if (user.nip) {
       navigator.clipboard.writeText(user.nip)
@@ -253,105 +257,58 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
     }
   }
 
-  // Calculate password strength
-  const getPasswordStrength = (pass: string) => {
-    if (!pass) return { score: 0, label: 'Belum diisi', color: '#94a3b8', width: '0%' }
-    let score = 0
-    if (pass.length >= 6) score += 1
-    if (pass.length >= 8) score += 1
-    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 1
-    if (/[0-9]/.test(pass)) score += 1
-    if (/[^A-Za-z0-9]/.test(pass)) score += 1
-
-    if (score <= 1) return { score: 1, label: 'Sangat Lemah', color: '#ef4444', width: '25%' }
-    if (score === 2) return { score: 2, label: 'Cukup', color: '#f59e0b', width: '50%' }
-    if (score === 3 || score === 4) return { score: 3, label: 'Kuat', color: '#10b981', width: '75%' }
-    return { score: 4, label: 'Sangat Kuat', color: '#059669', width: '100%' }
-  }
-
-  const passwordStrength = getPasswordStrength(newPassword)
-
-  // Quick Auto-fill Dummy Password (for testing)
-  const handleAutoFillDummyPassword = () => {
-    setCurrentPassword(user.nip || '198104152011011002')
-    const testNewPass = 'Ubk@2026Maju'
-    setNewPassword(testNewPass)
-    setConfirmPassword(testNewPass)
-    onShowToast('Data dummy kata sandi berhasil diisi otomatis! Silakan klik Simpan.', 'info')
-  }
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  // Handler Simpan Pembaruan Profil (Nama, NIP, NUPTK, Email, Phone)
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!currentPassword) {
-      onShowToast('Silakan masukkan kata sandi saat ini.', 'warning')
+    if (!formName.trim()) {
+      onShowToast('Nama lengkap pegawai wajib diisi.', 'warning')
       return
     }
 
-    if (newPassword.length < 6) {
-      onShowToast('Kata sandi baru minimal harus terdiri dari 6 karakter.', 'warning')
+    if (!formNip.trim()) {
+      onShowToast('Nomor Induk Pegawai (NIP) wajib diisi.', 'warning')
       return
     }
 
-    if (newPassword !== confirmPassword) {
-      onShowToast('Konfirmasi kata sandi baru tidak cocok. Periksa kembali.', 'error')
+    if (!formEmail.trim() || !formEmail.includes('@')) {
+      onShowToast('Email resmi institusi tidak valid.', 'warning')
       return
     }
 
-    if (newPassword === currentPassword) {
-      onShowToast('Kata sandi baru tidak boleh sama dengan kata sandi saat ini.', 'warning')
-      return
-    }
-
-    setIsSubmitting(true)
-
+    setIsSavingProfile(true)
     try {
-      try {
-        const res = await api.auth.changePassword({
-          current_password: currentPassword,
-          password: newPassword,
-          password_confirmation: confirmPassword,
-        })
-        if (res && res.message) {
-          onShowToast(res.message, 'success')
-        } else {
-          onShowToast('Kata sandi berhasil diperbarui di sistem server!', 'success')
-        }
-      } catch (err: unknown) {
-        const errMessage = err instanceof Error ? err.message : 'Gagal memperbarui kata sandi di server'
-        if (errMessage.includes('tidak sesuai')) {
-          onShowToast(errMessage, 'error')
-          setIsSubmitting(false)
-          return
-        }
-        // Fallback local persistence
-        const storedMap = JSON.parse(localStorage.getItem('ubk_user_passwords') || '{}')
-        const accountKey = user.nip || user.email
-        storedMap[accountKey] = newPassword
-        localStorage.setItem('ubk_user_passwords', JSON.stringify(storedMap))
-        onShowToast('Kata sandi baru Anda berhasil diperbarui!', 'success')
-      }
-
-      onUpdateUser?.({
-        ...user,
-        mustChangePassword: false,
+      const res = await api.auth.updateProfile({
+        name: formName.trim(),
+        nip: formNip.trim(),
+        nuptk: formNuptk.trim() || undefined,
+        email: formEmail.trim(),
+        phone: formPhone.trim() || undefined,
       })
-      const stored = getStoredUserSession()
-      if (stored) {
+
+      if (res && res.user) {
+        onUpdateUser?.(res.user)
         try {
-          stored.mustChangePassword = false
-          saveUserSession(stored)
+          saveUserSession(res.user)
         } catch {}
       }
 
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch {
-      onShowToast('Terjadi kesalahan saat memproses perubahan kata sandi.', 'error')
+      onShowToast(res.message || 'Data profil dan identitas kepegawaian berhasil diperbarui!', 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal memperbarui data profil ke server'
+      onShowToast(msg, 'error')
     } finally {
-      setIsSubmitting(false)
+      setIsSavingProfile(false)
     }
+  }
+
+  const handleResetProfileForm = () => {
+    setFormName(user.name || '')
+    setFormNip(user.nip || '')
+    setFormNuptk(user.nuptk || '')
+    setFormEmail(user.email || '')
+    setFormPhone(user.phone || '')
+    onShowToast('Formulir telah dikembalikan ke data awal.', 'info')
   }
 
   const roleBadgeLabel = () => {
@@ -389,7 +346,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          {/* Avatar Pegawai dengan Tombol Edit Foto */}
+          {/* Avatar Pegawai dengan Tombol Edit Foto Tunggal */}
           <div style={{ position: 'relative' }}>
             <input
               type="file"
@@ -462,11 +419,10 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                 display: 'grid',
                 placeItems: 'center',
                 cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.18)',
-                transition: 'transform 0.15s ease',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
               }}
-              title="Klik untuk ubah foto profil"
-              aria-label="Ubah foto profil"
+              title="Ganti foto profil akun"
+              aria-label="Pilih foto baru"
             >
               <Camera size={13} />
             </button>
@@ -474,57 +430,72 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
 
           {/* Info Pegawai */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
               <span
                 style={{
-                  background: 'var(--brand-50)',
-                  color: 'var(--brand-700)',
-                  border: '1px solid var(--brand-100)',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--r-full)',
                   fontSize: '11px',
                   fontWeight: 700,
-                  letterSpacing: '0.02em',
+                  color: 'var(--brand-700)',
+                  background: 'var(--brand-100)',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--r-sm)',
                 }}
               >
                 {roleBadgeLabel()}
               </span>
+
               <span
                 style={{
-                  background: '#ecfdf5',
-                  color: '#065f46',
-                  border: '1px solid #d1fae5',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--r-full)',
                   fontSize: '11px',
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  color: '#15803d',
+                  background: '#dcfce7',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--r-sm)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                 }}
               >
-                <ShieldCheck size={12} color="#10b981" />
+                <ShieldCheck size={12} />
                 <span>Pegawai Aktif</span>
               </span>
             </div>
 
-            <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
               {user.name}
             </h1>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '6px', fontSize: '13px', color: 'var(--muted)', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                fontSize: '12.5px',
+                color: 'var(--muted)',
+                marginTop: '6px',
+                flexWrap: 'wrap',
+              }}
+            >
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <IdCard size={14} color="var(--brand-600)" />
                 <span>NIP:</span>
-                <strong style={{ color: 'var(--ink)', fontFamily: 'monospace' }}>{user.nip || '198104152011011002'}</strong>
+                <strong style={{ color: 'var(--ink)', fontFamily: 'monospace' }}>{user.nip || '-'}</strong>
               </span>
+              {user.nuptk && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <GraduationCap size={14} color="var(--brand-600)" />
+                  <span>NUPTK:</span>
+                  <strong style={{ color: 'var(--ink)', fontFamily: 'monospace' }}>{user.nuptk}</strong>
+                </span>
+              )}
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <Mail size={14} color="var(--brand-600)" />
                 <span>{user.email}</span>
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <Building size={14} color="var(--brand-600)" />
-                <span>{user.prodi || 'Direktorat SDM'}</span>
+                <span>{user.prodi || (user.fakultas ? `Fakultas ${user.fakultas}` : 'Direktorat SDM')}</span>
               </span>
             </div>
 
@@ -611,6 +582,29 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
             <span>Ubah Foto Profil</span>
           </button>
 
+          {user.avatar && !user.avatar.endsWith('user.svg') && !user.avatar.endsWith('user.png') && user.avatar.length > 5 && !previewAvatarUrl && (
+            <button
+              type="button"
+              onClick={handleResetAvatar}
+              disabled={isUploadingAvatar}
+              className="brand-btn brand-btn--outline"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                color: 'var(--muted)',
+                background: '#ffffff',
+              }}
+              title="Kembalikan ke avatar profil semula"
+            >
+              <RotateCcw size={14} />
+              <span>Reset Avatar</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleCopyNip}
@@ -633,450 +627,65 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* TAB NAVIGATION: DATA PROFIL / KEAMANAN                   */}
+      {/* TAB NAVIGATION: PROFIL & TTD ONLY (KEAMANAN TERISOLASI)   */}
       {/* ========================================================= */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--hair)', paddingBottom: '2px', overflowX: 'auto' }}>
-        {(!mode || mode === 'profil') && (
-          <>
-            <button
-              type="button"
-              onClick={() => setActiveTab('profil')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                borderRadius: 'var(--r-md) var(--r-md) 0 0',
-                border: 'none',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: activeTab === 'profil' ? '#ffffff' : 'transparent',
-                color: activeTab === 'profil' ? 'var(--brand-600)' : 'var(--muted)',
-                borderBottom: activeTab === 'profil' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-                boxShadow: activeTab === 'profil' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <User size={16} />
-              <span>Identitas &amp; Kepegawaian</span>
-            </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('profil')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: 'var(--r-md) var(--r-md) 0 0',
+            border: 'none',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            background: activeTab === 'profil' ? '#ffffff' : 'transparent',
+            color: activeTab === 'profil' ? 'var(--brand-600)' : 'var(--muted)',
+            borderBottom: activeTab === 'profil' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+            boxShadow: activeTab === 'profil' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <User size={16} />
+          <span>Identitas &amp; Kepegawaian</span>
+        </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('ttd')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                borderRadius: 'var(--r-md) var(--r-md) 0 0',
-                border: 'none',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: activeTab === 'ttd' ? '#ffffff' : 'transparent',
-                color: activeTab === 'ttd' ? 'var(--brand-600)' : 'var(--muted)',
-                borderBottom: activeTab === 'ttd' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-                boxShadow: activeTab === 'ttd' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <PenTool size={16} />
-              <span>Tanda Tangan Digital (TTD)</span>
-            </button>
-          </>
-        )}
-
-        {(!mode || mode === 'keamanan') && (
-          <>
-            <button
-              type="button"
-              onClick={() => setActiveTab('keamanan')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                borderRadius: 'var(--r-md) var(--r-md) 0 0',
-                border: 'none',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: activeTab === 'keamanan' ? '#ffffff' : 'transparent',
-                color: activeTab === 'keamanan' ? 'var(--brand-600)' : 'var(--muted)',
-                borderBottom: activeTab === 'keamanan' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-                boxShadow: activeTab === 'keamanan' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <KeyRound size={16} />
-              <span>Ganti Kata Sandi &amp; Akses</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('mitigasi')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                borderRadius: 'var(--r-md) var(--r-md) 0 0',
-                border: 'none',
-                fontSize: '13.5px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                background: activeTab === 'mitigasi' ? '#ffffff' : 'transparent',
-                color: activeTab === 'mitigasi' ? 'var(--brand-600)' : 'var(--muted)',
-                borderBottom: activeTab === 'mitigasi' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
-                boxShadow: activeTab === 'mitigasi' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <ShieldCheck size={16} />
-              <span>Audit Keamanan Produksi</span>
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          onClick={() => setActiveTab('ttd')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 18px',
+            borderRadius: 'var(--r-md) var(--r-md) 0 0',
+            border: 'none',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            background: activeTab === 'ttd' ? '#ffffff' : 'transparent',
+            color: activeTab === 'ttd' ? 'var(--brand-600)' : 'var(--muted)',
+            borderBottom: activeTab === 'ttd' ? '2.5px solid var(--brand-600)' : '2.5px solid transparent',
+            boxShadow: activeTab === 'ttd' ? '0 -2px 6px -1px rgba(0,0,0,0.03)' : 'none',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <PenTool size={16} />
+          <span>Tanda Tangan Digital (TTD)</span>
+        </button>
       </div>
-
-      {/* ========================================================= */}
-      {/* TAB 1: FORM GANTI KATA SANDI (DENGAN TOMBOL AUTO DUMMY)   */}
-      {/* ========================================================= */}
-      {activeTab === 'keamanan' && (
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
-          {/* Card Form Ganti Sandi (Card Putih) */}
-          <div
-            className="panel"
-            style={{
-              background: '#ffffff',
-              padding: '24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              borderRadius: 'var(--r-xl)',
-              border: '1px solid var(--hair)',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            {user.mustChangePassword && (
-              <div
-                style={{
-                  marginBottom: '18px',
-                  padding: '14px 18px',
-                  borderRadius: 'var(--r-md)',
-                  background: 'var(--status-warning-bg)',
-                  border: '1px solid var(--status-warning-border)',
-                  color: 'var(--status-warning-ink)',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '12px',
-                  fontSize: '12.5px',
-                  lineHeight: '1.5',
-                }}
-              >
-                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--status-warning-ink)' }} />
-                <div>
-                  <strong style={{ display: 'block', marginBottom: '3px', fontSize: '13px' }}>
-                    Kewajiban Penggantian Kata Sandi Awal Institusi
-                  </strong>
-                  Akun Anda saat ini masih menggunakan kredensial bawaan awal institusi (NUPTK/NIP). Demi menjaga integritas data kepegawaian dan kepatuhan standar keamanan informasi Universitas Bhakti Kencana, Anda diwajibkan untuk membuat kata sandi baru yang unik dan aman.
-                </div>
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: 10 }}>
-              <div>
-                <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
-                  Perbarui Kata Sandi Akun
-                </h2>
-                <p style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: '3px', margin: 0 }}>
-                  Perbarui kata sandi akun Anda secara berkala untuk menjaga keamanan data kepegawaian.
-                </p>
-              </div>
-
-              {/* Tombol Dummy Auto Fill untuk Pengujian */}
-              <button
-                type="button"
-                onClick={handleAutoFillDummyPassword}
-                className="brand-btn"
-                style={{
-                  padding: '6px 12px',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  background: '#fef3c7',
-                  color: '#b45309',
-                  border: '1px solid #fde68a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                }}
-                title="Isi otomatis data password dummy untuk pengujian"
-              >
-                <Sparkles size={13} className="text-amber-600 animate-pulse" />
-                <span>Isi Dummy Password</span>
-              </button>
-            </div>
-
-            <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Kata Sandi Saat Ini */}
-              <div className="form-field">
-                <label className="form-label" htmlFor="cur-pass">
-                  Kata Sandi Saat Ini *
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    id="cur-pass"
-                    type={showCurrent ? 'text' : 'password'}
-                    required
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="custom-input"
-                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '42px', fontSize: '13.5px' }}
-                    placeholder="Masukkan kata sandi saat ini"
-                    autoComplete="current-password"
-                  />
-                  <Lock size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrent((p) => !p)}
-                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
-                    aria-label={showCurrent ? 'Sembunyikan sandi' : 'Tampilkan sandi'}
-                  >
-                    {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Kata Sandi Baru */}
-              <div className="form-field">
-                <label className="form-label" htmlFor="new-pass">
-                  Kata Sandi Baru *
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    id="new-pass"
-                    type={showNew ? 'text' : 'password'}
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="custom-input"
-                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '42px', fontSize: '13.5px' }}
-                    placeholder="Minimal 6 karakter kombinasi"
-                    autoComplete="new-password"
-                  />
-                  <KeyRound size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                  <button
-                    type="button"
-                    onClick={() => setShowNew((p) => !p)}
-                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
-                    aria-label={showNew ? 'Sembunyikan sandi' : 'Tampilkan sandi'}
-                  >
-                    {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-
-                {/* Strength Meter Bar */}
-                {newPassword && (
-                  <div style={{ marginTop: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginBottom: '4px' }}>
-                      <span style={{ color: 'var(--muted)' }}>Kekuatan Kata Sandi:</span>
-                      <strong style={{ color: passwordStrength.color }}>{passwordStrength.label}</strong>
-                    </div>
-                    <div style={{ height: '5px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: passwordStrength.width,
-                          background: passwordStrength.color,
-                          transition: 'all 0.3s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Konfirmasi Kata Sandi Baru */}
-              <div className="form-field">
-                <label className="form-label" htmlFor="conf-pass">
-                  Konfirmasi Kata Sandi Baru *
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    id="conf-pass"
-                    type={showConfirm ? 'text' : 'password'}
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="custom-input"
-                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '42px', fontSize: '13.5px' }}
-                    placeholder="Ketik ulang kata sandi baru"
-                    autoComplete="new-password"
-                  />
-                  <CheckCircle2 size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm((p) => !p)}
-                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
-                    aria-label={showConfirm ? 'Sembunyikan sandi' : 'Tampilkan sandi'}
-                  >
-                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Checklist Validasi Realtime */}
-              <div
-                style={{
-                  background: 'var(--panel-hover)',
-                  border: '1px solid var(--hair)',
-                  borderRadius: 'var(--r-md)',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  fontSize: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', color: newPassword.length >= 6 ? '#10b981' : 'var(--muted)' }}>
-                  <Check size={14} strokeWidth={newPassword.length >= 6 ? 2.5 : 1.5} />
-                  <span>Minimal 6 karakter</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', color: /[0-9]/.test(newPassword) ? '#10b981' : 'var(--muted)' }}>
-                  <Check size={14} strokeWidth={/[0-9]/.test(newPassword) ? 2.5 : 1.5} />
-                  <span>Mengandung angka (0-9)</span>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '7px',
-                    color: newPassword && confirmPassword && newPassword === confirmPassword ? '#10b981' : 'var(--muted)',
-                  }}
-                >
-                  <Check size={14} strokeWidth={newPassword && confirmPassword && newPassword === confirmPassword ? 2.5 : 1.5} />
-                  <span>Konfirmasi kata sandi cocok</span>
-                </div>
-              </div>
-
-              {/* Tombol Simpan */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="brand-btn brand-btn--dark"
-                style={{
-                  justifyContent: 'center',
-                  minHeight: '44px',
-                  marginTop: '8px',
-                  opacity: isSubmitting ? 0.7 : 1,
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isSubmitting ? (
-                  <span>Menyimpan Perubahan...</span>
-                ) : (
-                  <>
-                    <KeyRound size={16} />
-                    <span>Perbarui Kata Sandi Akun</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Info Panduan Keamanan (Card Putih) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div
-              className="panel"
-              style={{
-                background: '#ffffff',
-                padding: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px',
-                borderRadius: 'var(--r-xl)',
-                border: '1px solid var(--hair)',
-                boxShadow: 'var(--shadow-xs)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '8px',
-                    background: '#eff6ff',
-                    color: '#2563eb',
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <ShieldCheck size={18} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>
-                    Kebijakan Keamanan Akun BKU
-                  </h3>
-                  <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0, marginTop: '2px' }}>
-                    Standar perlindungan data pegawai institusi
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ fontSize: '12.5px', color: 'var(--ink)', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand-500)', marginTop: '7px', flexShrink: 0 }} />
-                  <div>
-                    <strong>Proteksi Kredensial Terenkripsi:</strong> Seluruh akun dilindungi standar otentikasi ketat dan diverifikasi langsung ke server kepegawaian.
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand-500)', marginTop: '7px', flexShrink: 0 }} />
-                  <div>
-                    <strong>Enkripsi Modern:</strong> Seluruh kata sandi dienkripsi dengan algoritma satu arah <em>Bcrypt Cost 12</em> sehingga aman dari ancaman kebocoran hash.
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--brand-500)', marginTop: '7px', flexShrink: 0 }} />
-                  <div>
-                    <strong>Proteksi Brute-Force:</strong> Batas percobaan login maksimal 15 kali/menit untuk mencegah serangan tebakan otomatis.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: '#ffffff',
-                border: '1px solid #fed7aa',
-                borderRadius: 'var(--r-xl)',
-                padding: '18px 20px',
-                display: 'flex',
-                gap: '12px',
-                alignItems: 'flex-start',
-                boxShadow: 'var(--shadow-xs)',
-              }}
-            >
-              <AlertTriangle size={18} color="#ea580c" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#9a3412', margin: 0 }}>
-                  Jangan Bagikan Kredensial Anda
-                </h4>
-                <p style={{ fontSize: '12px', color: '#7c2d12', margin: 0, marginTop: '4px', lineHeight: 1.5 }}>
-                  Petugas Direktorat SDM maupun TI tidak akan pernah meminta kata sandi Anda melalui telepon, WhatsApp, atau email.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================= */}
       {/* TAB TTD: KELOLA TANDA TANGAN DIGITAL INSTITUSI RESMI       */}
       {/* ========================================================= */}
       {activeTab === 'ttd' && (
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '24px' }}>
           {/* Card 1: Pratinjau TTD Aktif Saat Ini */}
           <div
             className="panel"
@@ -1209,7 +818,7 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
               }}
             >
               <div style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <CheckCircle2 size={14} className="text-emerald-600" />
+                <Check size={14} className="text-emerald-600" />
                 <span>Alur Otomatisasi Tanda Tangan:</span>
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: '#475569' }}>
@@ -1234,105 +843,79 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
               gap: '18px',
             }}
           >
-            <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <UploadCloud size={18} className="text-orange-600" />
-                <span>Unggah Tanda Tangan Baru</span>
-              </h2>
-              <p style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: '3px', margin: 0 }}>
-                Berkas akan divalidasi dan disimpan langsung oleh server backend SDM UBK.
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'var(--brand-50)',
+                  color: 'var(--brand-600)',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                <UploadCloud size={20} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+                  Unggah Berkas Tanda Tangan
+                </h2>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                  Ganti atau perbarui tanda tangan digital resmi akun Anda
+                </p>
+              </div>
             </div>
 
-            {/* Area Unggah Berkas */}
+            {/* Input File Box */}
             <div
               style={{
                 border: '2px dashed var(--hair-strong)',
                 borderRadius: 'var(--r-lg)',
-                padding: '24px 16px',
+                padding: '24px 20px',
                 textAlign: 'center',
                 background: previewFileUrl ? '#f0fdf4' : '#fafbfc',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                position: 'relative',
               }}
-              onClick={() => document.getElementById('signature-file-input')?.click()}
+              onClick={() => document.getElementById('signature-input-field')?.click()}
             >
               <input
-                id="signature-file-input"
+                id="signature-input-field"
                 type="file"
                 accept="image/png,image/jpeg,image/jpg,image/webp"
-                style={{ display: 'none' }}
                 onChange={handleSelectSignatureFile}
+                style={{ display: 'none' }}
               />
 
               {previewFileUrl ? (
                 <div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', marginBottom: 8, textTransform: 'uppercase' }}>
-                    Pratinjau Berkas Siap Diunggah:
-                  </div>
                   <img
                     src={previewFileUrl}
-                    alt="Pratinjau Berkas Baru"
-                    style={{
-                      maxHeight: '90px',
-                      maxWidth: '220px',
-                      objectFit: 'contain',
-                      margin: '0 auto',
-                      borderRadius: 4,
-                      background: '#ffffff',
-                      padding: 6,
-                      boxShadow: 'var(--shadow-xs)',
-                    }}
+                    alt="Pratinjau Berkas"
+                    style={{ maxHeight: '75px', maxWidth: '200px', objectFit: 'contain', margin: '0 auto 10px' }}
                   />
-                  <div style={{ marginTop: 8, fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
-                    {selectedFile?.name} ({(Number(selectedFile?.size) / 1024).toFixed(1)} KB)
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#15803d' }}>
+                    Berkas baru siap disimpan: {selectedFile?.name}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                     Klik untuk mengganti berkas lain
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div
-                    style={{
-                      width: '46px',
-                      height: '46px',
-                      borderRadius: '50%',
-                      background: 'var(--brand-50)',
-                      color: 'var(--brand-600)',
-                      display: 'grid',
-                      placeItems: 'center',
-                      margin: '0 auto 10px',
-                    }}
-                  >
-                    <UploadCloud size={22} />
+                  <PenTool size={32} color="var(--brand-600)" style={{ margin: '0 auto 10px' }} />
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+                    Klik untuk memilih berkas tanda tangan
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--ink)' }}>
-                    Pilih Berkas Gambar TTD Anda
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 4 }}>
-                    Mendukung PNG, JPG, JPEG, atau WEBP (Maksimal 2MB)
-                  </div>
-                  <div
-                    style={{
-                      display: 'inline-block',
-                      marginTop: 10,
-                      padding: '5px 12px',
-                      borderRadius: 'var(--r-sm)',
-                      background: '#ffffff',
-                      border: '1px solid var(--hair-strong)',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      color: 'var(--ink)',
-                    }}
-                  >
-                    Telusuri Berkas di Komputer...
+                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '4px' }}>
+                    Format PNG, JPG, JPEG, atau WEBP (Maksimal 2MB)
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Rekomendasi Format */}
+            {/* Tips Hasil Terbaik */}
             <div style={{ fontSize: '11.5px', color: 'var(--muted)', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
               <Lightbulb size={14} color="#d97706" style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
@@ -1373,26 +956,43 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* TAB 2: IDENTITAS & KEPEGAWAIAN LENGKAP (CARD PUTIH)      */}
+      {/* TAB 1: IDENTITAS & KEPEGAWAIAN LENGKAP                   */}
       {/* ========================================================= */}
       {activeTab === 'profil' && (
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
-          {/* Card Foto Profil Pegawai */}
+        <div
+          style={{
+            width: '100%',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
+            gap: '24px',
+            alignItems: 'start',
+          }}
+        >
+          {/* Card Formulir Data Identitas Pegawai (Dapat Diedit Seluruh Role) */}
           <div
             className="panel"
             style={{
               background: '#ffffff',
-              padding: '24px 28px',
+              padding: '26px 28px',
               display: 'flex',
               flexDirection: 'column',
               gap: '20px',
               borderRadius: 'var(--r-xl)',
               border: '1px solid var(--hair)',
               boxShadow: 'var(--shadow-xs)',
-              gridColumn: '1 / -1',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px', flexWrap: 'wrap', gap: 12 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid var(--hair-subtle)',
+                paddingBottom: '14px',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div
                   style={{
@@ -1405,601 +1005,342 @@ export const ProfilView: React.FC<ProfilViewProps> = ({
                     placeItems: 'center',
                   }}
                 >
-                  <Camera size={20} />
+                  <IdCard size={20} />
                 </div>
                 <div>
                   <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
-                    Foto Profil Pegawai
+                    Perbarui Data Identitas Pegawai
                   </h2>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-                    Kelola foto profil resmi akun Anda untuk identitas portal kepegawaian dan cetak SKP
+                    Kelola nama, NIP, NUPTK, email, dan nomor kontak resmi Anda
                   </p>
                 </div>
               </div>
 
-              {/* Status Badge */}
-              <div>
-                {user.avatar && !user.avatar.endsWith('user.svg') && !user.avatar.endsWith('user.png') && user.avatar.length > 5 ? (
-                  <span
-                    style={{
-                      background: '#ecfdf5',
-                      color: '#065f46',
-                      border: '1px solid #d1fae5',
-                      padding: '4px 12px',
-                      borderRadius: 'var(--r-full)',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                    }}
-                  >
-                    <CheckCircle2 size={13} color="#10b981" />
-                    <span>Foto Khusus Terpasang</span>
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      background: '#f1f5f9',
-                      color: '#475569',
-                      border: '1px solid #e2e8f0',
-                      padding: '4px 12px',
-                      borderRadius: 'var(--r-full)',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                    }}
-                  >
-                    <span>Foto Profil Bawaan Sistem</span>
-                  </span>
-                )}
-              </div>
+              {hasProfileChanges && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#d97706',
+                    background: '#fef3c7',
+                    padding: '3px 10px',
+                    borderRadius: 'var(--r-full)',
+                    border: '1px solid #fde68a',
+                  }}
+                >
+                  Perubahan Belum Disimpan
+                </span>
+              )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
-              {/* Foto Display Box */}
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Nama Lengkap & Gelar */}
+              <div className="form-field">
+                <label className="form-label" htmlFor="input-profile-name">
+                  Nama Lengkap &amp; Gelar Resmi *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="input-profile-name"
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className="custom-input"
+                    style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px', width: '100%' }}
+                    placeholder="Contoh: Aprilian Gevindo, M.Kom"
+                  />
+                  <User size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--faint)', marginTop: '2px' }}>
+                  Nama dan gelar resmi yang disinkronkan ke lembar pengesahan dan cetak SKP.
+                </span>
+              </div>
+
+              {/* Grid 2 Kolom: NIP & NUPTK */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px' }}>
+                {/* NIP */}
+                <div className="form-field">
+                  <label className="form-label" htmlFor="input-profile-nip">
+                    Nomor Induk Pegawai (NIP) *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="input-profile-nip"
+                      type="text"
+                      required
+                      value={formNip}
+                      onChange={(e) => setFormNip(e.target.value)}
+                      className="custom-input"
+                      style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px', fontFamily: 'monospace', width: '100%' }}
+                      placeholder="Contoh: 198104152011011002"
+                    />
+                    <IdCard size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                  </div>
+                </div>
+
+                {/* NUPTK */}
+                <div className="form-field">
+                  <label className="form-label" htmlFor="input-profile-nuptk">
+                    NUPTK Pegawai / Dosen
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="input-profile-nuptk"
+                      type="text"
+                      value={formNuptk}
+                      onChange={(e) => setFormNuptk(e.target.value)}
+                      className="custom-input"
+                      style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px', fontFamily: 'monospace', width: '100%' }}
+                      placeholder="16 digit NUPTK resmi"
+                    />
+                    <GraduationCap size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid 2 Kolom: Email & No. HP / WhatsApp */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px' }}>
+                {/* Email */}
+                <div className="form-field">
+                  <label className="form-label" htmlFor="input-profile-email">
+                    Email Akun Institusi *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="input-profile-email"
+                      type="email"
+                      required
+                      value={formEmail}
+                      onChange={(e) => setFormEmail(e.target.value)}
+                      className="custom-input"
+                      style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px', width: '100%' }}
+                      placeholder="nama@bku.ac.id"
+                    />
+                    <Mail size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                  </div>
+                </div>
+
+                {/* Telepon */}
+                <div className="form-field">
+                  <label className="form-label" htmlFor="input-profile-phone">
+                    Nomor WhatsApp / Telepon
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="input-profile-phone"
+                      type="tel"
+                      value={formPhone}
+                      onChange={(e) => setFormPhone(e.target.value)}
+                      className="custom-input"
+                      style={{ paddingLeft: '38px', height: '42px', fontSize: '13.5px', width: '100%' }}
+                      placeholder="Contoh: 081234567890"
+                    />
+                    <Phone size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Tautan Cepat ke Pusat Keamanan Akun */}
               <div
                 style={{
-                  width: '96px',
-                  height: '96px',
-                  borderRadius: '24px',
-                  overflow: 'hidden',
+                  marginTop: '4px',
+                  padding: '14px 18px',
                   background: '#f8fafc',
-                  border: '2px solid var(--hair)',
-                  display: 'grid',
-                  placeItems: 'center',
-                  boxShadow: 'var(--shadow-sm)',
-                  flexShrink: 0,
-                  position: 'relative',
+                  borderRadius: 'var(--r-lg)',
+                  border: '1px solid var(--hair)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px',
                 }}
               >
-                <img
-                  src={previewAvatarUrl || getAvatarSrc(user.avatar)}
-                  alt={user.name}
-                  onError={(e) => {
-                    const target = e.currentTarget
-                    if (!target.src.endsWith('/user.svg')) {
-                      target.src = '/user.svg'
-                    }
-                  }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                {previewAvatarUrl && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div
                     style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      background: 'rgba(217, 119, 6, 0.92)',
-                      color: '#ffffff',
-                      fontSize: '9.5px',
-                      fontWeight: 800,
-                      textAlign: 'center',
-                      padding: '2px 0',
-                      letterSpacing: '0.04em',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: 'var(--brand-50)',
+                      color: 'var(--brand-600)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    PRATINJAU
+                    <KeyRound size={16} />
                   </div>
-                )}
-              </div>
-
-              {/* Action Controls & Information */}
-              <div style={{ flex: 1, minWidth: '260px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    className="brand-btn"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 16px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <UploadCloud size={15} />
-                    <span>Pilih Foto Baru</span>
-                  </button>
-
-                  {previewAvatarUrl && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleUploadAvatar}
-                        disabled={isUploadingAvatar}
-                        className="brand-btn"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '8px 16px',
-                          fontSize: '13px',
-                          fontWeight: 700,
-                          background: '#16a34a',
-                          color: '#ffffff',
-                          border: 'none',
-                          cursor: isUploadingAvatar ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        <Check size={15} />
-                        <span>{isUploadingAvatar ? 'Menyimpan...' : 'Simpan Foto'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleCancelAvatarSelection}
-                        disabled={isUploadingAvatar}
-                        className="brand-btn brand-btn--outline"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '8px 14px',
-                          fontSize: '13px',
-                          background: '#ffffff',
-                        }}
-                      >
-                        <X size={15} />
-                        <span>Batal</span>
-                      </button>
-                    </>
-                  )}
-
-                  {user.avatar && !user.avatar.endsWith('user.svg') && !user.avatar.endsWith('user.png') && user.avatar.length > 5 && !previewAvatarUrl && (
-                    <button
-                      type="button"
-                      onClick={handleResetAvatar}
-                      disabled={isUploadingAvatar}
-                      className="brand-btn brand-btn--outline"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 14px',
-                        fontSize: '12.5px',
-                        color: 'var(--muted)',
-                        background: '#ffffff',
-                      }}
-                      title="Kembalikan ke avatar profil semula"
-                    >
-                      <RotateCcw size={14} />
-                      <span>Kembali ke Avatar Profil Semula</span>
-                    </button>
-                  )}
+                  <div>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', display: 'block' }}>
+                      Pengaturan Kata Sandi &amp; Akses Akun
+                    </span>
+                    <span style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                      Ingin mengganti kata sandi atau memeriksa sesi? Kelola di Pusat Keamanan.
+                    </span>
+                  </div>
                 </div>
-
-                <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5 }}>
-                  <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Lightbulb size={14} color="#d97706" style={{ flexShrink: 0 }} />
-                    <span><strong>Ketentuan Berkas:</strong> Format diperbolehkan <code>PNG</code>, <code>JPG</code>, <code>JPEG</code>, atau <code>WEBP</code> dengan ukuran berkas maksimal <strong>2MB</strong>.</span>
-                  </p>
-                  <p style={{ margin: '6px 0 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Info size={14} color="var(--brand-600)" style={{ flexShrink: 0 }} />
-                    <span>Jika belum ada foto yang diunggah atau direset, sistem secara otomatis menampilkan avatar profil bawaan institusi.</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card Biodata Utama */}
-          <div
-            className="panel"
-            style={{
-              background: '#ffffff',
-              padding: '24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px',
-              borderRadius: 'var(--r-xl)',
-              border: '1px solid var(--hair)',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: 'var(--brand-50)',
-                  color: 'var(--brand-600)',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                <IdCard size={20} />
-              </div>
-              <div>
-                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
-                  Identitas Kepegawaian Resmi
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-                  Data pokok terintegrasi Pangkalan Data Pendidikan Tinggi (PDDIKTI)
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* NIP */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--faint)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <IdCard size={14} color="var(--brand-600)" />
-                    Nomor Induk Pegawai (NIP)
-                  </span>
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontSize: '10.5px',
-                      color: '#d97706',
-                      background: '#fef3c7',
-                      padding: '2px 8px',
-                      borderRadius: 'var(--r-full)',
-                      fontWeight: 600,
-                    }}
-                    title="NIP adalah identitas resmi permanen"
-                  >
-                    <Lock size={10} />
-                    Terkunci Permanen
-                  </span>
-                </label>
-                <div
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState({ nav: 'keamanan' }, '', '/akun/keamanan')
+                    window.dispatchEvent(new PopStateEvent('popstate'))
+                  }}
+                  className="brand-btn brand-btn--outline"
                   style={{
-                    padding: '10px 14px',
-                    background: 'var(--panel-hover)',
-                    border: '1px solid var(--hair)',
-                    borderRadius: 'var(--r-md)',
-                    fontSize: '14px',
+                    padding: '6px 14px',
+                    fontSize: '12px',
                     fontWeight: 700,
-                    color: 'var(--ink)',
-                    fontFamily: 'monospace',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>Buka Pusat Keamanan</span>
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="brand-btn brand-btn--dark"
+                  style={{
+                    padding: '10px 22px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    minHeight: '44px',
+                    cursor: isSavingProfile ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    gap: '8px',
                   }}
                 >
-                  <span>{user.nip || '198104152011011002'}</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyNip}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}
-                    title="Salin NIP"
-                  >
-                    <Copy size={14} />
-                  </button>
-                </div>
-              </div>
+                  <Check size={16} />
+                  <span>{isSavingProfile ? 'Menyimpan Perubahan...' : 'Simpan Perubahan Identitas'}</span>
+                </button>
 
-              {/* Email Institusi */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--faint)', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
-                  <Mail size={14} color="var(--brand-600)" />
-                  Email Akun Institusi
-                </label>
-                <div
+                <button
+                  type="button"
+                  onClick={handleResetProfileForm}
+                  disabled={isSavingProfile || !hasProfileChanges}
+                  className="brand-btn brand-btn--outline"
                   style={{
-                    padding: '10px 14px',
-                    background: 'var(--panel-hover)',
-                    border: '1px solid var(--hair)',
-                    borderRadius: 'var(--r-md)',
-                    fontSize: '13.5px',
-                    color: 'var(--ink)',
-                  }}
-                >
-                  {user.email}
-                </div>
-              </div>
-
-              {/* Homebase / Unit */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--faint)', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
-                  <Building size={14} color="var(--brand-600)" />
-                  Homebase Penugasan / Unit Kerja
-                </label>
-                <div
-                  style={{
-                    padding: '10px 14px',
-                    background: 'var(--panel-hover)',
-                    border: '1px solid var(--hair)',
-                    borderRadius: 'var(--r-md)',
-                    fontSize: '13.5px',
-                    color: 'var(--ink)',
+                    padding: '10px 18px',
+                    fontSize: '13px',
                     fontWeight: 600,
+                    minHeight: '44px',
+                    background: '#ffffff',
+                    color: 'var(--muted)',
+                    cursor: (!hasProfileChanges || isSavingProfile) ? 'not-allowed' : 'pointer',
+                    opacity: hasProfileChanges ? 1 : 0.6,
                   }}
                 >
-                  {user.prodi || (user.fakultas ? `Fakultas ${user.fakultas}` : 'Direktorat Sumber Daya Manusia')}
-                </div>
+                  <RotateCcw size={15} />
+                  <span>Reset Formulir</span>
+                </button>
               </div>
+            </form>
+          </div>
 
-              {/* Pangkat & Jabatan */}
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--faint)', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
-                  <GraduationCap size={14} color="var(--brand-600)" />
-                  Jabatan Fungsional &amp; Pangkat
-                </label>
+          {/* Kolom 2: Status Kepegawaian & Legalitas Resmi */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div
+              className="panel"
+              style={{
+                background: '#ffffff',
+                padding: '24px 28px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '18px',
+                borderRadius: 'var(--r-xl)',
+                border: '1px solid var(--hair)',
+                boxShadow: 'var(--shadow-xs)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px' }}>
                 <div
                   style={{
-                    padding: '10px 14px',
-                    background: 'var(--panel-hover)',
-                    border: '1px solid var(--hair)',
-                    borderRadius: 'var(--r-md)',
-                    fontSize: '13.5px',
-                    color: 'var(--ink)',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: '#f0fdf4',
+                    color: '#16a34a',
+                    display: 'grid',
+                    placeItems: 'center',
                   }}
                 >
-                  {user.rank || 'Penata Tk I / IIId (Lektor)'}
+                  <FileBadge size={20} />
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card Atribut Tambahan */}
-          <div
-            className="panel"
-            style={{
-              background: '#ffffff',
-              padding: '24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px',
-              borderRadius: 'var(--r-xl)',
-              border: '1px solid var(--hair)',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: '#f0fdf4',
-                  color: '#16a34a',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                <FileBadge size={20} />
-              </div>
-              <div>
-                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
-                  Legalitas &amp; Dokumen Kepegawaian
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-                  Kelayakan administratif Tridharma dan sertifikasi pendidik
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Status Ikatan Kerja
-                </div>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', marginTop: '2px' }}>
-                  Pegawai Tetap Yayasan (Dosen Tetap Universitas)
-                </div>
-              </div>
-
-              <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Hak Akses dan Otoritas Sistem
-                </div>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--brand-700)', marginTop: '2px' }}>
-                  {roleBadgeLabel()}
-                </div>
-              </div>
-
-              <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Pemberlakuan SKP &amp; Kuesioner
-                </div>
-                <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)', marginTop: '2px' }}>
-                  SKP Semesteran (Tridharma) &amp; Perilaku BerAKHLAK Tahunan
-                </div>
-              </div>
-
-              <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 'var(--r-md)', border: '1px dashed var(--hair)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '12.5px', fontWeight: 600 }}>
-                  <ShieldCheck size={16} />
-                  <span>Tanda Tangan Digital Tersertifikasi UBK</span>
-                </div>
-                <p style={{ fontSize: '11.5px', color: 'var(--muted)', margin: 0, marginTop: '4px' }}>
-                  Tanda tangan digital Anda aktif untuk pengesahan formulir capaian SKP secara elektronik.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* TAB 3: AUDIT KEAMANAN PRODUKSI & MITIGASI AKTIF          */}
-      {/* ========================================================= */}
-      {activeTab === 'mitigasi' && (
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
-          <div
-            className="panel"
-            style={{
-              background: '#ffffff',
-              padding: '24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              borderRadius: 'var(--r-xl)',
-              border: '1px solid var(--hair)',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: '#fef2f2',
-                  color: '#dc2626',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                <Shield size={20} />
-              </div>
-              <div>
-                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
-                  Mitigasi Keamanan Produksi Aktif
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-                  Perlindungan berlapis tingkat enterprise yang telah diimplementasikan
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)' }}>
-                <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                    Bcrypt Password Hashing (Cost 12)
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-                    Kata sandi dienkripsi dengan <em>salt</em> unik standar OWASP, aman dari ancaman pencurian hash.
-                  </div>
+                  <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+                    Legalitas &amp; Dokumen Kepegawaian
+                  </h2>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                    Kelayakan administratif Tridharma dan sertifikasi pendidik
+                  </p>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)' }}>
-                <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                    API Rate Limiting &amp; Anti Brute Force
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Status Ikatan Kerja
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-                    Route login dan ganti password dibatasi maksimal 10-15 percobaan per menit untuk mencegah <em>dictionary attack</em>.
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)' }}>
-                <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                    Laravel Sanctum Tokenized Session
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-                    Setiap sesi otentikasi dilengkapi token bearer acak yang terisolasi dan dapat dicabut sewaktu-waktu saat keluar.
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', marginTop: '2px' }}>
+                    Pegawai Tetap Yayasan (Dosen Tetap Universitas)
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)' }}>
-                <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                    Role-Based Access Control (RBAC)
+                <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Hak Akses &amp; Otoritas Sistem
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-                    Hak akses menu dan endpoint terikat kuat dengan role resmi akun di database, mencegah eskalasi wewenang ilegal.
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--brand-700)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShieldCheck size={16} />
+                    <span>{roleBadgeLabel()}</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Homebase Penugasan / Unit Kerja
+                  </div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', marginTop: '2px' }}>
+                    {user.prodi || (user.fakultas ? `Fakultas ${user.fakultas}` : 'Direktorat Sumber Daya Manusia')}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 16px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Jabatan Fungsional &amp; Pangkat
+                  </div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)', marginTop: '2px' }}>
+                    {user.rank || 'Penata Tk I / IIId (Lektor)'}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Status Sesi & Perangkat */}
-          <div
-            className="panel"
-            style={{
-              background: '#ffffff',
-              padding: '24px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              borderRadius: 'var(--r-xl)',
-              border: '1px solid var(--hair)',
-              boxShadow: 'var(--shadow-xs)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--hair-subtle)', paddingBottom: '14px' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: '#eff6ff',
-                  color: '#2563eb',
-                  display: 'grid',
-                  placeItems: 'center',
-                }}
-              >
-                <Activity size={20} />
-              </div>
-              <div>
-                <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
-                  Aktivitas Sesi Perangkat
-                </h2>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-                  Log perangkat yang sedang mengakses portal saat ini
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ padding: '14px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                    <Globe size={15} color="var(--brand-600)" />
-                    <span>Browser Web Aktif</span>
-                  </div>
-                  <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700, background: '#ecfdf5', padding: '2px 8px', borderRadius: 'var(--r-full)' }}>
-                    Online Sekarang
-                  </span>
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                  Alamat IP: 127.0.0.1 (Localhost / Jaringan Internal BKU)
-                </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--faint)', marginTop: '4px' }}>
-                  Protokol: HTTP/2 TLS 1.3 Terenkripsi
-                </div>
-              </div>
-
-              <div style={{ padding: '14px', background: 'var(--panel-hover)', borderRadius: 'var(--r-md)', border: '1px solid var(--hair)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
-                  <Clock size={15} color="var(--brand-600)" />
-                  <span>Waktu Login Terakhir</span>
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--ink)' }}>
-                  Hari ini, {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
-                </div>
+            {/* Catatan Sinkronisasi Resmi */}
+            <div
+              style={{
+                background: '#eff6ff',
+                borderRadius: 'var(--r-xl)',
+                padding: '18px 20px',
+                border: '1px solid #bfdbfe',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'flex-start',
+              }}
+            >
+              <Info size={18} color="#2563eb" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ fontSize: '12px', color: '#1e40af', lineHeight: 1.55 }}>
+                <strong style={{ display: 'block', fontSize: '12.5px', marginBottom: '3px' }}>
+                  Sinkronisasi Otomatis Antar Sistem
+                </strong>
+                Pembaruan NIP, NUPTK, nama, email, dan kontak Anda akan disinkronkan langsung ke akun login, profil dosen, serta lembar pengesahan dan cetak SKP resmi.
               </div>
             </div>
           </div>

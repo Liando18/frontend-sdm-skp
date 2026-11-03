@@ -27,6 +27,7 @@ const ReviewSKPDekan = React.lazy(() => import('./views/ReviewSKPDekan').then(m 
 const CekHasilKuesionerDekan = React.lazy(() => import('./views/CekHasilKuesionerDekan').then(m => ({ default: m.CekHasilKuesionerDekan })))
 const HasilKinerjaTahunanSelf = React.lazy(() => import('./views/HasilKinerjaTahunanSelf').then(m => ({ default: m.HasilKinerjaTahunanSelf })))
 const ProfilView = React.lazy(() => import('./views/ProfilView').then(m => ({ default: m.ProfilView })))
+const KeamananView = React.lazy(() => import('./views/KeamananView').then(m => ({ default: m.KeamananView })))
 const CetakSKPStandaloneView = React.lazy(() => import('./views/CetakSKPStandaloneView').then(m => ({ default: m.CetakSKPStandaloneView })))
 const CetakOutputFinalStandaloneView = React.lazy(() => import('./views/CetakOutputFinalStandaloneView').then(m => ({ default: m.CetakOutputFinalStandaloneView })))
 const CetakTranskripStandaloneView = React.lazy(() => import('./views/CetakTranskripStandaloneView').then(m => ({ default: m.CetakTranskripStandaloneView })))
@@ -35,7 +36,13 @@ const PanduanView = React.lazy(() => import('./views/PanduanView').then(m => ({ 
 import { HelpModal } from './components/HelpModal'
 import { DashboardSkeleton } from './components/Skeleton'
 import { AlertTriangle } from 'lucide-react'
-import { getNavIdFromPath, getPathFromNavId, ROUTE_ALIASES } from './utils/routes'
+import {
+  getNavIdFromPath,
+  getPathFromNavId,
+  ROUTE_ALIASES,
+  resolveCanonicalNavId,
+  isNavIdAllowedForRole,
+} from './utils/routes'
 import { deriveRealNotifications } from './utils/notifications'
 import { fetchOfficialRektor } from './utils/rektorData'
 import {
@@ -164,8 +171,14 @@ export default function App() {
         const canonical = ROUTE_ALIASES[p]
         window.history.replaceState({ nav: activeNav }, '', canonical)
       }
-      const n = getNavIdFromPath(window.location.pathname, currentRole)
-      setActiveNav(n)
+      const rawNav = getNavIdFromPath(window.location.pathname, currentRole)
+      const canonicalNav = resolveCanonicalNavId(rawNav, currentRole)
+      if (!isNavIdAllowedForRole(canonicalNav, currentRole)) {
+        setActiveNav('dashboard')
+        updateUrl('dashboard')
+      } else {
+        setActiveNav(canonicalNav)
+      }
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -189,7 +202,13 @@ export default function App() {
           window.history.replaceState({ nav: activeNav }, '', canonical)
         }
         const detected = getNavIdFromPath(window.location.pathname, currentRole)
-        setActiveNav(detected)
+        const canonicalNav = resolveCanonicalNavId(detected, currentRole)
+        if (!isNavIdAllowedForRole(canonicalNav, currentRole)) {
+          setActiveNav('dashboard')
+          updateUrl('dashboard')
+        } else {
+          setActiveNav(canonicalNav)
+        }
       }
     }
   }, [isLoggedIn, currentRole])
@@ -356,20 +375,29 @@ export default function App() {
   }, [isLoggedIn, currentRole, currentUser, skpList, penilaianList, dosenList, readNotifIds])
 
   const handleNavigate = (navId: string) => {
-    setActiveNav(navId)
-    updateUrl(navId)
+    const canonicalNav = resolveCanonicalNavId(navId, currentRole)
+    if (!isNavIdAllowedForRole(canonicalNav, currentRole)) {
+      showToast('Halaman tersebut tidak tersedia untuk hak akses Anda saat ini.', 'error')
+      setActiveNav('dashboard')
+      updateUrl('dashboard')
+      return
+    }
+
+    setActiveNav(canonicalNav)
+    updateUrl(canonicalNav)
 
     // Segarkan data SKP dari backend secara halus saat berpindah ke menu pemantauan / review
     if ([
       'review-skp-kaprodi',
       'review-skp-dekan',
       'monitoring-skp',
+      'skp-dosen',
       'skp-dosen-self',
       'skp-kaprodi-self',
       'skp-dekan-self',
       'skp-sdm-self',
       'dashboard',
-    ].includes(navId)) {
+    ].includes(canonicalNav)) {
       api.skp.list().then((fresh) => {
         if (Array.isArray(fresh) && fresh.length > 0) {
           setSkpList(fresh)
@@ -722,27 +750,35 @@ export default function App() {
   }
 
   const handleSubmitSKP = async (skpId: string, payload?: PengajuanSKP) => {
-    try {
-      const existing = skpList.find((s) => s.id === skpId)
-      const base = payload || existing
-      if (!base) return
+    const existing = skpList.find((s) => s.id === skpId)
+    const base = payload || existing
+    if (!base) return
 
-      const updated: PengajuanSKP = {
-        ...base,
-        id: skpId,
-        status: 'Diajukan',
-        tanggalPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+    const updated: PengajuanSKP = {
+      ...base,
+      id: skpId,
+      status: 'Diajukan',
+      tanggalPengajuan: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+    }
+
+    try {
+      // Single authoritative submission call (avoids redundant double delete/reinsert mutation)
+      let submitRes
+      if (existing) {
+        submitRes = await api.skp.submit(skpId, updated)
+      } else {
+        submitRes = await api.skp.create(updated)
       }
 
-      // Optimistically update local state so UI updates immediately
+      const saved = submitRes?.data || updated
       setSkpList((prev) => {
         const idx = prev.findIndex((s) => s.id === skpId)
         if (idx >= 0) {
           const next = [...prev]
-          next[idx] = updated
+          next[idx] = saved
           return next
         }
-        return [updated, ...prev]
+        return [saved, ...prev]
       })
 
       showToast(
@@ -751,23 +787,10 @@ export default function App() {
           : 'SKP berhasil diajukan ke atasan untuk dinilai!',
         'success'
       )
-
-      // Save complete updated SKP with items to backend
-      let res
-      if (existing) {
-        res = await api.skp.update(skpId, updated).catch(() => null)
-      } else {
-        res = await api.skp.create(updated).catch(() => null)
-      }
-
-      // Also call api.skp.submit with full updated payload
-      const submitRes = await api.skp.submit(skpId, updated).catch(() => null)
-      const saved = submitRes?.data || (res as { data?: PengajuanSKP })?.data
-      if (saved && saved.items) {
-        setSkpList((prev) => prev.map((s) => (s.id === skpId ? saved : s)))
-      }
     } catch (err: unknown) {
-      console.warn('Gagal mengajukan SKP ke backend:', err)
+      const msg = err instanceof Error ? err.message : 'Koneksi terganggu'
+      showToast(`Gagal mengajukan SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
@@ -794,6 +817,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal memvalidasi SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
@@ -820,14 +844,16 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal membatalkan penerbitan SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
   const handleApproveSKPByKaprodi = async (skpId: string, notes: string, ttdUrl?: string) => {
     const existing = skpList.find((s) => s.id === skpId)
     if (!existing) {
-      showToast('Data pengajuan SKP tidak ditemukan di database.', 'error')
-      return
+      const msg = 'Data pengajuan SKP tidak ditemukan di database.'
+      showToast(msg, 'error')
+      throw new Error(msg)
     }
 
     // Resolusi TTD Penilai (Kaprodi) dan Dosen yang dinilai murni dari profil database
@@ -858,6 +884,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal menilai SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
@@ -884,14 +911,16 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal mereview SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
   const handleApproveSKPByDekan = async (skpId: string, notes: string, ttdUrl?: string) => {
     const existing = skpList.find((s) => s.id === skpId)
     if (!existing) {
-      showToast('Data pengajuan SKP tidak ditemukan di database.', 'error')
-      return
+      const msg = 'Data pengajuan SKP tidak ditemukan di database.'
+      showToast(msg, 'error')
+      throw new Error(msg)
     }
 
     // Resolusi TTD Penilai (Dekan) dan Dosen/Ka.Prodi yang dinilai murni dari profil database
@@ -922,6 +951,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal mengesahkan SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
@@ -938,6 +968,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error'
       showToast(`Gagal mereview SKP: ${msg}`, 'error')
+      throw err
     }
   }
 
@@ -1196,10 +1227,9 @@ export default function App() {
             <DashboardSkeleton />
           ) : (
             <React.Suspense fallback={<DashboardSkeleton />}>
-              {(activeNav === 'profil' || activeNav === 'keamanan') && (
+              {activeNav === 'profil' && (
                 <ProfilView
                   user={currentUser}
-                  mode={activeNav === 'keamanan' ? 'keamanan' : 'profil'}
                   onShowToast={showToast}
                   onUpdateUser={(updated) => {
                     setCurrentUser(updated)
@@ -1207,6 +1237,20 @@ export default function App() {
                       saveUserSession(updated)
                     } catch {}
                   }}
+                />
+              )}
+
+              {activeNav === 'keamanan' && (
+                <KeamananView
+                  user={currentUser}
+                  onShowToast={showToast}
+                  onUpdateUser={(updated) => {
+                    setCurrentUser(updated)
+                    try {
+                      saveUserSession(updated)
+                    } catch {}
+                  }}
+                  onLogout={handleLogout}
                 />
               )}
 
@@ -1532,6 +1576,46 @@ export default function App() {
               )}
             </>
           )}
+
+              {/* Layer 3 Safe Fallback: Mencegah layar blank jika navigasi tak terduga */}
+              {!isNavIdAllowedForRole(activeNav, currentRole) && (
+                <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+                  <div
+                    style={{
+                      maxWidth: '480px',
+                      margin: '40px auto',
+                      background: 'var(--card-bg, #ffffff)',
+                      border: '1px solid var(--border, #e2e8f0)',
+                      borderRadius: 'var(--r-md, 8px)',
+                      padding: '32px 24px',
+                      boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05))',
+                    }}
+                  >
+                    <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--ink, #1e293b)', marginBottom: '8px' }}>
+                      Halaman Tidak Ditemukan
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--muted, #64748b)', marginBottom: '20px', lineHeight: 1.5 }}>
+                      Menu atau halaman yang Anda tuju tidak tersedia untuk peran {currentRole.toUpperCase()}. Silakan kembali ke Beranda.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate('dashboard')}
+                      style={{
+                        background: 'var(--accent, #1B2A4A)',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '9px 20px',
+                        borderRadius: 'var(--r-sm, 6px)',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Kembali ke Dashboard
+                    </button>
+                  </div>
+                </div>
+              )}
             </React.Suspense>
           )}
         </main>

@@ -233,18 +233,23 @@ export const Header: React.FC<HeaderProps> = ({
                       onMarkNotificationAsRead(n.id)
                       setShowNotifications(false)
                       if (!onSelectNav) return
-                      if (n.tag?.includes('SKP') || n.tag?.includes('Revisi')) {
-                        if (user.role === 'dosen') onSelectNav('kelola-skp-dosen')
-                        else if (user.role === 'kaprodi') onSelectNav('review-skp')
+
+                      const tag = n.tag || ''
+                      if (tag.includes('SKP') || tag.includes('Revisi')) {
+                        if (user.role === 'dosen') onSelectNav('skp-dosen-self')
+                        else if (user.role === 'kaprodi') onSelectNav('review-skp-kaprodi')
                         else if (user.role === 'dekan') onSelectNav('review-skp-dekan')
-                        else onSelectNav('kelola-skp-dosen')
-                      } else if (n.tag?.includes('Kuesioner')) {
-                        if (user.role === 'dosen') onSelectNav('hasil-kinerja-tahunan')
-                        else if (user.role === 'kaprodi') onSelectNav('kelola-kuesioner-kaprodi')
-                        else if (user.role === 'dekan') onSelectNav('cek-hasil-kuesioner-dekan')
-                        else onSelectNav('kelola-penilaian-kuesioner')
-                      } else if (n.tag?.includes('Dosen')) {
-                        if (user.role === 'sdm') onSelectNav('kelola-dosen')
+                        else onSelectNav('skp-dosen')
+                      } else if (tag.includes('Kuesioner') || tag.includes('Perilaku') || tag.includes('Kinerja')) {
+                        if (user.role === 'dosen') onSelectNav('hasil-kinerja-dosen')
+                        else if (user.role === 'kaprodi') onSelectNav('kuesioner-kaprodi')
+                        else if (user.role === 'dekan') onSelectNav('kuesioner-dekan')
+                        else onSelectNav('penilaian-kuesioner')
+                      } else if (tag.includes('Dosen')) {
+                        if (user.role === 'sdm') onSelectNav('data-dosen')
+                        else onSelectNav('dashboard')
+                      } else {
+                        onSelectNav('dashboard')
                       }
                     }
 

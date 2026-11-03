@@ -129,7 +129,7 @@ export const isKomponenTargetMatching = (
   return false
 }
 
-import { DEFAULT_TAHUN_AJARAN_OPTIONS } from '../utils/academicYear'
+import { DEFAULT_TAHUN_AJARAN_OPTIONS, getDefaultAcademicYear } from '../utils/academicYear'
 
 const TAHUN_AJARAN_OPTIONS = DEFAULT_TAHUN_AJARAN_OPTIONS
 
@@ -167,7 +167,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   onShowToast,
 }) => {
   const [selectedTahun, setSelectedTahun] = useState<string>(
-    mySKP?.tahunAkademik || TAHUN_AJARAN_OPTIONS[0]
+    () => getDefaultAcademicYear(TAHUN_AJARAN_OPTIONS)
   )
   const [selectedSemester, setSelectedSemester] = useState<'Genap' | 'Ganjil'>(
     (mySKP?.semester as 'Genap' | 'Ganjil') || 'Genap'
@@ -178,6 +178,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveSeqRef = useRef<number>(0)
 
   // State untuk deteksi tautan Google Drive / Bukti Dokumen
   const [driveCheckState, setDriveCheckState] = useState<
@@ -573,7 +574,9 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
 
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       setIsSaving(true)
-      saveTimeoutRef.current = setTimeout(() => {
+      const currentSeq = ++saveSeqRef.current
+
+      saveTimeoutRef.current = setTimeout(async () => {
         const newTotalRencana = computeSksTotal(updated, 'rencanaAwal', activeSKP.totalSksRencana || 14)
         const newTotalRealisasi = computeSksTotal(updated, 'realisasi', activeSKP.totalSksRealisasi || 14)
         const itemsWithTarget = updated.filter(
@@ -605,8 +608,15 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
           persentaseCapaian: newPersen,
           nilaiKinerjaSKP: newMutu,
         }
-        onUpdateSKP(updatedSKP)
-        setIsSaving(false)
+        try {
+          await onUpdateSKP(updatedSKP)
+        } catch {
+          // Handled gracefully
+        } finally {
+          if (saveSeqRef.current === currentSeq) {
+            setIsSaving(false)
+          }
+        }
       }, 700)
 
       return updated
