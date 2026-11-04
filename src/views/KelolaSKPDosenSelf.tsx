@@ -362,11 +362,10 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
     )
     if (found) {
       const cloned = { ...found }
-      // Self-healing: if penilai is Kaprodi and either empty or defaulted to Ade Iwan for another prodi or wrong campus
+      // Self-healing: if penilai is Kaprodi and either empty or mismatched with database record
       if (
         (!cloned.penilaiRole || cloned.penilaiRole === 'Kaprodi') &&
-        targetDosenProdi &&
-        (cloned.penilaiNama === 'Ade Iwan Mutiudin, M.Kep' || !cloned.penilaiNama || (realKaprodiNama !== 'Ketua Program Studi' && cloned.penilaiNama !== realKaprodiNama))
+        (!cloned.penilaiNama || (realKaprodiNama !== 'Ketua Program Studi' && cloned.penilaiNama !== realKaprodiNama))
       ) {
         cloned.penilaiNama = realKaprodiNama
         cloned.penilaiNip = realKaprodiNip
@@ -386,8 +385,7 @@ export const KelolaSKPDosenSelf: React.FC<KelolaSKPDosenSelfProps> = ({
       const cloned = { ...mySKP }
       if (
         (!cloned.penilaiRole || cloned.penilaiRole === 'Kaprodi') &&
-        targetDosenProdi &&
-        (cloned.penilaiNama === 'Ade Iwan Mutiudin, M.Kep' || !cloned.penilaiNama || (realKaprodiNama !== 'Ketua Program Studi' && cloned.penilaiNama !== realKaprodiNama))
+        (!cloned.penilaiNama || (realKaprodiNama !== 'Ketua Program Studi' && cloned.penilaiNama !== realKaprodiNama))
       ) {
         cloned.penilaiNama = realKaprodiNama
         cloned.penilaiNip = realKaprodiNip
